@@ -3,15 +3,18 @@
 // the on-chain guardian list, read through the chain port, is what refuses it there.
 import {
   buildGuardianServer,
+  chainPortFromConfig,
   loadGuardianConfig,
   openGuardianDb,
-  stubChainPort,
 } from '@keyline/guardian-core';
+import type { FastifyInstance } from 'fastify';
 
 const config = loadGuardianConfig(process.env);
 const db = openGuardianDb({ path: config.dbPath, kind: config.kind });
-const chain = stubChainPort();
-const app = buildGuardianServer({ config, db, chain });
+// Real adapter over @keyline/chain whenever RPC_URL is set; the SIMULATED stub only without one.
+let app: FastifyInstance | undefined;
+const chain = chainPortFromConfig(config, (msg, data) => app?.log.info(data ?? {}, msg));
+app = buildGuardianServer({ config, db, chain });
 
 await app.listen({ port: config.port, host: '127.0.0.1' });
 app.log.info(

@@ -7,22 +7,38 @@ import { z } from 'zod';
 
 export type GuardianKind = 'swissquote' | 'partner';
 
+/**
+ * How `POST /recoveries` confirms (docs/DECISIONS.md #15):
+ *  - 'signature' (default, Option A): return an EIP-712 ExecuteRecovery signature; the bank relayer submits it.
+ *  - 'onchain': the guardian EOA sends `confirmRecovery` itself (requires ETH on the guardian EOA).
+ */
+export type GuardianConfirmMode = 'signature' | 'onchain';
+
 export interface GuardianConfig {
   kind: GuardianKind;
   port: number;
-  /** Secret. Only ever handed to the chain adapter; never serialised. */
+  /** Secret. Only ever handed to the chain adapter / the typed-data signer; never serialised. */
   privateKey: Hex;
   /** The on-chain guardian EOA derived from the private key. */
   guardianAddress: Address;
   dbPath: string;
   bankVerdictAddress: Address;
   chainId: number;
-  rpcUrl: string;
+  /** Absent → the entry point falls back to the SIMULATED stub (tests / offline dev only). */
+  rpcUrl?: string;
   recoveryModuleAddress: Address;
+  /** Candide bundler+paymaster URL for the guardian's OWN sponsored relayer Safe (finalize with 0 ETH). */
+  candideUrl?: string;
+  confirmMode: GuardianConfirmMode;
 }
 
 const AddressSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'expected a 20-byte hex address');
 const PrivateKeySchema = z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'expected a 32-byte hex private key');
+/** `.env` lines may carry a trailing `# comment`; strip it before validating a URL. */
+const UrlSchema = z.preprocess(
+  (v) => (typeof v === 'string' ? v.replace(/\s+#.*$/, '').trim() : v),
+  z.string().url(),
+);
 
 const EnvSchema = z.object({
   GUARDIAN_KIND: z.enum(['swissquote', 'partner']),
@@ -31,8 +47,10 @@ const EnvSchema = z.object({
   GUARDIAN_DB_PATH: z.string().min(1),
   BANK_VERDICT_ADDRESS: AddressSchema,
   CHAIN_ID: z.coerce.number().int().positive(),
-  RPC_URL: z.string().url(),
+  RPC_URL: UrlSchema.optional(),
   RECOVERY_MODULE_ADDRESS: AddressSchema,
+  GUARDIAN_CANDIDE_URL: UrlSchema.optional(),
+  GUARDIAN_CONFIRM_MODE: z.enum(['signature', 'onchain']).default('signature'),
 });
 
 /**
@@ -70,7 +88,7 @@ export function loadGuardianConfig(env: NodeJS.ProcessEnv = process.env): Guardi
   const e = parsed.data;
   const privateKey = e.GUARDIAN_PRIVATE_KEY as Hex;
   const guardianAddress = privateKeyToAccount(privateKey).address;
-  return {
+  const config: GuardianConfig = {
     kind: e.GUARDIAN_KIND,
     port: e.GUARDIAN_PORT,
     privateKey,
@@ -78,9 +96,12 @@ export function loadGuardianConfig(env: NodeJS.ProcessEnv = process.env): Guardi
     dbPath: e.GUARDIAN_DB_PATH,
     bankVerdictAddress: e.BANK_VERDICT_ADDRESS as Address,
     chainId: e.CHAIN_ID,
-    rpcUrl: e.RPC_URL,
     recoveryModuleAddress: e.RECOVERY_MODULE_ADDRESS as Address,
+    confirmMode: e.GUARDIAN_CONFIRM_MODE,
   };
+  if (e.RPC_URL) config.rpcUrl = e.RPC_URL;
+  if (e.GUARDIAN_CANDIDE_URL) config.candideUrl = e.GUARDIAN_CANDIDE_URL;
+  return config;
 }
 
 /** What is safe to show in logs / health: everything except the key. */

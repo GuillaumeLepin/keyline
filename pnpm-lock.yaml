@@ -255,6 +255,9 @@ importers:
 
   services/guardian-core:
     dependencies:
+      '@keyline/chain':
+        specifier: workspace:*
+        version: link:../../packages/chain
       '@keyline/shared':
         specifier: workspace:*
         version: link:../../packages/shared

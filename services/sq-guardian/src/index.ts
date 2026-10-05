@@ -1,16 +1,19 @@
 // Swissquote recovery guardian. Own process, own .env (loaded by `tsx --env-file=.env`), own SQLite
-// file, own key. Wave 0: chain port is the SIMULATED stub; Wave 2 swaps in the @keyline/chain adapter.
+// file, own key. Wave 2: the chain port is the real @keyline/chain adapter (reads + finalize only).
 import {
   buildGuardianServer,
+  chainPortFromConfig,
   loadGuardianConfig,
   openGuardianDb,
-  stubChainPort,
 } from '@keyline/guardian-core';
+import type { FastifyInstance } from 'fastify';
 
 const config = loadGuardianConfig(process.env);
 const db = openGuardianDb({ path: config.dbPath, kind: config.kind });
-const chain = stubChainPort();
-const app = buildGuardianServer({ config, db, chain });
+// Real adapter over @keyline/chain whenever RPC_URL is set; the SIMULATED stub only without one.
+let app: FastifyInstance | undefined;
+const chain = chainPortFromConfig(config, (msg, data) => app?.log.info(data ?? {}, msg));
+app = buildGuardianServer({ config, db, chain });
 
 await app.listen({ port: config.port, host: '127.0.0.1' });
 app.log.info(
