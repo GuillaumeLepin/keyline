@@ -1,0 +1,27 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      # Unit tests only. The Playwright story needs Base Sepolia, funded EOAs and the Candide endpoint: run `pnpm e2e` locally.
+      - run: pnpm test
+        env:
+          CHAIN_ID: '84532'
+          RPC_URL: https://sepolia.base.org
+          USDC_ADDRESS: '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
+          RECOVERY_MODULE_ADDRESS: '0x949d01d424bE050D09C16025dd007CB59b3A8c66'
+          DEMO_FAST_MODE: 'true'
