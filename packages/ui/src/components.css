@@ -384,8 +384,10 @@
   font-size: var(--text-16);
   line-height: var(--leading-16);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 .kl-row__meta {
   font-size: var(--text-12);
@@ -940,6 +942,31 @@
   line-height: var(--leading-12);
   color: var(--ink-2);
 }
+.kl-ecard__ids {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+.kl-ecard__ids div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.kl-ecard__ids dt {
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
+  color: var(--ink-2);
+}
+.kl-ecard__ids dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-feature-settings: "zero" 1;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
 .kl-ecard__sentence {
   font-size: var(--text-14);
   line-height: var(--leading-14);
@@ -1112,6 +1139,10 @@
   line-height: var(--leading-12);
   color: var(--ink-3);
 }
+.kl-testnet a {
+  flex: none;
+  white-space: nowrap;
+}
 
 /* ---------- DeviceBar ---------- */
 .kl-devicebar {
@@ -1177,9 +1208,20 @@
     border-radius: 32px;
     overflow: hidden;
     height: 100%;
+    position: relative;
   }
   .kl-phone__content {
     overflow-y: auto;
+  }
+  /* A Sheet rendered inside the phone stays a bottom sheet, contained by the screen. */
+  .kl-phone__screen .kl-sheet {
+    position: absolute;
+    align-items: flex-end;
+  }
+  .kl-phone__screen .kl-sheet__panel {
+    max-width: 100%;
+    max-height: 90%;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   }
 }
 
@@ -1484,8 +1526,9 @@
   border-color: var(--ink);
 }
 .kl-radio--disabled {
-  opacity: 0.55;
   cursor: not-allowed;
+  background: var(--surface-2);
+  border-style: dashed;
 }
 .kl-radio input {
   appearance: none;
@@ -1527,6 +1570,9 @@
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+.kl-radio--disabled .kl-radio__name {
+  color: var(--ink-2);
 }
 
 /* ---------- Screen title block (inside PhoneFrame) ---------- */

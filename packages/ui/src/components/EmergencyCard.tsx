@@ -3,7 +3,7 @@
 import { Printer } from '@phosphor-icons/react/dist/ssr';
 import { QRCodeSVG } from 'qrcode.react';
 import { useState } from 'react';
-import { groupHex, shortAddress } from '../format';
+import { groupHex } from '../format';
 import { Button } from './Button';
 
 export const EMERGENCY_CARD_SENTENCE =
@@ -50,7 +50,6 @@ export function EmergencyCard({
       <section className="kl-ecard" aria-label="Keyline Emergency card">
         <div className="kl-ecard__head">
           <span className="kl-ecard__title">Keyline Emergency card</span>
-          <span className="kl-ecard__for">Recoverer {shortAddress(address)}</span>
         </div>
         <div className="kl-ecard__body">
           <QRCodeSVG value={privateKeyHex} size={112} level="M" className="kl-ecard__qr" marginSize={0} />
@@ -65,9 +64,19 @@ export function EmergencyCard({
                 </span>
               ))}
             </div>
-            <span className="kl-ecard__for">For wallet {shortAddress(walletAddress)}</span>
           </div>
         </div>
+        {/* Full addresses: a printed card must be verifiable on Basescan without the app. */}
+        <dl className="kl-ecard__ids">
+          <div>
+            <dt>For wallet</dt>
+            <dd>{walletAddress}</dd>
+          </div>
+          <div>
+            <dt>Recoverer address</dt>
+            <dd>{address}</dd>
+          </div>
+        </dl>
         <p className="kl-ecard__sentence">{EMERGENCY_CARD_SENTENCE}</p>
       </section>
       {hideActions ? null : (

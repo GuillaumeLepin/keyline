@@ -145,7 +145,10 @@ Label `SIMULATED`. Tooltip/`title`: `Mocked for the prototype — see README`. P
 ### Loading / empty / error (every route)
 - Loading: `Skeleton` in the exact shape of the content (balance block = `kind="amount"`, lists = 3 × `kind="row"`); never a lone spinner. Buttons that wait show `loading` with their label unchanged.
 - Empty: `EmptyState` with the strings given per screen.
-- Error: `ErrorState` title `Something didn’t work`, body given per screen, button `Try again`, `Technical details` disclosure with the raw error.
+- Error: `ErrorState` title `Something didn’t work`, body given per screen — or, when the screen has no specific sentence, `Nothing was changed. Try again in a moment.` (`common.errorBody`). Button `Try again`, `Technical details` disclosure with the raw error. Never pair the generic title with the offline body.
+- Endpoint not built yet (HTTP 501): `ErrorState` title `Not available yet`, body `Swissquote is still switching this on. Nothing was changed — try again in a moment.`
+- Route stub (later wave): `EmptyState` title `Coming in the next step`, body `This screen is built in the next wave of the prototype.`, secondary `Back`.
+- Policy refused outside `/send/review` (e.g. protect): `PolicyLine` reason `Swissquote’s policy check didn’t approve this. Nothing was sent.`; raw backend reasons go under `Technical details`.
 - Offline bank: `ErrorState` title `Swissquote isn’t reachable`, body `Your keys and your money are unaffected. The bank service answers policy checks and pays network fees; try again in a moment.`
 
 ## 10. Screen-by-screen
@@ -271,7 +274,7 @@ Layout sketches are 390 px wide unless marked *desk*. `[P]` = the one primary bu
 │ file. Nothing leaves the chain.       │
 │ ─ Panel ─────────────────────────     │
 │   Wallet        0x12AB … 9F3C         │
-│   Client        SQ-48213-LK           │
+│   Client        SQ-48213-LK SIMULATED │  the client file is a mock
 │   Valid for     Swissquote            │
 │ [P] Sign the proof                    │
 ```
@@ -302,8 +305,9 @@ Layout sketches are 390 px wide unless marked *desk*. `[P]` = the one primary bu
 │ Keyline                    Security ⚙│  text-20 600 · ghost icon button (ShieldCheck)
 │                                       │
 │ Balance                               │  text-12 ink-3 eyebrow
-│ CHF 96.00                             │  text-44
+│ CHF 96.00                             │  text-44 (no badge on the amount — the USDC balance is a chain read)
 │ 120.00 USDC                           │  text-16 ink-2
+│ Rate 1 USDC = CHF 0.80 SIMULATED      │  text-12 ink-3 — the only mocked thing is the conversion
 │ Protected · 2 of 3 recoverers         │  PolicyLine ok style, link to /security
 │                                       │
 │ [P] Send   [sec] Receive   [sec] Top up  (3 equal 48 px buttons, 8 px gap)
@@ -521,6 +525,13 @@ export const copy = {
     offlineBody: 'Your keys and your money are unaffected. The bank service answers policy checks and pays network fees; try again in a moment.',
     cantUndo: 'This can’t be undone.',
     networkFeePaid: 'Paid by Swissquote',
+    errorBody: 'Nothing was changed. Try again in a moment.',
+    notAvailableTitle: 'Not available yet',
+    notAvailableBody: 'Swissquote is still switching this on. Nothing was changed — try again in a moment.',
+    comingSoonTitle: 'Coming in the next step',
+    comingSoonBody: 'This screen is built in the next wave of the prototype.',
+    policyRefused: 'Swissquote’s policy check didn’t approve this. Nothing was sent.',
+    pending: 'Pending',
   },
   onboarding: {
     stepLabel: (n: number, total: number, title: string) => `Step ${n} of ${total} · ${title}`,
@@ -593,6 +604,8 @@ export const copy = {
       doneTitle: 'Ownership proven — Travel Rule check done.',
       doneBody: 'Deposits from your Swissquote account are accepted instantly.',
       goHome: 'Go to my wallet',
+      skip: 'Skip for now',
+      retry: 'Sign again',
     },
   },
   pair: {
@@ -604,6 +617,7 @@ export const copy = {
     note: 'Prototype: a software key in this browser. In production this is a hardware key.',
     success: 'Paired. This laptop now holds Lea’s Safety key.',
     wrongCode: 'That code doesn’t match. Check the phone and try again.',
+    pairedHere: 'Paired on this laptop',
   },
   home: {
     balance: 'Balance',
@@ -621,6 +635,13 @@ export const copy = {
     noKeyBody: 'Sending is not possible from here. If this is your phone and you lost access, start a recovery.',
     lostPhone: 'I lost my phone',
     status: { confirmed: 'Confirmed', sent: 'Sent', failed: 'Failed' },
+    receiveTitle: 'Receive',
+    noWalletTitle: 'No Keyline on this device yet',
+    noWalletBody: 'Create a wallet or sign in with the phone key that owns it.',
+    createWallet: 'Create a Keyline',
+    signIn: 'Sign in',
+    signInTitle: 'Sign in with your phone key',
+    signInBody: 'Your Face ID or fingerprint unlocks the key that stays on this phone.',
   },
   send: {
     title: 'Send', to: 'To', search: 'Search contacts or paste an address', contacts: 'Contacts',
@@ -631,6 +652,9 @@ export const copy = {
     errAmount: 'Enter an amount',
     errFunds: (usdc: string) => `Not enough USDC. You have ${usdc}.`,
     errAddress: 'This doesn’t look like a Base address.',
+    recipient: 'Recipient',
+    pasteAddress: 'Paste an address',
+    indicativeRate: 'indicative rate',
   },
   review: {
     title: 'Review',
@@ -657,6 +681,8 @@ export const copy = {
     expiredTitle: 'Approval expired',
     expiredBody: 'Policy approvals last 5 minutes. Review the transfer again.', reviewAgain: 'Review again',
     passkeyCancelled: 'Face ID was cancelled. Nothing was sent.',
+    missingTitle: 'Nothing to review',
+    missingBody: 'Choose a recipient and an amount first.',
   },
   approve: {
     title: (chf: string, name: string) => `Approve ${chf} to ${name}?`,
@@ -669,6 +695,7 @@ export const copy = {
   activity: {
     title: 'Transfer', to: 'To', transaction: 'Transaction', network: 'Network', networkName: 'Base Sepolia',
     failedStep: 'Not accepted by the network', failedBody: 'Nothing was sent. Your balance is unchanged.',
+    notFoundTitle: 'Transfer not found', notFoundBody: 'This device has no record of that transfer.',
   },
   dapps: {
     title: 'Apps',
@@ -739,6 +766,7 @@ export const copy = {
     laptopConfirm: 'Confirm with Safety key', laptopRefuse: 'Not me — refuse',
   },
   alerts: {
+    title: 'Alerts',
     startedTitle: 'Recovery started from a new device',
     startedBody: (where: string, ago: string, t: string) => `Recovery started from a new phone in ${where}, ${ago}. If nobody cancels, that device becomes the only key at ${t}.`,
     cancel: 'Cancel recovery — it wasn’t me', itWasMe: 'It was me',

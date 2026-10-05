@@ -99,7 +99,7 @@ export function Address({
       {explorerUrl ? (
         <a className="kl-addr__btn" href={explorerUrl} target="_blank" rel="noreferrer">
           <ArrowSquareOut size={14} aria-hidden="true" />
-          Basescan
+          View on Basescan
         </a>
       ) : null}
     </span>

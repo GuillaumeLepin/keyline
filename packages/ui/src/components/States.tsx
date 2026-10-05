@@ -1,4 +1,4 @@
-import { CaretDown, Info, WarningCircle } from '@phosphor-icons/react/dist/ssr';
+import { CaretDown, CheckCircle, Info, WarningCircle } from '@phosphor-icons/react/dist/ssr';
 import type { ReactNode } from 'react';
 import { Button } from './Button';
 
@@ -149,7 +149,13 @@ export type NoteProps = {
 /** Inline notice: 1 px border, icon + text. Danger is the only tone with a fill. */
 export function Note({ tone = 'info', title, children, icon, className }: NoteProps) {
   const defaultIcon =
-    tone === 'info' ? <Info size={20} aria-hidden="true" /> : <WarningCircle size={20} aria-hidden="true" />;
+    tone === 'info' ? (
+      <Info size={20} aria-hidden="true" />
+    ) : tone === 'ok' ? (
+      <CheckCircle size={20} aria-hidden="true" />
+    ) : (
+      <WarningCircle size={20} aria-hidden="true" />
+    );
   return (
     <div
       className={['kl-note', tone !== 'info' ? `kl-note--${tone}` : '', className ?? '']
