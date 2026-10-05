@@ -22,6 +22,7 @@ const RECOVERY_MODULE_ABI = [
     ],
     outputs: [],
   },
+  { type: 'function', name: 'cancelRecovery', stateMutability: 'nonpayable', inputs: [], outputs: [] },
 ] as const;
 const SAFE_ABI = [
   {
@@ -82,6 +83,15 @@ export const decodeCall = (call: Call, ctx: DecodeContext): DecodedCall => {
   if (isAddressEqual(to, ctx.recoveryModule)) {
     try {
       const d = decodeFunctionData({ abi: RECOVERY_MODULE_ABI, data: call.data as Hex });
+      if (d.functionName === 'cancelRecovery') {
+        return {
+          to,
+          fn: 'cancelRecovery()',
+          args: [],
+          humanText: 'Cancel the pending recovery of this wallet',
+          risk: 'none',
+        };
+      }
       return {
         to,
         fn: 'addGuardianWithThreshold(address,uint256)',

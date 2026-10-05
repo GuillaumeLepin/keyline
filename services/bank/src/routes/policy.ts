@@ -1,10 +1,15 @@
 // POST /policy/evaluate — the only way to obtain a decisionId that /userops/sponsor will honour.
 // `protect` calls are recomputed by the bank from the registered recoverers (never trusted from the client);
 // `transfer` must be one ERC-20 transfer on USDC whose CHF value the bank recomputes.
-import { createPasskeyAccount, protectTransactions } from '@keyline/chain';
+import {
+  createPasskeyAccount,
+  loadPasskeyAccount,
+  protectTransactions,
+  socialRecoveryModuleAbi,
+} from '@keyline/chain';
 import { type Call, PolicyDecisionSchema, PolicyRequestSchema } from '@keyline/shared';
 import type { FastifyInstance } from 'fastify';
-import { type Address, getAddress, isAddressEqual } from 'viem';
+import { type Address, encodeFunctionData, getAddress, isAddressEqual } from 'viem';
 import { z } from 'zod';
 import { clientOf } from '../auth';
 import {
@@ -52,9 +57,20 @@ export const registerPolicyRoutes = (
     if (wallet.clientId !== client.clientId) throw forbidden('This wallet belongs to another client');
     const key = store.passkeyKeyForWallet(wallet.address);
     if (!key) throw conflict('Wallet has no owner passkey');
-    const pk = createPasskeyAccount({ pubKeyX: BigInt(key.pub_key_x), pubKeyY: BigInt(key.pub_key_y) });
-    if (!isAddressEqual(pk.address, wallet.address as Address))
-      throw conflict('Registered passkey does not derive this wallet address');
+    // DECISIONS #16: after a recovery the live passkey no longer derives the Safe address, so the counterfactual
+    // check only applies to the protect op of a still-undeployed wallet; otherwise the stored address is the truth.
+    const pk = loadPasskeyAccount(getAddress(wallet.address), {
+      x: BigInt(key.pub_key_x),
+      y: BigInt(key.pub_key_y),
+    });
+    if (wallet.status === 'pending') {
+      const derived = createPasskeyAccount({
+        pubKeyX: BigInt(key.pub_key_x),
+        pubKeyY: BigInt(key.pub_key_y),
+      });
+      if (!isAddressEqual(derived.address, wallet.address as Address))
+        throw conflict('Registered passkey does not derive this wallet address');
+    }
 
     let calls: Call[];
     let callData: `0x${string}`;
@@ -72,6 +88,13 @@ export const registerPolicyRoutes = (
       });
       calls = txs.map(metaTransactionToCall);
       callData = protectCallData(pk, txs, false);
+    } else if (body.kind === 'cancel-recovery') {
+      // F4b: one `cancelRecovery()` on the module, built by the bank (same bytes abstractionkit's
+      // `createCancelRecoveryMetaTransaction` produces: selector only). Only the Safe itself may call it.
+      if (wallet.status === 'pending') throw conflict('This wallet is not protected yet — nothing to cancel');
+      const data = encodeFunctionData({ abi: socialRecoveryModuleAbi, functionName: 'cancelRecovery' });
+      calls = [{ to: recoveryModule, value: '0', data }];
+      callData = encodeCallData([callToMetaTransaction(calls[0] as Call)]);
     } else {
       if (wallet.status === 'pending') throw conflict('Protect your wallet before sending');
       if (body.calls.length !== 1)

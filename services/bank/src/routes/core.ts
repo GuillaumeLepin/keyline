@@ -1,5 +1,7 @@
 // Wave 0 live routes: health, events, auth (passkeys), contacts, dapps, mock inbox.
 import {
+  ContactSchema,
+  CreateContactBodySchema,
   EventsResponseSchema,
   HealthSchema,
   InboxResponseSchema,
@@ -12,10 +14,11 @@ import {
 } from '@keyline/shared';
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
 import type { FastifyInstance } from 'fastify';
+import { getAddress } from 'viem';
 import { z } from 'zod';
 import { clientOf, SESSION_COOKIE } from '../auth';
 import type { BankConfig } from '../config';
-import type { Db } from '../db';
+import { type Db, nowIso } from '../db';
 import { validationError } from '../errors';
 import type { EventStore } from '../events';
 import { SPONSORED_DAILY_CAP } from '../policy/engine';
@@ -55,9 +58,6 @@ export const registerCoreRoutes = (
     const { address } = AddressParam.parse(req.params);
     return EventsResponseSchema.parse({ events: events.listForWallet(address) });
   });
-  app.get('/desk/events', { config: { operator: true } }, async () =>
-    EventsResponseSchema.parse({ events: events.listAll() }),
-  );
 
   // ---- passkeys ----
   app.post('/auth/passkey/register/options', async (req) => {
@@ -141,6 +141,23 @@ export const registerCoreRoutes = (
 
   // ---- reads that already have data in Wave 0 ----
   app.get('/contacts', async () => ({ contacts: repo.contacts(LEA.id) }));
+  app.post('/contacts', { config: { client: true, idempotent: true } }, async (req, reply) => {
+    const body = CreateContactBodySchema.parse(req.body);
+    const client = clientOf(req);
+    const address = getAddress(body.address);
+    const existing = repo
+      .contacts(client.clientId)
+      .find((c) => c.address.toLowerCase() === address.toLowerCase());
+    if (existing) return reply.status(200).send(ContactSchema.parse(existing));
+    db.prepare(
+      `INSERT INTO contacts (client_id, label, address, first_seen_at, verified_ownership, simulated) VALUES (?, ?, ?, ?, 0, 0)`,
+    ).run(client.clientId, body.label, address, nowIso());
+    events.recordEvent('contact.added', undefined, { clientId: client.clientId, label: body.label, address });
+    const created = repo
+      .contacts(client.clientId)
+      .find((c) => c.address.toLowerCase() === address.toLowerCase());
+    return reply.status(201).send(ContactSchema.parse(created));
+  });
   app.get('/dapps', async () => ({ dapps: repo.dapps() }));
 
   app.get('/mock/inbox/:email', async (req) => {

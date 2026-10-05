@@ -60,8 +60,10 @@ export const createStore = (db: Db) => {
   const setGuardianTx = db.prepare(
     'UPDATE guardians SET added_tx_hash = ? WHERE lower(wallet_address) = lower(?)',
   );
+  // The owner is whatever `wallets.owner_credential_id` says (swapped at recovery finalize), never "the first passkey".
   const passkeyForWallet = db.prepare(
-    'SELECT credential_id, pub_key_x, pub_key_y, device_label FROM passkeys WHERE lower(wallet_address) = lower(?) AND revoked_at IS NULL ORDER BY created_at LIMIT 1',
+    `SELECT p.credential_id, p.pub_key_x, p.pub_key_y, p.device_label FROM passkeys p
+     JOIN wallets w ON w.owner_credential_id = p.credential_id WHERE lower(w.address) = lower(?) LIMIT 1`,
   );
   const decisionById = db.prepare('SELECT * FROM policy_decisions WHERE id = ?');
   const insertDecision = db.prepare(

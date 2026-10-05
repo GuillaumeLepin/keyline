@@ -9,10 +9,14 @@ import { type ChainDeps, createChainDeps } from './deps';
 import { errorHandler } from './errors';
 import { createEventStore } from './events';
 import { registerIdempotency } from './idempotency';
+import { createRecoveryService, type RecoveryService } from './recovery-service';
+import { createRecoveryStore } from './recovery-store';
 import { createRepo } from './repo';
 import { registerAttestationRoutes } from './routes/attestations';
 import { registerCoreRoutes } from './routes/core';
+import { registerDeskRoutes } from './routes/desk';
 import { registerPolicyRoutes } from './routes/policy';
+import { registerRecoveryRoutes } from './routes/recoveries';
 import { registerStubs } from './routes/stubs';
 import { registerTopupRoutes } from './routes/topups';
 import { registerUserOpRoutes } from './routes/userops';
@@ -24,12 +28,17 @@ import { createWebAuthnService } from './webauthn';
 declare module 'fastify' {
   interface FastifyInstance {
     db: Db;
+    /** Recovery orchestration (exposed for tests and the finalizer). */
+    recoveryService: RecoveryService;
   }
 }
 
+/** Finalizer cadence: executed-waiting requests are checked against the module every 5 s. */
+export const FINALIZER_INTERVAL_MS = 5_000;
+
 export const buildApp = async (
   config: BankConfig,
-  opts: { dbPath?: string; logger?: boolean; chain?: Partial<ChainDeps> } = {},
+  opts: { dbPath?: string; logger?: boolean; chain?: Partial<ChainDeps>; finalizer?: boolean } = {},
 ): Promise<FastifyInstance> => {
   const app = Fastify({
     logger:
@@ -49,6 +58,8 @@ export const buildApp = async (
   const webauthn = createWebAuthnService(db, config, events);
   // Tests inject stubs for the network edges; production always talks to the real bundler/paymaster/RPC.
   const chain: ChainDeps = { ...createChainDeps(config), ...opts.chain };
+  const recoveries = createRecoveryStore(db);
+  const service = createRecoveryService({ config, events, repo, recoveries, chain, log: app.log });
 
   await app.register(cors, {
     origin: [config.WALLET_ORIGIN, 'http://localhost:3000'],
@@ -71,13 +82,37 @@ export const buildApp = async (
   registerUserOpRoutes(app, { config, events, repo, store, chain });
   registerAttestationRoutes(app, { config, db, events, repo, chain });
   registerTopupRoutes(app, { config, db, events, repo, store, chain });
+  registerRecoveryRoutes(app, { config, events, repo, store, recoveries, chain, service });
+  registerDeskRoutes(app, { events, repo, recoveries, chain, service });
   registerStubs(app);
 
   const { seededNow } = seed(db, events);
   if (seededNow) app.log.info({ clientId: 'SQ-48213-LK' }, 'demo seed applied');
 
   app.decorate('db', db);
+  app.decorate('recoveryService', service);
+
+  // Finalizer loop (SPEC F3 step 5): idempotent, one pass in flight at a time, stopped with the server.
+  let timer: NodeJS.Timeout | undefined;
+  if (opts.finalizer !== false) {
+    let running = false;
+    const pass = async () => {
+      if (running) return;
+      running = true;
+      try {
+        await service.tick();
+      } catch (err) {
+        app.log.warn({ err }, 'finalizer pass failed');
+      } finally {
+        running = false;
+      }
+    };
+    timer = setInterval(() => void pass(), FINALIZER_INTERVAL_MS);
+    timer.unref();
+  }
+
   app.addHook('onClose', async () => {
+    if (timer) clearInterval(timer);
     db.close();
   });
 

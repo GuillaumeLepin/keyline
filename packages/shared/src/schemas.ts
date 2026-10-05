@@ -35,6 +35,7 @@ export const RecoveryStatusSchema = z.enum([
   'finalized',
   'cancelled',
 ]);
+export type RecoveryStatus = z.infer<typeof RecoveryStatusSchema>;
 export const UserOpStatusValueSchema = z.enum(['pending', 'included', 'confirmed', 'failed']);
 export type UserOpStatusValue = z.infer<typeof UserOpStatusValueSchema>;
 export const OperatorActionSchema = z.enum(['approve', 'refuse', 'override']);
@@ -133,8 +134,10 @@ export type Call = z.infer<typeof CallSchema>;
  * - `protect`: the first userOp (deploy + enable recovery module + add guardians). The bank RECOMPUTES the calls
  *   from the wallet's registered guardians; `calls` may be empty and is ignored.
  * - `transfer`: exactly one ERC-20 `transfer` on USDC; `chfValue` is recomputed by the bank from the amount.
+ * - `cancel-recovery`: the owner cancels a pending recovery (`cancelRecovery()` on the module). The bank builds the
+ *   single call itself; `calls` may be empty and is ignored. Always Tier 1, always sponsored (F4b).
  */
-export const PolicyKindSchema = z.enum(['protect', 'transfer']);
+export const PolicyKindSchema = z.enum(['protect', 'transfer', 'cancel-recovery']);
 export type PolicyKind = z.infer<typeof PolicyKindSchema>;
 
 export const PolicyRequestSchema = z.object({
@@ -261,19 +264,35 @@ export const RequestedFromSchema = z.object({
 });
 export type RequestedFrom = z.infer<typeof RequestedFromSchema>;
 
+/**
+ * One recoverer's confirmation. `signature` mode (DECISIONS #15, Option A): the EIP-712 `ExecuteRecovery` signature
+ * bound to `nonce` = module.nonce(wallet) that the bank relayer later submits in ONE `multiConfirmRecovery`.
+ * `onchain` mode: the guardian sent `confirmRecovery` itself (`txHash`). `void` is set when an operator `refuse`
+ * supersedes a confirmation that was never submitted — it is kept for the audit trail and never relayed.
+ */
 export const GuardianConfirmationSchema = z.object({
   kind: GuardianKindSchema,
+  guardianAddress: Address.optional(),
+  mode: z.enum(['signature', 'onchain']).optional(),
   txHash: Hash32.optional(),
   signature: Hex.optional(),
+  /** module.nonce(wallet) the signature is bound to (uint256 as decimal string). */
+  nonce: z.string().regex(/^\d+$/).optional(),
+  void: z.boolean().optional(),
   at: IsoDate,
 });
 export type GuardianConfirmation = z.infer<typeof GuardianConfirmationSchema>;
 
 export const RecoveryOnchainSchema = z.object({
+  /** Tx of the relayed `multiConfirmRecovery(execute=true)` (or the guardian's own confirm in onchain mode). */
   executedTxHash: Hash32.optional(),
+  /** Read from `status(wallet).executeAfter` on the SocialRecoveryModule — never computed locally. */
   executeAfter: IsoDate.optional(),
   finalizedTxHash: Hash32.optional(),
-  cancelledTxHash: Hash32.optional(),
+  /** `null` when the cancellation was detected on-chain but the tx could not be located in recent logs. */
+  cancelledTxHash: Hash32.nullable().optional(),
+  /** The module nonce the pending signatures are collected against (bumped when the recovery executes). */
+  nonce: z.string().regex(/^\d+$/).optional(),
 });
 export type RecoveryOnchain = z.infer<typeof RecoveryOnchainSchema>;
 
@@ -288,16 +307,52 @@ export const IdentityPendingSchema = z.object({
 });
 export type IdentityPending = z.infer<typeof IdentityPendingSchema>;
 
+/** The SIMULATED swiyu e-ID form payload (POST /mock/eid → POST /recoveries/:id/identity). */
+export const EidPayloadSchema = z.object({
+  name: z.string().min(1),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD'),
+  documentNumber: z.string().min(1),
+  liveness: z.boolean(),
+});
+export type EidPayload = z.infer<typeof EidPayloadSchema>;
+
+/** What the request is blocked on right now (undefined for terminal states). */
+export const RecoveryWaitingForSchema = z.enum([
+  'identity', // email code + e-ID form not submitted yet
+  'operator', // identity passed but DEMO_FAST_MODE is off: the desk must approve
+  'second-recoverer', // Swissquote (or one client recoverer) confirmed; one more signature needed
+  'grace-period', // executed on-chain; the module's waiting period runs
+]);
+export type RecoveryWaitingFor = z.infer<typeof RecoveryWaitingForSchema>;
+
+/** A guardian process said no (403/409 with `reasons[]`) or was unreachable (502). Kept for the desk. */
+export const GuardianRefusalSchema = z.object({
+  kind: GuardianKindSchema,
+  status: z.number().int(),
+  reasons: z.array(z.string()),
+  at: IsoDate,
+});
+export type GuardianRefusal = z.infer<typeof GuardianRefusalSchema>;
+
 export const RecoveryRequestSchema = z.object({
   id: z.string().min(1),
   walletAddress: Address,
+  clientId: z.string().min(1),
   newOwner: NewOwnerSchema,
   requestedFrom: RequestedFromSchema,
   identity: z.union([IdentityVerdictSchema, IdentityPendingSchema]),
+  /** What was typed into the simulated e-ID form (for the desk's identity signals). */
+  eidPayload: EidPayloadSchema.optional(),
+  /** Persona-rule / operator reasons shown on /refused and the desk (empty when nothing failed). */
+  reasons: z.array(z.string()).default([]),
   guardianConfirmations: z.array(GuardianConfirmationSchema),
+  guardianRefusals: z.array(GuardianRefusalSchema).default([]),
   onchain: RecoveryOnchainSchema,
   status: RecoveryStatusSchema,
+  waitingFor: RecoveryWaitingForSchema.optional(),
   recoveryMode: RecoveryModeSchema,
+  /** Owner of the OTP inbox (the client's e-mail on file). */
+  email: z.string().email(),
   createdAt: IsoDate,
   updatedAt: IsoDate,
 });
@@ -605,21 +660,17 @@ export const UserOpStatusSchema = z.object({
 });
 export type UserOpStatus = z.infer<typeof UserOpStatusSchema>;
 
+/** The new phone's passkey. `signerProxyAddress` is computed by the bank (`passkeySignerAddress`); if sent it must match. */
+export const CreateRecoveryNewOwnerSchema = NewOwnerSchema.extend({ signerProxyAddress: Address.optional() });
+export type CreateRecoveryNewOwner = z.infer<typeof CreateRecoveryNewOwnerSchema>;
+
 export const CreateRecoveryBodySchema = z.object({
   wallet: Address,
-  newOwner: NewOwnerSchema,
-  device: z.object({ deviceLabel: z.string().min(1) }), // ip / userAgent filled server-side
+  newOwner: CreateRecoveryNewOwnerSchema,
+  device: z.object({ deviceLabel: z.string().min(1).max(64) }), // ip / userAgent filled server-side
   requestId: z.string().min(1).optional(),
 });
 export type CreateRecoveryBody = z.infer<typeof CreateRecoveryBodySchema>;
-
-export const EidPayloadSchema = z.object({
-  name: z.string().min(1),
-  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD'),
-  documentNumber: z.string().min(1),
-  liveness: z.boolean(),
-});
-export type EidPayload = z.infer<typeof EidPayloadSchema>;
 
 export const RecoveryIdentityBodySchema = z.object({
   emailOtp: z.string().regex(/^\d{6}$/, '6 digits'),
@@ -630,10 +681,35 @@ export type RecoveryIdentityBody = z.infer<typeof RecoveryIdentityBodySchema>;
 
 export const RecoveryConfirmBodySchema = z.object({
   kind: ClientGuardianKindSchema,
-  signature: Hex, // over packages/chain.recovery.recoveryHash typed data
+  signature: Hex, // viem signTypedData over @keyline/chain.recoveryTypedData({ wallet, newOwners:[proxy], threshold:1, nonce })
   guardianAddress: Address,
+  /** The module nonce the signature was made for; refused (409) when it is not the current `nonce(wallet)`. */
+  nonce: z.string().regex(/^\d+$/).optional(),
   requestId: z.string().min(1).optional(),
 });
+
+/** GET /recoveries/:id/typed-data — exactly what the Safety key / Emergency card must sign right now. */
+export const RecoveryTypedDataResponseSchema = z.object({
+  recoveryRequestId: z.string().min(1),
+  nonce: z.string().regex(/^\d+$/),
+  typedData: z.object({
+    domain: z.object({
+      name: z.string(),
+      version: z.string(),
+      chainId: z.number().int().positive(),
+      verifyingContract: Address,
+    }),
+    types: z.record(z.string(), z.array(z.object({ name: z.string(), type: z.string() }))),
+    primaryType: z.literal('ExecuteRecovery'),
+    message: z.object({
+      wallet: Address,
+      newOwners: z.array(Address),
+      newThreshold: z.string().regex(/^\d+$/),
+      nonce: z.string().regex(/^\d+$/),
+    }),
+  }),
+});
+export type RecoveryTypedDataResponse = z.infer<typeof RecoveryTypedDataResponseSchema>;
 export type RecoveryConfirmBody = z.infer<typeof RecoveryConfirmBodySchema>;
 
 export const OperatorActionBodySchema = z.object({
@@ -655,6 +731,10 @@ export const DeskQueueItemSchema = z.object({
   client: ClientSchema,
   /** Human-readable identity signals for the operator (persona rule hits, mismatches). */
   signals: z.array(z.string()),
+  /** Distinct recoverer signatures held for the current nonce vs the module threshold (2). */
+  confirmations: z.object({ have: z.number().int().nonnegative(), need: z.literal(2) }),
+  /** On-chain timer, present once executed: seconds left (0 when over). */
+  timer: z.object({ executeAfter: IsoDate, remainingSeconds: z.number().int().nonnegative() }).optional(),
 });
 export type DeskQueueItem = z.infer<typeof DeskQueueItemSchema>;
 
@@ -664,8 +744,42 @@ export const DeskQueueResponseSchema = z.object({
 });
 export type DeskQueueResponse = z.infer<typeof DeskQueueResponseSchema>;
 
-export const EventsResponseSchema = z.object({ events: z.array(EventSchema) });
+export const EventsResponseSchema = z.object({
+  events: z.array(EventSchema),
+  /** /desk/events only: which remote feeds were merged ('ok') or skipped ('unreachable'). */
+  sources: z.record(z.string(), z.enum(['ok', 'unreachable'])).optional(),
+});
 export type EventsResponse = z.infer<typeof EventsResponseSchema>;
+
+// ---- owner-facing alerts (/alerts) ----
+export const AlertKindSchema = z.enum([
+  'recovery-requested',
+  'recovery-started',
+  'recovery-refused',
+  'recovery-cancelled',
+  'recovery-finalized',
+]);
+export type AlertKind = z.infer<typeof AlertKindSchema>;
+
+export const AlertSchema = z.object({
+  id: z.string().min(1),
+  kind: AlertKindSchema,
+  recoveryRequestId: z.string().min(1),
+  walletAddress: Address,
+  title: z.string(),
+  body: z.string(),
+  requestedFrom: RequestedFromSchema,
+  /** Present for `recovery-started`: when the new device becomes the only key unless someone cancels. */
+  executeAfter: IsoDate.optional(),
+  txHash: Hash32.optional(),
+  /** Reasons for a refused attempt. */
+  reasons: z.array(z.string()).default([]),
+  at: IsoDate,
+});
+export type Alert = z.infer<typeof AlertSchema>;
+
+export const AlertsResponseSchema = z.object({ walletAddress: Address, alerts: z.array(AlertSchema) });
+export type AlertsResponse = z.infer<typeof AlertsResponseSchema>;
 
 export const InboxMessageSchema = z.object({
   id: z.string().min(1),
@@ -689,6 +803,10 @@ export const InboxResponseSchema = z.object({
   simulated: z.literal(true),
 });
 export type InboxResponse = z.infer<typeof InboxResponseSchema>;
+
+/** POST /mock/eid body: the form fields; `documentNumber` and `liveness` are filled by the simulated issuer when omitted. */
+export const MockEidBodySchema = EidPayloadSchema.partial({ documentNumber: true, liveness: true });
+export type MockEidBody = z.infer<typeof MockEidBodySchema>;
 
 /** POST /mock/eid: the simulated swiyu e-ID form echoes a signed-looking payload the client forwards to /recoveries/:id/identity. */
 export const EidResponseSchema = z.object({

@@ -1,4 +1,4 @@
-// viem clients for the bank's own reads and for the funder EOA (top-ups). The relayer/verdict keys are Wave 2.
+// viem clients for the bank's own reads, the funder EOA (top-ups) and the relayer EOA (recovery submitter when funded).
 import {
   type Chain,
   createPublicClient,
@@ -25,6 +25,19 @@ export const publicClientFor = (config: BankConfig): BankPublicClient =>
 
 export const funderClientFor = (config: BankConfig): FunderClient => {
   const account = privateKeyToAccount(config.BANK_FUNDER_PRIVATE_KEY as `0x${string}`);
+  return {
+    account,
+    client: createWalletClient({
+      account,
+      chain: chainFor(config.CHAIN_ID),
+      transport: http(config.RPC_URL),
+    }),
+  };
+};
+
+/** Relayer EOA — used directly only when it holds ETH; otherwise `sponsoredRelayer` wraps the same key (deps.ts). */
+export const relayerClientFor = (config: BankConfig): FunderClient => {
+  const account = privateKeyToAccount(config.BANK_RELAYER_PRIVATE_KEY as `0x${string}`);
   return {
     account,
     client: createWalletClient({

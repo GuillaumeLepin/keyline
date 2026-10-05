@@ -86,6 +86,8 @@ const userOp: z.input<typeof S.UserOperationV7Schema> = {
 const recovery: z.input<typeof S.RecoveryRequestSchema> = {
   id: 'rec_1',
   walletAddress: addr,
+  clientId: 'SQ-48213-LK',
+  email: 'lea.keller@example.ch',
   newOwner: { pubKeyX: hex32, pubKeyY: hex32, credentialId: 'bmV3', signerProxyAddress: addr2 },
   requestedFrom: { deviceLabel: 'Lea · new phone', ip: '127.0.0.1', userAgent: 'test' },
   identity: identityVerdict,
@@ -377,12 +379,71 @@ const fixtures: Record<string, [z.ZodType, unknown]> = {
   CreateContactBodySchema: [S.CreateContactBodySchema, { label: 'Marta Rossi', address: addr2 }],
   DeskQueueItemSchema: [
     S.DeskQueueItemSchema,
-    { recovery, client, signals: ['device label contains "thief"'] },
+    {
+      recovery,
+      client,
+      signals: ['device label contains "thief"'],
+      confirmations: { have: 2, need: 2 },
+      timer: { executeAfter: at, remainingSeconds: 0 },
+    },
   ],
   DeskQueueResponseSchema: [
     S.DeskQueueResponseSchema,
-    { items: [{ recovery, client, signals: [] }], counts: { 'executed-waiting': 1 } },
+    {
+      items: [{ recovery, client, signals: [], confirmations: { have: 1, need: 2 } }],
+      counts: { 'executed-waiting': 1 },
+    },
   ],
+  GuardianRefusalSchema: [
+    S.GuardianRefusalSchema,
+    { kind: 'swissquote', status: 409, reasons: ['a recovery was executed 0.5 h ago'], at },
+  ],
+  CreateRecoveryNewOwnerSchema: [
+    S.CreateRecoveryNewOwnerSchema,
+    { pubKeyX: hex32, pubKeyY: hex32, credentialId: 'bmV3' },
+  ],
+  RecoveryTypedDataResponseSchema: [
+    S.RecoveryTypedDataResponseSchema,
+    {
+      recoveryRequestId: 'rec_1',
+      nonce: '0',
+      typedData: {
+        domain: {
+          name: 'Social Recovery Module',
+          version: '0.0.1',
+          chainId: 84532,
+          verifyingContract: addr2,
+        },
+        types: {
+          ExecuteRecovery: [
+            { name: 'wallet', type: 'address' },
+            { name: 'newOwners', type: 'address[]' },
+            { name: 'newThreshold', type: 'uint256' },
+            { name: 'nonce', type: 'uint256' },
+          ],
+        },
+        primaryType: 'ExecuteRecovery',
+        message: { wallet: addr, newOwners: [addr2], newThreshold: '1', nonce: '0' },
+      },
+    },
+  ],
+  AlertSchema: [
+    S.AlertSchema,
+    {
+      id: 'alert_rec_1_started',
+      kind: 'recovery-started',
+      recoveryRequestId: 'rec_1',
+      walletAddress: addr,
+      title: 'Recovery started from a new device',
+      body: 'Recovery started from “Lea · new phone”.',
+      requestedFrom: { deviceLabel: 'Lea · new phone', ip: '127.0.0.1', userAgent: 'test' },
+      executeAfter: at,
+      txHash: hash,
+      at,
+    },
+  ],
+  AlertsResponseSchema: [S.AlertsResponseSchema, { walletAddress: addr, alerts: [] }],
+  MockEidBodySchema: [S.MockEidBodySchema, { name: 'Lea Keller', dateOfBirth: '1990-04-12' }],
   EventsResponseSchema: [S.EventsResponseSchema, { events: [] }],
   InboxMessageSchema: [S.InboxMessageSchema, inboxMessage],
   InboxResponseSchema: [S.InboxResponseSchema, { messages: [inboxMessage], simulated: true }],
@@ -438,6 +499,8 @@ describe('shared schemas', () => {
       'UserOpStatusValueSchema',
       'OperatorActionSchema',
       'ServiceNameSchema',
+      'RecoveryWaitingForSchema',
+      'AlertKindSchema',
     ]);
     const missing = exported.filter((k) => !primitiveEnums.has(k) && !(k in fixtures));
     expect(missing).toEqual([]);

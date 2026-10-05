@@ -1,11 +1,25 @@
 // Everything that touches the network, in one injectable bag so tests can stub it (no fake chain results
 // in production code: each default talks to the real bundler / paymaster / RPC / guardian process).
 
-import type { PasskeyAccount, SendUseroperationResponse, UserOperationV7 } from '@keyline/chain';
+import type {
+  GuardianSignature,
+  PasskeyAccount,
+  PasskeyPublicKey,
+  RecoveryStatus,
+  SendUseroperationResponse,
+  TxSubmitter,
+  UserOperationV7,
+} from '@keyline/chain';
 import * as chain from '@keyline/chain';
-import { type GuardianIdentity, GuardianIdentitySchema } from '@keyline/shared';
-import { type Address, erc20Abi, type Hex } from 'viem';
-import { type BankPublicClient, funderClientFor, publicClientFor } from './chain/clients';
+import {
+  type GuardianIdentity,
+  GuardianIdentitySchema,
+  type GuardianRecoveryRequest,
+  type GuardianRecoveryResponse,
+  GuardianRecoveryResponseSchema,
+} from '@keyline/shared';
+import { type Address, erc20Abi, getAddress, type Hex, parseAbi, parseEther } from 'viem';
+import { type BankPublicClient, funderClientFor, publicClientFor, relayerClientFor } from './chain/clients';
 import type { BankConfig } from './config';
 import { upstream } from './errors';
 
@@ -25,7 +39,56 @@ export type AttestationVerify = (
   input: AttestationVerifyInput,
 ) => Promise<{ ok: boolean; method: 'erc1271'; reason?: string }>;
 
-export type ChainDeps = {
+/** What a guardian process answered to POST /recoveries (or why it could not be asked). */
+export type GuardianCallResult =
+  | { ok: true; status: number; body: GuardianRecoveryResponse }
+  | { ok: false; status: number; reasons: string[] };
+
+export type GuardianEventRow = {
+  id: number;
+  service: string;
+  type: string;
+  walletAddress?: string | null;
+  payload: unknown;
+  at: number;
+};
+
+/** HTTP client for the sq-guardian process (SPEC §4). The bank only ever sees public data and signatures. */
+export type GuardianClient = {
+  requestConfirmation: (body: GuardianRecoveryRequest) => Promise<GuardianCallResult>;
+  /** Tells the guardian the relayed execute landed (arms its 24 h rule). `executeAfter` in unix seconds. */
+  reportExecuted: (
+    recoveryRequestId: string,
+    input: { txHash: Hex; executeAfter: number },
+  ) => Promise<GuardianCallResult>;
+  finalize: (
+    recoveryRequestId: string,
+  ) => Promise<{ ok: true; txHash: Hex } | { ok: false; status: number; reasons: string[] }>;
+  events: (limit?: number) => Promise<GuardianEventRow[]>;
+};
+
+/** Relayer-side chain operations for recovery (DECISIONS #15 Option A). Submitter = sponsored relayer Safe at 0 ETH. */
+export type RecoveryChainDeps = {
+  recoveryStatus: (wallet: Address) => Promise<RecoveryStatus>;
+  recoveryNonce: (wallet: Address) => Promise<bigint>;
+  /** Deploys the new passkey's SafeWebAuthnSignerProxy through the bank relayer; `txHash` null when it already exists. */
+  deploySignerProxy: (
+    owner: PasskeyPublicKey,
+  ) => Promise<{ address: Address; txHash: Hex | null; submitter: TxSubmitter['kind'] | null }>;
+  /** ONE `multiConfirmRecovery(..., execute=true)` carrying every collected guardian signature. Returns the tx hash. */
+  confirmWithSignatures: (input: {
+    wallet: Address;
+    newOwners: readonly Address[];
+    signatures: readonly GuardianSignature[];
+  }) => Promise<{ txHash: Hex; submitter: TxSubmitter['kind'] }>;
+  /** Safe `getOwners()` — distinguishes "finalized elsewhere" from "cancelled" once the module shows no request. */
+  safeOwners: (wallet: Address) => Promise<Address[]>;
+  /** Looks for the module's `RecoveryCanceled(wallet)` log since `fromBlock`; null when not found. */
+  findCancelTx: (wallet: Address, fromBlock: bigint | undefined) => Promise<Hex | null>;
+  sqGuardian: GuardianClient;
+};
+
+export type ChainDeps = RecoveryChainDeps & {
   publicClient: BankPublicClient;
   sponsor: (pk: PasskeyAccount, userOp: UserOperationV7) => Promise<{ userOp: UserOperationV7 }>;
   sendUserOp: (pk: PasskeyAccount, userOp: UserOperationV7) => Promise<SendUseroperationResponse>;
@@ -38,10 +101,110 @@ export type ChainDeps = {
   funderTransferUsdc: (to: Address, amount: bigint) => Promise<Hex>;
 };
 
+/** Relayer EOA balance at which a plain EOA transaction is preferred over the sponsored relayer Safe. */
+export const RELAYER_EOA_MIN_ETH = parseEther('0.002');
+
+const safeOwnersAbi = parseAbi(['function getOwners() view returns (address[])']);
+
+const errMsg = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+export const createGuardianClient = (baseUrl: string, kind: 'swissquote' | 'partner'): GuardianClient => {
+  const post = async (
+    path: string,
+    body: unknown,
+  ): Promise<{ status: number; json: unknown } | { error: string }> => {
+    try {
+      const res = await fetch(`${baseUrl}${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let json: unknown = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = { raw: text };
+      }
+      return { status: res.status, json };
+    } catch (err) {
+      return { error: `${kind} guardian unreachable at ${baseUrl}: ${errMsg(err)}` };
+    }
+  };
+  const reasonsOf = (json: unknown, status: number): string[] => {
+    const r = (json as { reasons?: unknown } | null)?.reasons;
+    if (Array.isArray(r) && r.every((x) => typeof x === 'string')) return r as string[];
+    const m = (json as { message?: unknown } | null)?.message;
+    return [typeof m === 'string' ? m : `${kind} guardian answered ${status}`];
+  };
+
+  return {
+    async requestConfirmation(body) {
+      const res = await post('/recoveries', body);
+      if ('error' in res) return { ok: false, status: 502, reasons: [res.error] };
+      if (res.status !== 200)
+        return { ok: false, status: res.status, reasons: reasonsOf(res.json, res.status) };
+      const parsed = GuardianRecoveryResponseSchema.safeParse(res.json);
+      if (!parsed.success)
+        return { ok: false, status: 502, reasons: [`${kind} guardian answered an unexpected body`] };
+      return { ok: true, status: 200, body: parsed.data };
+    },
+    async reportExecuted(id, input) {
+      const res = await post(`/recoveries/${encodeURIComponent(id)}/executed`, input);
+      if ('error' in res) return { ok: false, status: 502, reasons: [res.error] };
+      if (res.status !== 200)
+        return { ok: false, status: res.status, reasons: reasonsOf(res.json, res.status) };
+      // The executed acknowledgement is not a GuardianRecoveryResponse; surface it as an onchain-style record.
+      return {
+        ok: true,
+        status: 200,
+        body: { confirmed: true, mode: 'onchain', txHash: input.txHash, executed: true },
+      };
+    },
+    async finalize(id) {
+      const res = await post(`/recoveries/${encodeURIComponent(id)}/finalize`, {});
+      if ('error' in res) return { ok: false, status: 502, reasons: [res.error] };
+      const tx = (res.json as { txHash?: unknown } | null)?.txHash;
+      if (res.status !== 200 || typeof tx !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(tx))
+        return { ok: false, status: res.status, reasons: reasonsOf(res.json, res.status) };
+      return { ok: true, txHash: tx as Hex };
+    },
+    async events(limit = 500) {
+      const res = await fetch(`${baseUrl}/events?limit=${limit}`);
+      if (!res.ok) throw upstream(`${kind} guardian /events answered ${res.status}`);
+      const body = (await res.json()) as { events?: GuardianEventRow[] };
+      return body.events ?? [];
+    },
+  };
+};
+
 export const createChainDeps = (config: BankConfig): ChainDeps => {
   const publicClient = publicClientFor(config);
   const funder = funderClientFor(config);
+  const relayer = relayerClientFor(config);
   const usdc = config.USDC_ADDRESS as Address;
+  const module = getAddress(config.RECOVERY_MODULE_ADDRESS);
+  let sponsored: chain.SponsoredRelayer | null = null;
+
+  /** EOA when it holds ≥ 0.002 ETH, else the Candide-sponsored relayer Safe (zero-ETH path, VERIFIED §11). */
+  const pickSubmitter = async (): Promise<TxSubmitter> => {
+    const balance = await publicClient.getBalance({ address: relayer.account.address });
+    if (balance >= RELAYER_EOA_MIN_ETH) return chain.eoaSubmitter(relayer.client);
+    if (!config.bundlerUrl || !config.paymasterUrl)
+      throw upstream(
+        'Relayer EOA has no ETH and no Candide URL is configured — set BANK_CANDIDE_BUNDLER_URL / BANK_CANDIDE_PAYMASTER_URL',
+      );
+    sponsored ??= chain.sponsoredRelayer({
+      ownerPrivateKey: config.BANK_RELAYER_PRIVATE_KEY as Hex,
+      endpoints: {
+        chainId: BigInt(config.CHAIN_ID),
+        rpcUrl: config.RPC_URL,
+        bundlerUrl: config.bundlerUrl,
+        paymasterUrl: config.paymasterUrl,
+      },
+    });
+    return sponsored;
+  };
 
   const requireUrl = (): { paymasterUrl: string; bundlerUrl: string } => {
     if (!config.paymasterUrl || !config.bundlerUrl)
@@ -51,6 +214,52 @@ export const createChainDeps = (config: BankConfig): ChainDeps => {
 
   return {
     publicClient,
+    recoveryStatus: (wallet) => chain.recovery.status(publicClient, module, wallet),
+    recoveryNonce: (wallet) => chain.recoveryNonce(publicClient, module, wallet),
+    deploySignerProxy: async (owner) => {
+      const address = chain.passkeySignerAddress(owner);
+      const code = await publicClient.getCode({ address });
+      if (code && code !== '0x') return { address, txHash: null, submitter: null };
+      const submitter = await pickSubmitter();
+      const result = await chain.recovery.deploySignerProxy({
+        client: submitter,
+        reader: publicClient,
+        owner,
+      });
+      return { address: result.address, txHash: result.txHash, submitter: submitter.kind };
+    },
+    confirmWithSignatures: async ({ wallet, newOwners, signatures }) => {
+      const submitter = await pickSubmitter();
+      const txHash = await chain.recovery.confirmWithSignatures({
+        client: submitter,
+        module,
+        wallet,
+        newOwners,
+        threshold: 1n,
+        signatures: chain.sortGuardianSignatures(signatures),
+        execute: true,
+      });
+      return { txHash, submitter: submitter.kind };
+    },
+    safeOwners: async (wallet) =>
+      (
+        await publicClient.readContract({ address: wallet, abi: safeOwnersAbi, functionName: 'getOwners' })
+      ).map((o) => getAddress(o)),
+    findCancelTx: async (wallet, fromBlock) => {
+      const latest = await publicClient.getBlockNumber();
+      const from = fromBlock ?? (latest > 5_000n ? latest - 5_000n : 0n);
+      const logs = await publicClient.getContractEvents({
+        address: module,
+        abi: chain.socialRecoveryModuleAbi,
+        eventName: 'RecoveryCanceled',
+        args: { wallet },
+        fromBlock: from,
+        toBlock: latest,
+      });
+      const last = logs.at(-1);
+      return last ? (last.transactionHash as Hex) : null;
+    },
+    sqGuardian: createGuardianClient(config.SQ_GUARDIAN_URL, 'swissquote'),
     sponsor: (pk, userOp) => chain.sponsor(pk, userOp, requireUrl()),
     sendUserOp: (pk, userOp) => chain.sendUserOp(pk, userOp, requireUrl().bundlerUrl),
     userOpStatus: async (hash) => {

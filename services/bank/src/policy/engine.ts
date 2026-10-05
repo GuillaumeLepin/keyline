@@ -1,5 +1,5 @@
 // Pure policy engine (SPEC §0 tiers, F1.5 protect, F2.3 transfer). No I/O: the route gathers the context.
-// Wave 1 rules: protect → Tier 1 approve; USDC transfer ≤ CHF 1'000/day → approve, above → step-up;
+// Wave 1 rules: protect → Tier 1 approve; cancel-recovery → Tier 1 approve; USDC transfer ≤ CHF 1'000/day → approve, above → step-up;
 // sponsorship 20/day; screening hit → block; simulation revert → block. Tier 3 / dApps / allowlist: Wave 3.
 import type {
   Call,
@@ -55,6 +55,9 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
 
   if (input.kind === 'protect') {
     reasons.push('Protecting your wallet · network fee paid by Swissquote');
+  } else if (input.kind === 'cancel-recovery') {
+    // F4b: the owner stops a recovery they did not start. Never gated — the attacker's clock is running.
+    reasons.push('Cancelling a recovery you did not start · network fee paid by Swissquote');
   } else {
     const total = round2(ctx.dailySpentChf + input.chfValue);
     if (!ctx.simulation.ok) {
