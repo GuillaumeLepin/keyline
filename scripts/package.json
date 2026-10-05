@@ -11,7 +11,11 @@
     "spike:attestation": "tsx spike-attestation.ts",
     "spike:recovery": "tsx spike-recovery.ts",
     "fund-guardians": "tsx fund-guardians.ts",
-    "keyline": "tsx --env-file=../.env keyline-cli.ts"
+    "keyline": "tsx --env-file=../.env keyline-cli.ts",
+    "demo:reset": "tsx demo-reset.ts",
+    "demo:predeploy": "tsx demo-predeploy.ts",
+    "demo:stage-recovery": "tsx demo-stage-recovery.ts",
+    "anvil-fork": "tsx anvil-fork.ts"
   },
   "dependencies": {
     "viem": "^2.57.3",
