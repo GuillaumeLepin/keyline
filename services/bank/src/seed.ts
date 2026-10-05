@@ -14,7 +14,7 @@ export const LEA = {
   name: 'Lea Keller',
   email: 'lea.keller@example.ch',
   kycLevel: 'full',
-  accountBalanceChf: 5000,
+  accountBalanceChf: 12_500,
 } as const;
 
 export const SEEDED_CONTACTS = [

@@ -19,7 +19,9 @@ export const HexOrDecString = z.string().regex(/^(0x[0-9a-fA-F]+|\d+)$/, 'hex or
 export const KycLevelSchema = z.enum(['full']);
 export const WalletStatusSchema = z.enum(['pending', 'deployed', 'recovering']);
 export const RecoveryModeSchema = z.enum(['default', 'assisted']);
+export type RecoveryMode = z.infer<typeof RecoveryModeSchema>;
 export const GuardianKindSchema = z.enum(['safety-key', 'emergency-card', 'swissquote', 'partner']);
+export type GuardianKind = z.infer<typeof GuardianKindSchema>;
 /** Guardian kinds that are held by the client and can co-sign (step-up / recovery confirm). */
 export const ClientGuardianKindSchema = z.enum(['safety-key', 'emergency-card']);
 export const PolicyVerdictSchema = z.enum(['approve', 'step-up', 'cooling', 'block']);
@@ -34,6 +36,7 @@ export const RecoveryStatusSchema = z.enum([
   'cancelled',
 ]);
 export const UserOpStatusValueSchema = z.enum(['pending', 'included', 'confirmed', 'failed']);
+export type UserOpStatusValue = z.infer<typeof UserOpStatusValueSchema>;
 export const OperatorActionSchema = z.enum(['approve', 'refuse', 'override']);
 export const ServiceNameSchema = z.enum(['bank', 'sq-guardian', 'partner-guardian', 'wallet']);
 
@@ -420,6 +423,37 @@ export const WalletDetailSchema = WalletSchema.extend({
 });
 export type WalletDetail = z.infer<typeof WalletDetailSchema>;
 
+// ---- Safety-key pairing (SPEC F1 step 2, bank-mediated, SIMULATED) ----
+export const PairingStatusSchema = z.enum(['open', 'claimed', 'expired']);
+export type PairingStatus = z.infer<typeof PairingStatusSchema>;
+
+export const CreatePairingBodySchema = z.object({
+  wallet: Address,
+  requestId: z.string().min(1).optional(),
+});
+export type CreatePairingBody = z.infer<typeof CreatePairingBodySchema>;
+
+export const PairingSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, '6 digits'),
+  walletAddress: Address,
+  status: PairingStatusSchema,
+  /** Present once the laptop claimed the code. */
+  guardian: GuardianSchema.optional(),
+  createdAt: IsoDate,
+  expiresAt: IsoDate,
+  claimedAt: IsoDate.optional(),
+  /** Production would use a device-pairing protocol; here the bank relays a 6-digit code. */
+  simulated: z.literal(true),
+});
+export type Pairing = z.infer<typeof PairingSchema>;
+
+export const ClaimPairingBodySchema = z.object({
+  kind: z.literal('safety-key'),
+  address: Address,
+  requestId: z.string().min(1).optional(),
+});
+export type ClaimPairingBody = z.infer<typeof ClaimPairingBodySchema>;
+
 export const SetModeBodySchema = z.object({
   recoveryMode: RecoveryModeSchema,
   requestId: z.string().min(1).optional(),
@@ -447,7 +481,12 @@ export const AttestationTypedDataSchema = z.object({
   domain: z.object({ name: z.string(), version: z.string(), chainId: z.number().int().positive() }),
   types: z.record(z.string(), z.array(z.object({ name: z.string(), type: z.string() }))),
   primaryType: z.literal('OwnershipAttestation'),
-  message: z.object({ clientId: z.string(), wallet: Address, chainId: z.number().int().positive(), nonce: z.string() }),
+  message: z.object({
+    clientId: z.string(),
+    wallet: Address,
+    chainId: z.number().int().positive(),
+    nonce: z.string(),
+  }),
 });
 export type AttestationTypedData = z.infer<typeof AttestationTypedDataSchema>;
 

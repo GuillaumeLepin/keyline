@@ -5,6 +5,7 @@ import {
   InboxResponseSchema,
   LoginVerifyBodySchema,
   LoginVerifyResponseSchema,
+  MeResponseSchema,
   RegisterOptionsBodySchema,
   RegisterVerifyBodySchema,
   RegisterVerifyResponseSchema,
@@ -12,23 +13,32 @@ import {
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { SESSION_COOKIE } from '../auth';
+import { clientOf, SESSION_COOKIE } from '../auth';
 import type { BankConfig } from '../config';
 import type { Db } from '../db';
 import { validationError } from '../errors';
 import type { EventStore } from '../events';
+import { SPONSORED_DAILY_CAP } from '../policy/engine';
 import type { Repo } from '../repo';
 import { LEA } from '../seed';
+import type { Store } from '../store';
 import type { WebAuthnService } from '../webauthn';
 
-type Deps = { config: BankConfig; db: Db; events: EventStore; repo: Repo; webauthn: WebAuthnService };
+type Deps = {
+  config: BankConfig;
+  db: Db;
+  events: EventStore;
+  repo: Repo;
+  webauthn: WebAuthnService;
+  store: Store;
+};
 
 const AddressParam = z.object({ address: z.string().regex(/^0x[0-9a-fA-F]{40}$/) });
 const EmailParam = z.object({ email: z.string().email() });
 
 export const registerCoreRoutes = (
   app: FastifyInstance,
-  { config, db, events, repo, webauthn }: Deps,
+  { config, db, events, repo, webauthn, store }: Deps,
 ): void => {
   app.get('/health', async () =>
     HealthSchema.parse({
@@ -104,6 +114,28 @@ export const registerCoreRoutes = (
       },
       wallet: repo.walletByOwnerCredential(claims.sub),
       passkey,
+    });
+  });
+
+  // ---- client profile + SIMULATED account ----
+  app.get('/me', { config: { client: true } }, async (req) => {
+    const client = clientOf(req);
+    const profile = repo.client(client.clientId);
+    if (!profile) throw validationError('Unknown client');
+    const wallet = client.credentialId
+      ? repo.walletByOwnerCredential(client.credentialId)
+      : (repo.walletsForClient(client.clientId)[0] ?? null);
+    return MeResponseSchema.parse({
+      client: profile,
+      account: {
+        currency: 'CHF',
+        balance: store.accountBalanceChf(client.clientId),
+        sponsoredToday: store.sponsoredTodayForClient(client.clientId),
+        sponsoredDailyCap: SPONSORED_DAILY_CAP,
+        simulated: true,
+      },
+      wallet,
+      auth: client.auth,
     });
   });
 

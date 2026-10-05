@@ -100,6 +100,8 @@ const decision: z.input<typeof S.PolicyDecisionSchema> = {
   requestId: 'req_1',
   decisionId: 'req_1',
   walletAddress: addr,
+  kind: 'transfer',
+  calls: [{ to: addr2, value: '0', data: '0xa9059cbb' }],
   verdict: 'approve',
   tier: 1,
   reasons: ["Within your CHF 1'000 daily limit · no second approval needed"],
@@ -108,6 +110,7 @@ const decision: z.input<typeof S.PolicyDecisionSchema> = {
   sponsorship: { sponsored: true, remainingToday: 19 },
   callsHash: hash,
   chfValue: 80,
+  fx: { pair: 'USDC/CHF', rate: 0.8, simulated: true },
   expiresAt: at,
   decidedAt: at,
 };
@@ -248,6 +251,58 @@ const fixtures: Record<string, [z.ZodType, unknown]> = {
   ],
   CreateWalletResponseSchema: [S.CreateWalletResponseSchema, { address: addr, wallet }],
   AddGuardianBodySchema: [S.AddGuardianBodySchema, { kind: 'emergency-card', address: addr2 }],
+  GuardiansResponseSchema: [
+    S.GuardiansResponseSchema,
+    {
+      walletAddress: addr,
+      recoveryMode: 'default',
+      requiredKinds: ['safety-key', 'emergency-card', 'swissquote'],
+      guardians: [],
+      threshold: 2,
+      complete: false,
+    },
+  ],
+  WalletDetailSchema: [S.WalletDetailSchema, { ...wallet, guardians: [] }],
+  PairingStatusSchema: [S.PairingStatusSchema, 'open'],
+  CreatePairingBodySchema: [S.CreatePairingBodySchema, { wallet: addr }],
+  PairingSchema: [
+    S.PairingSchema,
+    { code: '123456', walletAddress: addr, status: 'open', createdAt: at, expiresAt: at, simulated: true },
+  ],
+  ClaimPairingBodySchema: [S.ClaimPairingBodySchema, { kind: 'safety-key', address: addr2 }],
+  PolicyKindSchema: [S.PolicyKindSchema, 'protect'],
+  FxSchema: [S.FxSchema, { pair: 'USDC/CHF', rate: 0.8, simulated: true }],
+  AttestationTypedDataSchema: [
+    S.AttestationTypedDataSchema,
+    {
+      domain: { name: 'KeylineOwnershipAttestation', version: '1', chainId: 84532 },
+      types: { OwnershipAttestation: [{ name: 'clientId', type: 'string' }] },
+      primaryType: 'OwnershipAttestation',
+      message: { clientId: 'SQ-48213-LK', wallet: addr, chainId: 84532, nonce: 'n1' },
+    },
+  ],
+  AttestationChallengeResponseSchema: [
+    S.AttestationChallengeResponseSchema,
+    {
+      nonce: 'n1',
+      expiresAt: at,
+      typedData: {
+        domain: { name: 'KeylineOwnershipAttestation', version: '1', chainId: 84532 },
+        types: { OwnershipAttestation: [{ name: 'clientId', type: 'string' }] },
+        primaryType: 'OwnershipAttestation',
+        message: { clientId: 'SQ-48213-LK', wallet: addr, chainId: 84532, nonce: 'n1' },
+      },
+    },
+  ],
+  MeResponseSchema: [
+    S.MeResponseSchema,
+    {
+      client,
+      account: { currency: 'CHF', balance: 12500, sponsoredToday: 0, sponsoredDailyCap: 20, simulated: true },
+      wallet: null,
+      auth: 'session',
+    },
+  ],
   SetModeBodySchema: [S.SetModeBodySchema, { recoveryMode: 'assisted' }],
   AttestationBodySchema: [
     S.AttestationBodySchema,
@@ -272,7 +327,15 @@ const fixtures: Record<string, [z.ZodType, unknown]> = {
   TopupBodySchema: [S.TopupBodySchema, { wallet: addr, amountUsdc: 25 }],
   TopupResponseSchema: [
     S.TopupResponseSchema,
-    { txHash: hash, amountUsdc: 25, accountBalanceChf: 4980, simulated: true },
+    {
+      txHash: hash,
+      explorerUrl: `https://sepolia.basescan.org/tx/${hash}`,
+      amountUsdc: 25,
+      amountChf: 20,
+      accountBalanceChf: 12480,
+      fx: { pair: 'USDC/CHF', rate: 0.8, simulated: true },
+      simulated: true,
+    },
   ],
   StepUpBodySchema: [S.StepUpBodySchema, { kind: 'safety-key', signature: sig }],
   UserOperationV7Schema: [S.UserOperationV7Schema, userOp],
@@ -286,7 +349,10 @@ const fixtures: Record<string, [z.ZodType, unknown]> = {
   ],
   SendUserOpBodySchema: [S.SendUserOpBodySchema, { userOp }],
   SendUserOpResponseSchema: [S.SendUserOpResponseSchema, { userOpHash: hash }],
-  UserOpStatusSchema: [S.UserOpStatusSchema, { status: 'confirmed', txHash: hash, blockNumber: 12 }],
+  UserOpStatusSchema: [
+    S.UserOpStatusSchema,
+    { userOpHash: hash, status: 'confirmed', txHash: hash, blockNumber: 12 },
+  ],
   CreateRecoveryBodySchema: [
     S.CreateRecoveryBodySchema,
     { wallet: addr, newOwner: recovery.newOwner, device: { deviceLabel: 'Lea · new phone' } },

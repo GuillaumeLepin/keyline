@@ -11,13 +11,14 @@
  *    module }, type `ExecuteRecovery(address wallet,address[] newOwners,uint256 newThreshold,uint256 nonce)`.
  *    `nonce` is the module's `nonce(wallet)`.
  */
-import type { Account, Address, Chain, Client, Hex, Transport, TypedDataDefinition } from 'viem';
-import { getAddress, hashTypedData } from 'viem';
-import { readContract, sendTransaction, writeContract } from 'viem/actions';
+import type { Address, Chain, Client, Hex, Transport, TypedDataDefinition } from 'viem';
+import { encodeFunctionData, getAddress, hashTypedData } from 'viem';
+import { readContract } from 'viem/actions';
 import { safeWebAuthnSignerFactoryAbi } from './abi/safeWebAuthnSignerFactory.js';
 import { socialRecoveryModuleAbi } from './abi/socialRecoveryModule.js';
 import { deploySignerProxyTx, type PasskeyPublicKey, passkeySignerAddress } from './account.js';
 import { KNOWN_GRACE_PERIODS_SECONDS, WEBAUTHN_SIGNER_FACTORY } from './constants.js';
+import { type TxSubmitter, toSubmitter, type WriteClient } from './relayer.js';
 
 export const RECOVERY_DOMAIN_NAME = 'Social Recovery Module';
 export const RECOVERY_DOMAIN_VERSION = '0.0.1';
@@ -68,7 +69,16 @@ export function recoveryHash(input: RecoveryRequestInput): Hex {
 }
 
 type ReadClient = Client<Transport, Chain | undefined>;
-type WriteClient = Client<Transport, Chain, Account>;
+
+/**
+ * Who submits the transaction: a funded viem wallet client (EOA) or a `TxSubmitter` such as the Candide-sponsored
+ * relayer Safe from `relayer.ts` (zero ETH). See `relayer.ts` for which module calls accept a non-guardian sender.
+ */
+export type Submitter = WriteClient | TxSubmitter;
+
+function submitModuleCall(submitter: Submitter, module: Address, data: Hex): Promise<Hex> {
+  return toSubmitter(submitter).sendTransaction({ to: getAddress(module), data, value: 0n });
+}
 
 export function recoveryNonce(client: ReadClient, module: Address, wallet: Address): Promise<bigint> {
   return readContract(client, {
@@ -103,7 +113,8 @@ export function sortGuardianSignatures(signatures: readonly GuardianSignature[])
 }
 
 export interface ConfirmAsGuardianInput {
-  readonly client: WriteClient;
+  /** MUST be the guardian itself (`msg.sender` check in the module): the guardian EOA, or a guardian Safe. */
+  readonly client: Submitter;
   readonly module: Address;
   readonly wallet: Address;
   readonly newOwners: readonly Address[];
@@ -113,17 +124,20 @@ export interface ConfirmAsGuardianInput {
 
 /** EOA guardian (sq-guardian, partner) confirms by itself; `execute: true` starts the grace period if threshold reached. */
 export function confirmAsGuardian(input: ConfirmAsGuardianInput): Promise<Hex> {
-  return writeContract(input.client, {
-    address: input.module,
-    abi: socialRecoveryModuleAbi,
-    functionName: 'confirmRecovery',
-    args: [input.wallet, [...input.newOwners], input.threshold, input.execute],
-  });
+  return submitModuleCall(
+    input.client,
+    input.module,
+    encodeFunctionData({
+      abi: socialRecoveryModuleAbi,
+      functionName: 'confirmRecovery',
+      args: [input.wallet, [...input.newOwners], input.threshold, input.execute],
+    }),
+  );
 }
 
 export interface ConfirmWithSignaturesInput {
-  /** The relayer — does not need to be a guardian. */
-  readonly client: WriteClient;
+  /** The relayer — does not need to be a guardian; an EOA wallet client or the sponsored relayer Safe. */
+  readonly client: Submitter;
   readonly module: Address;
   readonly wallet: Address;
   readonly newOwners: readonly Address[];
@@ -138,32 +152,41 @@ export function confirmWithSignatures(input: ConfirmWithSignaturesInput): Promis
     signer: s.signer,
     signature: s.signature,
   }));
-  return writeContract(input.client, {
-    address: input.module,
-    abi: socialRecoveryModuleAbi,
-    functionName: 'multiConfirmRecovery',
-    args: [input.wallet, [...input.newOwners], input.threshold, sorted, input.execute],
-  });
+  return submitModuleCall(
+    input.client,
+    input.module,
+    encodeFunctionData({
+      abi: socialRecoveryModuleAbi,
+      functionName: 'multiConfirmRecovery',
+      args: [input.wallet, [...input.newOwners], input.threshold, sorted, input.execute],
+    }),
+  );
 }
 
 /** Anyone can execute once approvals ≥ threshold (used when confirmations were sent with `execute: false`). */
 export function executeRecovery(input: Omit<ConfirmAsGuardianInput, 'execute'>): Promise<Hex> {
-  return writeContract(input.client, {
-    address: input.module,
-    abi: socialRecoveryModuleAbi,
-    functionName: 'executeRecovery',
-    args: [input.wallet, [...input.newOwners], input.threshold],
-  });
+  return submitModuleCall(
+    input.client,
+    input.module,
+    encodeFunctionData({
+      abi: socialRecoveryModuleAbi,
+      functionName: 'executeRecovery',
+      args: [input.wallet, [...input.newOwners], input.threshold],
+    }),
+  );
 }
 
 /** Anyone can finalize after `executeAfter`. */
-export function finalize(input: { client: WriteClient; module: Address; wallet: Address }): Promise<Hex> {
-  return writeContract(input.client, {
-    address: input.module,
-    abi: socialRecoveryModuleAbi,
-    functionName: 'finalizeRecovery',
-    args: [input.wallet],
-  });
+export function finalize(input: { client: Submitter; module: Address; wallet: Address }): Promise<Hex> {
+  return submitModuleCall(
+    input.client,
+    input.module,
+    encodeFunctionData({
+      abi: socialRecoveryModuleAbi,
+      functionName: 'finalizeRecovery',
+      args: [input.wallet],
+    }),
+  );
 }
 
 export interface RecoveryStatus {
@@ -211,16 +234,17 @@ export function gracePeriodSeconds(module: Address): number {
 
 /** Deploys the SafeWebAuthnSignerProxy for a new passkey (idempotent: returns null if it already exists). */
 export async function deploySignerProxy(input: {
-  client: WriteClient;
+  /** Any submitter (relayer EOA or sponsored relayer Safe) — the factory has no sender restriction. */
+  client: Submitter;
+  /** Used for the `eth_getCode` idempotency check (a TxSubmitter has no RPC of its own). */
+  reader: ReadClient;
   owner: PasskeyPublicKey;
 }): Promise<{ address: Address; txHash: Hex | null }> {
   const address = passkeySignerAddress(input.owner);
-  const code = await input.client.request({ method: 'eth_getCode', params: [address, 'latest'] });
+  const code = await input.reader.request({ method: 'eth_getCode', params: [address, 'latest'] });
   if (code && code !== '0x') return { address, txHash: null };
   const tx = deploySignerProxyTx(input.owner);
-  const txHash = await sendTransaction(input.client, {
-    account: input.client.account,
-    chain: input.client.chain,
+  const txHash = await toSubmitter(input.client).sendTransaction({
     to: getAddress(tx.to),
     data: tx.data as Hex,
     value: tx.value,

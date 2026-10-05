@@ -10,6 +10,7 @@ declare module 'fastify' {
     idempotent?: boolean;
     operator?: boolean;
     session?: boolean;
+    client?: boolean;
   }
   interface FastifyRequest {
     idempotencyKey?: string;

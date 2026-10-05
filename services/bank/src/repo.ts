@@ -20,6 +20,7 @@ type WalletRow = {
   recovery_mode: string;
   deploy_tx_hash: string | null;
   created_at: string;
+  attested?: number;
 };
 type ContactRow = {
   client_id: string;
@@ -49,6 +50,7 @@ export const rowToWallet = (r: WalletRow): Wallet =>
     recoveryMode: r.recovery_mode,
     createdAt: r.created_at,
     deployTxHash: r.deploy_tx_hash ?? undefined,
+    attested: r.attested === 1,
   });
 
 export const rowToContact = (r: ContactRow): Contact =>
@@ -80,18 +82,29 @@ export const rowToClient = (r: ClientRow): Client =>
     createdAt: r.created_at,
   });
 
+/** `attested` is derived from the attestations table so no ALTER TABLE is needed on existing DBs. */
+export const WALLET_SELECT =
+  'SELECT w.*, EXISTS(SELECT 1 FROM attestations a WHERE lower(a.wallet_address) = lower(w.address)) AS attested FROM wallets w';
+
 export const createRepo = (db: Db) => ({
   walletByOwnerCredential(credentialId: string): Wallet | null {
-    const row = db.prepare('SELECT * FROM wallets WHERE owner_credential_id = ?').get(credentialId) as
+    const row = db.prepare(`${WALLET_SELECT} WHERE w.owner_credential_id = ?`).get(credentialId) as
       | WalletRow
       | undefined;
     return row ? rowToWallet(row) : null;
   },
   walletByAddress(address: string): Wallet | null {
-    const row = db.prepare('SELECT * FROM wallets WHERE lower(address) = lower(?)').get(address) as
+    const row = db.prepare(`${WALLET_SELECT} WHERE lower(w.address) = lower(?)`).get(address) as
       | WalletRow
       | undefined;
     return row ? rowToWallet(row) : null;
+  },
+  walletsForClient(clientId: string): Wallet[] {
+    return (
+      db
+        .prepare(`${WALLET_SELECT} WHERE w.client_id = ? ORDER BY w.created_at DESC`)
+        .all(clientId) as WalletRow[]
+    ).map(rowToWallet);
   },
   contacts(clientId: string): Contact[] {
     return (

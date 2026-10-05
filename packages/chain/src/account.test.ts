@@ -27,7 +27,11 @@ const USDC: Address = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 const owner = { x: 0x1234n, y: 0x5678n };
 
 const oneTx: MetaTransaction[] = [
-  transferTransaction({ token: USDC, to: '0x00000000000000000000000000000000000000aa', amount: parseUnits('1', 6) }),
+  transferTransaction({
+    token: USDC,
+    to: '0x00000000000000000000000000000000000000aa',
+    amount: parseUnits('1', 6),
+  }),
 ];
 const threeTxs: MetaTransaction[] = [
   ...oneTx,
@@ -66,7 +70,9 @@ describe('encodeCallData', () => {
     });
     const userOp = await buildUserOp(pk, protect, endpoints, { sponsored: true });
     expect(userOp.factory).not.toBeNull();
-    expect(userOp.callData).toBe(encodeCallData([...initOwnerTransactions(pk.owner, pk.address), ...protect]));
+    expect(userOp.callData).toBe(
+      encodeCallData([...initOwnerTransactions(pk.owner, pk.address), ...protect]),
+    );
   }, 30_000);
 
   it('is pure and rejects an empty batch', () => {

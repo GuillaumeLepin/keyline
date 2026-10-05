@@ -17,7 +17,7 @@ export const EnvSchema = z.object({
 
   BANK_PORT: z.coerce.number().int().positive().default(4000),
   BANK_HOST: z.string().default('127.0.0.1'),
-  // The Candide key may be empty during Wave 0; sponsorship is then disabled, never faked.
+  // The key is optional: the public Candide endpoint sponsors on testnet (DECISIONS #11). The URL decides.
   BANK_CANDIDE_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   BANK_CANDIDE_BUNDLER_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   BANK_CANDIDE_PAYMASTER_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
@@ -41,6 +41,9 @@ export type Env = z.infer<typeof EnvSchema>;
 
 export type BankConfig = Env & {
   paymasterEnabled: boolean;
+  /** One Candide URL serves bundler + paymaster; each falls back to the other when only one is set. */
+  bundlerUrl: string | undefined;
+  paymasterUrl: string | undefined;
   explorerUrl: string;
   /** Public addresses only — safe to log and to return from /health. */
   addresses: { verdict: `0x${string}`; relayer: `0x${string}`; funder: `0x${string}` };
@@ -65,9 +68,9 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): BankConfig => 
   const explorerUrl = e.CHAIN_ID === 84532 ? 'https://sepolia.basescan.org' : 'https://sepolia.etherscan.io';
   return {
     ...e,
-    paymasterEnabled: Boolean(
-      e.BANK_CANDIDE_API_KEY && (e.BANK_CANDIDE_PAYMASTER_URL || e.BANK_CANDIDE_BUNDLER_URL),
-    ),
+    paymasterEnabled: Boolean(e.BANK_CANDIDE_PAYMASTER_URL || e.BANK_CANDIDE_BUNDLER_URL),
+    bundlerUrl: e.BANK_CANDIDE_BUNDLER_URL ?? e.BANK_CANDIDE_PAYMASTER_URL,
+    paymasterUrl: e.BANK_CANDIDE_PAYMASTER_URL ?? e.BANK_CANDIDE_BUNDLER_URL,
     explorerUrl,
     addresses: {
       verdict: privateKeyToAccount(e.BANK_VERDICT_PRIVATE_KEY as `0x${string}`).address,

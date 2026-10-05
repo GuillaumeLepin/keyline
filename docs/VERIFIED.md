@@ -97,3 +97,69 @@ All five EOAs are at **0 ETH**, funder at **0 USDC** — nothing funded yet. Min
 - Without a key: builds the counterfactual Safe, verifies recovery-hash parity, estimates gas on the public bundler (callGasLimit 385 565, verificationGasLimit 695 243, preVerificationGas 71 798 for deploy + createSigner + swapOwner + enableModule + 3 × addGuardian), prints the userOp, exits 2 with `BLOCKED: BANK_CANDIDE_API_KEY missing`.
 - With `--public` (19:40 CEST) — **Gate 1 create + protect done on Base Sepolia**: Safe `0x39ECE2fA9262408426E78c71A9dED95ddD42967D` deployed, recovery module enabled, guardians `[0x01Bb…4dE8 (sq), 0xd8f4…302d (emergency card stand-in), 0xCA70…89cF (safety key stand-in)]`, threshold 2, in ONE sponsored userOp signed by the test passkey over the SafeOp hash `0x3b8d5737…2574`. userOpHash `0x6687cca91a37fd0c1dc4ea2dca3a7526af259c3416e16fcb05b381541327f1ba`, tx <https://sepolia.basescan.org/tx/0x61a472d198e026cb4d3dd1f1b8f02803ccf8cc105002593c9b7de4f8c5cff4d5>, **actualGasUsed 873 505** (deploy + createSigner + swapOwner + enableModule + 3 adds; paymaster Trilema `0x8b1f…75ba`). Owner after the op = signer proxy `0xF1c393d2747dB731f3ff22BbDd8Da25e65a3c3A1`. USDC transfer skipped (no test USDC yet) — re-run with `--keyfile` once the Safe holds ≥ 1 USDC.
 - Test-only passkey: Node WebCrypto ECDSA P-256; `authenticatorData` = SHA-256("localhost") ‖ flags 0x05 ‖ counter; `clientDataJSON` = `{type:"webauthn.get", challenge: base64url(SafeOp hash), origin}`; signature handed to abstractionkit as `{r, s}` (WebCrypto's raw r‖s split in two — not DER parsing). Never shipped to the app.
+
+---
+
+# Wave 1 (5 Oct 2026, 19:40–20:30 CEST) — callData parity, ERC-1271 attestation, recovery with zero ETH
+
+## 9. `encodeCallData` / `decodeCallData` / `getUserOpStatus` (`packages/chain/src/account.ts`)
+
+| Claim | Verified value | How |
+|---|---|---|
+| `encodeCallData(txs)` equals `buildUserOp(...).callData` | Yes for 1 tx (`executeUserOpWithErrorString`, selector `0x541d63c8`) and 3-tx batches (delegatecall to MultiSend 1.4.1 `0x3886…B526`, `multiSend(bytes)` `0x8d80ff0a`) — both go through `SafeAccountV0_3_0.createAccountCallData{Single,Batch}Transactions`, exactly what `createUserOperation` calls internally. | `packages/chain/src/account.test.ts` (live nonce read on Base Sepolia against the Gate 1 Safe `0x39EC…967D`) |
+| First (init) userOp | abstractionkit prepends `factory.createSigner` + `swapOwner(0x1, sharedSigner, proxy)`; `encodeCallData([...initOwnerTransactions(owner, safe), ...protectTxs])` equals the built callData. The bank uses this to verify the create+protect op. | same test |
+| `decodeCallData` | Inverse: outer `decodeAccountCallData` (SDK) + MultiSend packed layout `op(1)‖to(20)‖value(32)‖len(32)‖data`; round-trips value ≠ 0 and empty data. | same test |
+| `getUserOpStatus(bundlerUrl, hash)` | One `eth_getUserOperationReceipt` via `Bundler` → `pending` (null) / `included` (success) / `failed`; returns `txHash`, `blockNumber`, `actualGasUsed`. | used by `scripts` only via `waitForReceipt`; manual call on the Gate 1 hash returns `included` |
+
+## 10. ERC-1271 ownership attestation (`packages/chain/src/attestation.ts`) — **proven on-chain**
+
+| Claim | Verified value |
+|---|---|
+| Fresh test Safe (keyfile `data/test-keyfile.json`, git-ignored) | Safe **`0x2eac8081f2c00f526369AabB7492abE2ec280dea`**, owner = signer proxy `0xed28eBf172551f6CA1392A5e6A71f505096BbE2b`; guardians `[sq 0x01Bb…4dE8, emergency 0x745C…1926, safety 0x52da…0f56]`, threshold 2. Create+protect tx <https://sepolia.basescan.org/tx/0xf317b51d0f9b3932eb2ddcc1f113ae0e3e3e90de6ea3309cdee7a5d9637785c3> (actualGasUsed 874 430, sponsor Trilema via the public Candide endpoint). |
+| What the passkey signs | Safe 1.4.1 `CompatibilityFallbackHandler.isValidSignature(bytes32 dataHash, bytes sig)` wraps `dataHash` as `SafeMessage(bytes message)` with `message = abi.encode(dataHash)` under the Safe's own domain `{chainId, verifyingContract: safe}`, then `checkSignatures(messageHash, messageData, sig)`; a v=0 contract signature makes the Safe call `proxy.isValidSignature(messageData, webauthnSig)`, and the proxy hashes `messageData` → the WebAuthn challenge is `keccak256(messageData)` = `hashTypedData(SafeMessage)` = **`attestationChallenge(fields)`**. abstractionkit's `getSafeMessageEip712Data` is the same wrapper but over `hashMessage(string)` (EIP-191), so it is not used; its `SAFE_MESSAGE_MODULE_TYPE` constant is. |
+| Signature bytes | `attestationSignatureFromPasskey(assertion, owner)` = `buildSignaturesFromSingerSignaturePairs([{signer:{x,y}, signature: createWebAuthnSignature(webauthnSignatureFromAssertion(assertion))}], {isInit:false, …overrides})` → 417 bytes: `r = proxy address, s = 0x41 (offset), v = 0`, then `uint256 len ‖ abi.encode(authenticatorData, clientDataFields, [r, s])`. The Safe4337Module `0x00 ‖ validAfter ‖ validUntil` prefix (what `formatSignaturesToUseroperationSignature` adds) is deliberately absent — Safe's `isValidSignature` wants the bare signature. |
+| Live result (`pnpm --filter @keyline/scripts spike:attestation --keyfile ../data/test-keyfile.json`, 19:44 CEST) | digest `0xea676567…6d30`, challenge `0xabaaf4e2…8efb`, viem `verifyTypedData({address: safe})` → **`ok: true`**; raw `eth_call isValidSignature(digest, sig)` → **`0x1626ba7e`**; another passkey signing the same challenge → `ok: false`; same signature with a tampered nonce → `ok: false`. The signature is pinned as a fixture in `attestation.test.ts` (live ERC-1271 test). |
+| ERC-6492 | Not needed: the attestation is signed after deployment (SPEC F1.6). Production refinement for counterfactual Safes only. |
+
+## 11. Recovery with ZERO ETH — Candide-sponsored relayer Safe (`packages/chain/src/relayer.ts`)
+
+| Claim | Verified value |
+|---|---|
+| Problem | All gas EOAs (sq-guardian, partner, relayer, funder) hold 0 ETH (`pnpm --filter @keyline/scripts fund-guardians`, 20:05 CEST → exit 2 with faucet list). |
+| Solution | `sponsoredRelayer({ ownerPrivateKey, endpoints })` = an EOA-owned `SafeAccountV0_3_0` whose userOps are Candide-sponsored; `sendTransaction({to, data, value})` builds → sponsors → `signUserOperation([ownerKey])` → sends → waits for inclusion → returns the tx hash. Relayer Safe for `BANK_RELAYER_PRIVATE_KEY` (`0x11a2…F8a9`): **`0x8Fadb595e6f3b59123c7A20c2c895C697816361a`** (deployed by its first sponsored userOp). `recovery.confirmWithSignatures / finalize / executeRecovery / confirmAsGuardian / deploySignerProxy` take `client: Submitter = viem WalletClient \| TxSubmitter`. |
+| msg.sender rules (from the deployed module source, §3) | `multiConfirmRecovery` with non-empty signatures: any sender ✔ (relayer Safe). `finalizeRecovery`, `executeRecovery`, factory `createSigner`: any sender ✔. `confirmRecovery`: `msg.sender` must be the guardian ✘ for a relayer Safe (unless that Safe IS the registered guardian). |
+
+## 12. Gate 2 — recovery executed → finalized, and executed → cancelled, **all with 0 ETH on every EOA**
+
+Command: `pnpm --filter @keyline/scripts spike:recovery --public --keyfile ../data/test-keyfile-recovery.json [--mode finalize|cancel]`. Submitter auto-selected = **sponsored relayer Safe `0x8Fadb595e6f3b59123c7A20c2c895C697816361a`** (relayer EOA `0x11a2…F8a9` at 0 ETH). Paymaster Trilema `0x8b1f…75ba` via the public Candide endpoint.
+
+| Step | Result (Base Sepolia) |
+|---|---|
+| Test Safe | **`0x10b6b8542f734863C6b90703e522B22DF19f1628`**, created+protected 19:48 CEST: <https://sepolia.basescan.org/tx/0xfbf4ce024e7f75b5c94101c799e4466d90dd4e5a0b2081fa017170e1480ea6d1>. Owner before = proxy `0x2C7399327f5CC72e81AC0D8c4E28A2bCc9FB0D42`; guardians `[sq 0x01Bb…4dE8, emergency 0xBb16…E3a2, safety 0x98dC…BfE0]`, threshold 2. |
+| (a) new passkey → `deploySignerProxy` via the relayer Safe (first sponsored userOp also deployed the relayer Safe) | proxy **`0xf84BB12E76De0Ba23b30A8093a1cf73Ddc097b45`** <https://sepolia.basescan.org/tx/0x188117528b18dc27a44355cb7863a63563775af48fb59c9cf1617f4d69c3af7f> |
+| (b) Safety key + Emergency card `signTypedData(ExecuteRecovery)` (recoveryHash `0xa0ed3b54…5e63` = on-chain `getRecoveryHash`, nonce 0) → relayer Safe `multiConfirmRecovery(execute=true)` | <https://sepolia.basescan.org/tx/0xb53f58a60c2202e499d9ed130b2fe56a328f2a6b885ee15f9190a5c0a2ef26e5> → `status()`: `pending: true, approvals: 2, executeAfter: 2026-10-05T17:51:58Z, newOwners: [0xf84B…7b45], newThreshold: 1` |
+| (c) wait 180 s (polled `executeAfter` vs block timestamp) → relayer Safe `finalizeRecovery` | <https://sepolia.basescan.org/tx/0xcad741a3c66c039b28b41696492026839921ff5d13d7358207126cbecd51b874> → **`getOwners() = [0xf84BB12E76De0Ba23b30A8093a1cf73Ddc097b45]`** (old proxy gone), `pending: false`. The new passkey then signed an attestation that verified via ERC-1271 (`ok: true`) — control proven without any further tx. |
+| (d) second run, `--mode cancel`: execute again (another new passkey, proxy <https://sepolia.basescan.org/tx/0x131b6d7c2f85051c3939c2b5c5e0e8d5953bb10fb59336ad9b064599bbcba235>, `multiConfirmRecovery(execute=true)` <https://sepolia.basescan.org/tx/0x45b0bed022ffb14c66f0012612bfd393590e4b43cb145a36ed7cef250ad57b35>, `executeAfter 17:56:26Z`) → **owner passkey sends a sponsored `cancelRecovery()` userOp** (`buildCancelRecoveryUserOp`, actualGasUsed 198 525) | <https://sepolia.basescan.org/tx/0xebb4bf7031ad65b33f64aac2a34e83908ca52443ec1168bd15a8fb1d9c12b02d> → `pending: false`, owners unchanged. (This run happened on Safe `0x4d58e3df70Dc885F1D150CC78D74D6bD96d100d6`, created by the same recovered passkey — harness bug, see below — then re-run on `0x10b6…1628`, §12b.) |
+| Nonce behaviour (correction to §3) | `nonce(wallet)` is bumped when the recovery is **executed** (0 → 1 right after `multiConfirmRecovery(execute=true)`), not at finalize/cancel. Guardian signatures must therefore be collected against the current nonce *before* execution; signatures for an executed request cannot be replayed. |
+| Harness lesson | After a recovery the Safe address can no longer be derived from the current passkey (`createPasskeyAccount` would give a new counterfactual Safe). The keyfile now records `safe` and the spikes use `loadPasskeyAccount(safe, owner)`. The same applies to the wallet app: store the Safe address at creation, never re-derive it from the live passkey. |
+
+### 12b. Cancel path re-run on the recovered Safe `0x10b6b8542f734863C6b90703e522B22DF19f1628` (keyfile with `safe` recorded; owner = recovered passkey proxy 0xf84B…7b45)
+
+| Step | Tx |
+|---|---|
+| new passkey proxy (relayer Safe, sponsored) | <https://sepolia.basescan.org/tx/0xbc2f43a0d6a0d60b9daaa890897ed804e4cce43ada05b11e60eb920b260dcb64> |
+| Safety key + Emergency card → relayer Safe `multiConfirmRecovery(execute=true)` | <https://sepolia.basescan.org/tx/0xc612a175a1e03f0cfee7de3a028a3e4c2112cddb8486c0a9fc89f618ff78ebc1> → `executeAfter 2026-10-05T17:57:22.000Z` |
+| owner (recovered passkey) sponsored `cancelRecovery()` userOp | <https://sepolia.basescan.org/tx/0x5ba3e0db186f726f04c14c46211a52d37eec486d79418a1880ab3ceef0a931f9> → `pending: false`, owners unchanged `[0xf84B…7b45]` |
+
+Three sponsored relayer userOps + three owner userOps in this wave, all paid by the Candide testnet sponsor; no EOA spent a wei. Public endpoint rate limit was never hit (≤ 1 req / 3 s polling).
+
+## 13. Recommendation — sq-guardian when the EOAs never get ETH
+
+Two workable options, both using only `multiConfirmRecovery` (no `confirmRecovery`, which needs `msg.sender == guardian`):
+
+| Option | How | Pros | Cons |
+|---|---|---|---|
+| **A (recommended)** sq-guardian **signs**, the bank relayer **submits** | sq-guardian keeps its EOA key as the on-chain guardian (already in the guardian set of every Safe). It signs `recoveryTypedData(...)` with `GUARDIAN_PRIVATE_KEY` (`account.signTypedData`, 65-byte ECDSA — exactly what the module's `SignatureChecker` accepts for EOAs) and returns `{signer, signature}` to the bank; the bank relayer (sponsored relayer Safe today, plain EOA once funded) submits ONE `confirmWithSignatures({ signatures: [sq, safetyKey], execute: true })`. Approvals accumulate per `recoveryHash`, so sq's signature can also be submitted alone first (`execute: false`) to show "1 of 2" on the desk. | Zero changes to the guardian set, zero ETH anywhere, same code path when ETH arrives; the guardian key never leaves the sq-guardian process (it only emits a signature). Custody claim unchanged: the on-chain guardian is still the sq EOA. | sq-guardian no longer "sends its own tx" — the bank relays it. Separation of duties is preserved cryptographically (the bank cannot forge sq's signature), but the sq process has no tx hash of its own until the relayed tx lands (the bank returns it). |
+| B sq-guardian owns its **own sponsored Safe** that is the on-chain guardian | Register `sponsoredRelayer({ ownerPrivateKey: GUARDIAN_PRIVATE_KEY }).address` as the guardian at create+protect; sq-guardian then calls `confirmAsGuardian({ client: relayerSafe })` itself (`msg.sender` = its Safe = the guardian). | sq-guardian submits its own transaction, no bank in the loop. | The guardian set changes (a Safe instead of an EOA; existing test Safes must be redeployed); the guardian Safe needs the Candide sponsorship URL inside the guardian process (today the public endpoint; in prod a second API key); ERC-1271 path for `multiConfirm` signatures becomes more complex. |
+
+Go with **A**. Only the Safety key / Emergency card flow (F3 step 3) and sq's confirmation differ in *who signs*, not in *how it is submitted*. If ETH arrives, switch `pickSubmitter` to the EOA (`eoaSubmitter(walletClient)`) — nothing else changes. `confirmRecovery` by a funded sq EOA remains available via `confirmAsGuardian` for the "guardian sends its own tx" narrative.

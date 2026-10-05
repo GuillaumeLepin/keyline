@@ -167,7 +167,7 @@ describe('bank app', () => {
         payload: stub.method === 'POST' ? {} : undefined,
       });
       expect(res.statusCode, `${stub.method} ${stub.url}`).toBe(501);
-      expect(res.json()).toMatchObject({ error: 'not-implemented-yet', wave: 1 });
+      expect(res.json()).toMatchObject({ error: 'not-implemented-yet', wave: 2 });
     }
   });
 

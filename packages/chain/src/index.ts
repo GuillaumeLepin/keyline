@@ -6,6 +6,21 @@ export type {
 } from 'abstractionkit';
 export { safeWebAuthnSignerFactoryAbi, socialRecoveryModuleAbi } from './abi/index.js';
 export * from './account.js';
+export * as attestation from './attestation.js';
+export {
+  ATTESTATION_DOMAIN_NAME,
+  ATTESTATION_DOMAIN_VERSION,
+  ATTESTATION_TYPES,
+  type AttestationFields,
+  type AttestationTypedData,
+  attestationChallenge,
+  attestationDigest,
+  attestationSignatureFromPasskey,
+  attestationTypedData,
+  safeMessageHash,
+  type VerifyAttestationInput,
+  type VerifyAttestationResult,
+} from './attestation.js';
 export * from './constants.js';
 export * as recovery from './recovery.js';
 export {
@@ -21,5 +36,7 @@ export {
   recoveryHashOnChain,
   recoveryNonce,
   recoveryTypedData,
+  type Submitter,
   sortGuardianSignatures,
 } from './recovery.js';
+export * from './relayer.js';

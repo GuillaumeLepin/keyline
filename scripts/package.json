@@ -7,7 +7,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
     "check-balances": "tsx check-balances.ts",
-    "spike:create-and-send": "tsx spike-create-and-send.ts"
+    "spike:create-and-send": "tsx spike-create-and-send.ts",
+    "spike:attestation": "tsx spike-attestation.ts",
+    "spike:recovery": "tsx spike-recovery.ts",
+    "fund-guardians": "tsx fund-guardians.ts"
   },
   "dependencies": {
     "viem": "^2.57.3",

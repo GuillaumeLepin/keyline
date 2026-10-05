@@ -44,6 +44,9 @@ export const forbidden = (message = 'Not allowed') => new ApiError('forbidden', 
 export const notFound = (what: string) => new ApiError('not-found', `${what} not found`);
 export const conflict = (message: string, details?: unknown) => new ApiError('conflict', message, details);
 export const upstream = (message: string, details?: unknown) => new ApiError('upstream', message, details);
+/** 403 with the policy copy the UI shows verbatim. */
+export const policyRefused = (message: string, details?: unknown) =>
+  new ApiError('policy-refused', message, details);
 
 const isZodError = (err: unknown): err is ZodError =>
   err instanceof ZodError || (err as { name?: string })?.name === 'ZodError';

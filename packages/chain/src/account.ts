@@ -341,7 +341,8 @@ export function userOpToJson(userOp: UserOperationV7): Record<string, string | n
 
 /** Exactly the `callData` that `buildUserOp(pk, txs)` produces for a non-init userOp (pure, no RPC). */
 export function encodeCallData(transactions: readonly MetaTransaction[]): Hex {
-  if (transactions.length === 0) throw new ChainError('BAD_INPUT', 'encodeCallData needs at least one transaction');
+  if (transactions.length === 0)
+    throw new ChainError('BAD_INPUT', 'encodeCallData needs at least one transaction');
   const txs = transactions.map((tx) => ({ ...tx, value: tx.value ?? 0n, data: tx.data ?? '0x' }));
   const first = txs[0];
   if (txs.length === 1 && first !== undefined) {

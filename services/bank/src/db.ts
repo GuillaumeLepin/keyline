@@ -8,7 +8,7 @@ export type Db = Database.Database;
 const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS clients (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, kyc_level TEXT NOT NULL,
-    account_balance_chf REAL NOT NULL DEFAULT 5000, created_at TEXT NOT NULL)`,
+    account_balance_chf REAL NOT NULL DEFAULT 12500, created_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS wallets (
     address TEXT PRIMARY KEY, client_id TEXT NOT NULL REFERENCES clients(id), chain_id INTEGER NOT NULL,
     owner_credential_id TEXT NOT NULL, status TEXT NOT NULL, recovery_mode TEXT NOT NULL,
@@ -56,6 +56,17 @@ const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS webauthn_challenges (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL, challenge TEXT NOT NULL, client_id TEXT, device_label TEXT,
     expires_at TEXT NOT NULL, used_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS pairings (
+    code TEXT PRIMARY KEY, wallet_address TEXT NOT NULL, client_id TEXT NOT NULL, status TEXT NOT NULL,
+    created_at TEXT NOT NULL, expires_at TEXT NOT NULL, claimed_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS attestation_nonces (
+    nonce TEXT PRIMARY KEY, wallet_address TEXT NOT NULL, client_id TEXT NOT NULL, created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL, used_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS topups (
+    id TEXT PRIMARY KEY, wallet_address TEXT NOT NULL, client_id TEXT NOT NULL, amount_usdc REAL NOT NULL,
+    amount_chf REAL NOT NULL, tx_hash TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS decisions_wallet_idx ON policy_decisions(wallet_address, created_at)`,
+  `CREATE INDEX IF NOT EXISTS sponsorships_wallet_idx ON sponsorships(wallet_address, created_at)`,
   // Append-only guarantee enforced in the database itself, not only by the TS module surface.
   `CREATE TRIGGER IF NOT EXISTS events_no_update BEFORE UPDATE ON events
     BEGIN SELECT RAISE(ABORT, 'events is append-only'); END`,

@@ -15,19 +15,21 @@ describe('config', () => {
     );
   });
 
-  it('treats an empty Candide key as paymaster disabled, never as an error', () => {
+  it('disables the paymaster when no Candide URL is set, never as an error', () => {
     const cfg = loadConfig(TEST_ENV);
     expect(cfg.paymasterEnabled).toBe(false);
     expect(cfg.BANK_CANDIDE_API_KEY).toBeUndefined();
   });
 
-  it('enables the paymaster only when a key and a URL are both present', () => {
+  it('enables the paymaster whenever a URL is set — the key is optional (public testnet endpoint)', () => {
     const cfg = loadConfig({
       ...TEST_ENV,
-      BANK_CANDIDE_API_KEY: 'k',
-      BANK_CANDIDE_PAYMASTER_URL: 'https://api.candide.dev/paymaster/v3/base-sepolia/k',
+      BANK_CANDIDE_API_KEY: '',
+      BANK_CANDIDE_BUNDLER_URL: 'https://api.candide.dev/public/v3/84532',
     });
     expect(cfg.paymasterEnabled).toBe(true);
+    expect(cfg.paymasterUrl).toBe('https://api.candide.dev/public/v3/84532');
+    expect(cfg.bundlerUrl).toBe('https://api.candide.dev/public/v3/84532');
   });
 
   it('derives public addresses and never exposes the keys on them', () => {
