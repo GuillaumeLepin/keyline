@@ -175,13 +175,15 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
             <p className="kl-balance__secondary">{formatUSDC(usdc)}</p>
           </>
         )}
-        <Link href="/security" className="no-underline">
-          <PolicyLine verdict="ok" word={protectionWord} reason={protectionReason} />
-        </Link>
+        {wallet.status === 'deployed' ? (
+          <Link href="/security" className="no-underline">
+            <PolicyLine verdict="ok" word={protectionWord} reason={protectionReason} />
+          </Link>
+        ) : null}
       </section>
 
       <div className="kl-actions kl-actions--row" style={{ marginTop: 0 }}>
-        <Button variant="primary" href="/send" disabled={onboardingPending}>
+        <Button variant="primary" href="/send" disabled={wallet.status !== 'deployed'}>
           {copy.home.send}
         </Button>
         <Button variant="secondary" onClick={() => setSheet('receive')}>

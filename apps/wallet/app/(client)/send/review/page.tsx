@@ -157,7 +157,7 @@ function Review({
       {decision.isError ? (
         <ApiErrorState
           error={decision.error}
-          body={copy.common.offlineBody}
+          body={copy.activity.failedBody}
           onRetry={() => decision.refetch()}
         />
       ) : null}
@@ -321,7 +321,11 @@ function whatWillHappen(
     {
       label: copy.review.yourBalance,
       value:
-        before !== undefined && after !== undefined ? `${formatUSDC(before)} → ${formatUSDC(after)}` : '—',
+        before !== undefined && after !== undefined && after >= 0
+          ? `${formatUSDC(before)} → ${formatUSDC(after)}`
+          : before !== undefined
+            ? formatUSDC(before)
+            : '—',
     },
     { label: copy.review.networkFee, value: copy.common.networkFeePaid },
   ];

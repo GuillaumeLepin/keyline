@@ -76,13 +76,24 @@ export function errorDetail(error: unknown): string {
   return String(error);
 }
 
+/**
+ * HTTP header values must be ISO-8859-1; `fetch` throws on anything else. "Lea · laptop — Safety key" carries an
+ * em dash (U+2014), so the header gets an ASCII dash while JSON bodies keep the exact label.
+ */
+function headerSafe(label: string): string {
+  return Array.from(label, (ch) => (ch.charCodeAt(0) > 0xff ? '-' : ch)).join('');
+}
+
 async function request<T>(
   method: 'GET' | 'POST',
   path: string,
   schema: z.ZodType<T>,
   body?: unknown,
 ): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json', 'X-Device-Label': getDeviceLabel() };
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'X-Device-Label': headerSafe(getDeviceLabel()),
+  };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   let response: Response;
   try {
@@ -140,10 +151,8 @@ const WalletDetailLenient = WalletSchema.extend({
   passkey: PasskeySchema.optional(),
 });
 const GuardiansLenient = z.union([GuardiansResponseSchema, z.array(GuardianSchema)]);
-const ClaimResponse = z.union([
-  PairingSchema,
-  z.object({ guardian: GuardianSchema, status: z.string().optional() }),
-]);
+/** `POST /pairings/:code/claim` answers with the Guardian it registered (201); older drafts wrapped it. */
+const ClaimResponse = z.union([GuardianSchema, PairingSchema, z.object({ guardian: GuardianSchema })]);
 /** @simplewebauthn options JSON: the server library owns the shape; we only check it is an object with a challenge. */
 const WebAuthnOptions = z.object({ challenge: z.string().min(1) }).passthrough();
 
