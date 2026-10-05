@@ -13,6 +13,7 @@ import type { EventStore } from '../events';
 import { FX, USDC_CHF_RATE } from '../policy/rates';
 import type { Repo } from '../repo';
 import type { Store } from '../store';
+import { syncWalletStatus } from '../wallet-sync';
 
 type Deps = { config: BankConfig; db: Db; events: EventStore; repo: Repo; store: Store; chain: ChainDeps };
 /** Enough for one ERC-20 transfer on Base Sepolia with margin. */
@@ -32,6 +33,7 @@ export const registerTopupRoutes = (
     const wallet = repo.walletByAddress(body.wallet);
     if (!wallet) throw notFound('Wallet');
     if (wallet.clientId !== client.clientId) throw forbidden('This wallet belongs to another client');
+    if (wallet.status === 'pending') await syncWalletStatus({ db, repo, events, chain }, wallet);
     if (!wallet.attested)
       throw policyRefused("This wallet hasn't proven ownership yet", { travelRule: true });
 

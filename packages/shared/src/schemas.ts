@@ -111,6 +111,21 @@ export const ContactSchema = z.object({
 });
 export type Contact = z.infer<typeof ContactSchema>;
 
+export const CallSchema = z.object({
+  to: Address,
+  value: WeiString, // wei, decimal string
+  data: Hex,
+});
+export type Call = z.infer<typeof CallSchema>;
+
+/** A canned request a mock dApp "makes" to the wallet — the client submits it as `POST /policy/evaluate { kind: 'dapp' }`. */
+export const DappDemoRequestSchema = z.object({
+  calls: z.array(CallSchema).min(1),
+  /** What the dApp claims it is doing, in the dApp's own words (the review screen shows the bank's decode instead). */
+  description: z.string().min(1),
+});
+export type DappDemoRequest = z.infer<typeof DappDemoRequestSchema>;
+
 export const DappSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -119,15 +134,12 @@ export const DappSchema = z.object({
   contracts: z.array(Address),
   /** True for DemoSwap and anything else that is not a real deployed protocol. */
   simulated: z.literal(true).optional(),
+  /** Short note on where the addresses come from (official deployment docs) or that they are placeholders. */
+  note: z.string().optional(),
+  /** Present on mock dApps only: the request the `/dapps` screen lets the user submit. */
+  demoRequest: DappDemoRequestSchema.optional(),
 });
 export type Dapp = z.infer<typeof DappSchema>;
-
-export const CallSchema = z.object({
-  to: Address,
-  value: WeiString, // wei, decimal string
-  data: Hex,
-});
-export type Call = z.infer<typeof CallSchema>;
 
 /**
  * What the client is asking the policy engine about.
@@ -136,8 +148,10 @@ export type Call = z.infer<typeof CallSchema>;
  * - `transfer`: exactly one ERC-20 `transfer` on USDC; `chfValue` is recomputed by the bank from the amount.
  * - `cancel-recovery`: the owner cancels a pending recovery (`cancelRecovery()` on the module). The bank builds the
  *   single call itself; `calls` may be empty and is ignored. Always Tier 1, always sponsored (F4b).
+ * - `dapp`: a dApp's request — `dappId` + the calls it asked for. Every `call.to` must be one of the dApp's
+ *   allowlisted `contracts` (policy/allowlist.json), otherwise `block` ("Unknown dApp — request a review").
  */
-export const PolicyKindSchema = z.enum(['protect', 'transfer', 'cancel-recovery']);
+export const PolicyKindSchema = z.enum(['protect', 'transfer', 'cancel-recovery', 'dapp']);
 export type PolicyKind = z.infer<typeof PolicyKindSchema>;
 
 export const PolicyRequestSchema = z.object({
@@ -190,7 +204,8 @@ export const ScreeningSchema = z.object({
   counterparty: Address,
   listsChecked: z.tuple([z.literal('OFAC-SDN'), z.literal('SECO')]),
   hit: z.boolean(),
-  source: z.string().optional(), // which list / entry matched
+  /** Which list / entry matched: the real OFAC SDN list, or the seeded test contact (`simulatedHit`). */
+  source: z.enum(['OFAC-SDN', 'seeded-test']).optional(),
   simulatedHit: z.boolean(), // true when the hit is our seeded test address
   /** SECO publishes names, not addresses — that part of the screening is always simulated. */
   simulated: z.literal(true),
@@ -209,8 +224,24 @@ export const StepUpStateSchema = z.object({
   satisfiedBy: z.literal('safety-key').optional(),
   signature: Hex.optional(),
   satisfiedAt: IsoDate.optional(),
+  /** The Safety key that signed (the wallet's registered `safety-key` guardian). */
+  guardianAddress: Address.optional(),
 });
 export type StepUpState = z.infer<typeof StepUpStateSchema>;
+
+/** Lifecycle of a decision after it was made: `open` until it is sent, cancelled or consumed by /userops/send. */
+export const DecisionStatusSchema = z.enum(['open', 'cancelled', 'consumed']);
+export type DecisionStatus = z.infer<typeof DecisionStatusSchema>;
+
+/** "Approve 100 USDC instead": the same approve call with a finite allowance (DESIGN /send/review dApp danger). */
+export const SuggestedCapSchema = z.object({
+  call: CallSchema,
+  /** Human units, e.g. "100" (USDC). */
+  amount: z.string().min(1),
+  symbol: z.string().min(1),
+  humanText: z.string().min(1),
+});
+export type SuggestedCap = z.infer<typeof SuggestedCapSchema>;
 
 /** Static CHF conversion used by the policy engine (SIMULATED market data). */
 export const FxSchema = z.object({
@@ -240,14 +271,32 @@ export const PolicyDecisionSchema = z.object({
   stepUp: StepUpStateSchema.optional(),
   /** keccak256 of the ABI-encoded calls; /userops/sponsor checks the userOp's callData against it. */
   callsHash: Hash32,
-  /** For `cooling` verdicts: when the client may proceed. */
+  /** For `cooling` verdicts: when the client may proceed (the bank promotes the verdict to `approve` on read). */
   coolingUntil: IsoDate.optional(),
   chfValue: z.number().nonnegative(),
   fx: FxSchema,
   expiresAt: IsoDate,
   decidedAt: IsoDate,
+  /** `open` (default), `cancelled` (POST /policy/:id/cancel) or `consumed` (sent through /userops/send). */
+  status: DecisionStatusSchema.optional(),
+  cancelledAt: IsoDate.optional(),
+  /** Present when a decoded call is an unlimited ERC-20 approve: the capped alternative the client can resubmit. */
+  suggestedCap: SuggestedCapSchema.optional(),
+  /** Echo of the request for `kind: 'dapp'`. */
+  dappId: z.string().optional(),
+  /** Device that asked (the laptop's /approve screen shows "Requested from Lea · phone"). */
+  deviceLabel: z.string().optional(),
+  /** Best-effort label of the recipient when it is a saved contact. */
+  recipientLabel: z.string().optional(),
+  recipientAddress: Address.optional(),
 });
 export type PolicyDecision = z.infer<typeof PolicyDecisionSchema>;
+
+export const PendingApprovalsResponseSchema = z.object({ decisions: z.array(PolicyDecisionSchema) });
+export type PendingApprovalsResponse = z.infer<typeof PendingApprovalsResponseSchema>;
+
+export const DappsResponseSchema = z.object({ dapps: z.array(DappSchema) });
+export type DappsResponse = z.infer<typeof DappsResponseSchema>;
 
 export const NewOwnerSchema = z.object({
   pubKeyX: Hex,
@@ -599,7 +648,10 @@ export type MeResponse = z.infer<typeof MeResponseSchema>;
 
 export const StepUpBodySchema = z.object({
   kind: z.literal('safety-key'),
-  signature: Hex, // Safety key EIP-191/712 signature over the decision hash
+  /** EIP-712 `KeylinePolicyStepUp` signature (packages/shared/src/policy-typed-data.ts) by the wallet's Safety key. */
+  signature: Hex,
+  /** The Safety key that signed; must be the wallet's registered `safety-key` guardian. Defaults to it when omitted. */
+  guardianAddress: Address.optional(),
   requestId: z.string().min(1).optional(),
 });
 export type StepUpBody = z.infer<typeof StepUpBodySchema>;

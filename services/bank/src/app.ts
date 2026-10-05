@@ -2,6 +2,7 @@ import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { getAddress } from 'viem';
 import { registerGuards, SESSION_COOKIE } from './auth';
 import type { BankConfig } from './config';
 import { type Db, openDb } from './db';
@@ -21,7 +22,8 @@ import { registerStubs } from './routes/stubs';
 import { registerTopupRoutes } from './routes/topups';
 import { registerUserOpRoutes } from './routes/userops';
 import { registerWalletRoutes } from './routes/wallets';
-import { seed } from './seed';
+import { createScreening, type ScreeningService } from './screening';
+import { sanctionedSeedAddress, seed } from './seed';
 import { createStore } from './store';
 import { createWebAuthnService } from './webauthn';
 
@@ -38,7 +40,15 @@ export const FINALIZER_INTERVAL_MS = 5_000;
 
 export const buildApp = async (
   config: BankConfig,
-  opts: { dbPath?: string; logger?: boolean; chain?: Partial<ChainDeps>; finalizer?: boolean } = {},
+  opts: {
+    dbPath?: string;
+    logger?: boolean;
+    chain?: Partial<ChainDeps>;
+    finalizer?: boolean;
+    /** Tests: skip the live OFAC fetch and use the vendored snapshot. */
+    screeningOffline?: boolean;
+    screening?: ScreeningService;
+  } = {},
 ): Promise<FastifyInstance> => {
   const app = Fastify({
     logger:
@@ -73,21 +83,30 @@ export const buildApp = async (
     cookie: { cookieName: SESSION_COOKIE, signed: false },
   });
 
+  // Seed first: the screening module binds the seeded 'Sanctioned test address' contact at startup.
+  const { seededNow } = seed(db, events);
+  if (seededNow) app.log.info({ clientId: 'SQ-48213-LK' }, 'demo seed applied');
+  const sanctioned = sanctionedSeedAddress(db);
+  const screening =
+    opts.screening ??
+    (await createScreening({
+      sanctionedTestAddress: sanctioned ? getAddress(sanctioned) : undefined,
+      offline: opts.screeningOffline,
+    }));
+  app.log.info(screening.status().ofac, 'sanctions screening ready (OFAC SDN ETH list)');
+
   app.setErrorHandler(errorHandler);
   registerGuards(app, config);
   registerIdempotency(app, db);
   registerCoreRoutes(app, { config, db, events, repo, webauthn, store });
   registerWalletRoutes(app, { config, db, events, repo, store, chain });
-  registerPolicyRoutes(app, { config, db, events, repo, store });
+  registerPolicyRoutes(app, { config, db, events, repo, store, chain, screening });
   registerUserOpRoutes(app, { config, events, repo, store, chain });
   registerAttestationRoutes(app, { config, db, events, repo, chain });
   registerTopupRoutes(app, { config, db, events, repo, store, chain });
   registerRecoveryRoutes(app, { config, events, repo, store, recoveries, chain, service });
   registerDeskRoutes(app, { events, repo, recoveries, chain, service });
   registerStubs(app);
-
-  const { seededNow } = seed(db, events);
-  if (seededNow) app.log.info({ clientId: 'SQ-48213-LK' }, 'demo seed applied');
 
   app.decorate('db', db);
   app.decorate('recoveryService', service);

@@ -1,27 +1,33 @@
 {
-  "$comment": "dApp allowlist for the policy engine. Addresses are Base Sepolia (chainId 84532). Entries with simulated:true are mock protocols for the demo. 'unknown-dapp' is deliberately NOT allowlisted so F2 can show a blocked request.",
+  "$comment": "dApp allowlist for the policy engine (kind: 'dapp' — every call.to must be one of the dApp's contracts). Addresses are Base Sepolia (chainId 84532). Entries with simulated:true are mock protocols for the demo. 'unknown-dapp' is deliberately NOT allowlisted so F2 can show a blocked request. Re-synced into the dapps table on every bank start.",
   "dapps": [
     {
       "id": "keyline-usdc-transfer",
       "name": "USDC transfer",
       "url": "http://localhost:3000/send",
       "allowlisted": true,
-      "contracts": ["0x036CbD53842c5426634e7929541eC2318f3dCF7e"]
+      "contracts": ["0x036CbD53842c5426634e7929541eC2318f3dCF7e"],
+      "note": "Circle USDC on Base Sepolia (SPEC §0, faucet.circle.com)"
     },
     {
       "id": "keyline-self",
       "name": "Keyline wallet setup (deploy + protect)",
       "url": "http://localhost:3000/onboarding",
       "allowlisted": true,
-      "contracts": ["0x949d01d424bE050D09C16025dd007CB59b3A8c66"]
+      "contracts": ["0x949d01d424bE050D09C16025dd007CB59b3A8c66"],
+      "note": "Candide SocialRecoveryModule, 3-minute grace instance (docs/VERIFIED.md)"
     },
     {
       "id": "demoswap",
       "name": "DemoSwap",
       "url": "http://localhost:3000/dapps/demoswap",
       "allowlisted": true,
-      "contracts": ["0xDe305aa9000000000000000000000000000000De"],
-      "simulated": true
+      "contracts": [
+        "0xDe305AA9000000000000000000000000000000dE",
+        "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+      ],
+      "simulated": true,
+      "note": "Mock dApp: the router address is a placeholder (no contract deployed); it asks for approve(USDC, router, ∞), so USDC is one of its allowed targets"
     },
     {
       "id": "uniswap",
@@ -30,22 +36,29 @@
       "allowlisted": true,
       "contracts": [
         "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4",
-        "0x050E797f3625EC8785265e1d9BDd4799b97528A1"
-      ]
+        "0x050E797f3625EC8785265e1d9BDd4799b97528A1",
+        "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+      ],
+      "note": "Uniswap v3 SwapRouter02 and UniversalRouter on Base Sepolia per docs.uniswap.org deployments (not re-verified on-chain in this wave); USDC for approvals"
     },
     {
       "id": "aave",
       "name": "Aave",
       "url": "https://app.aave.com",
       "allowlisted": true,
-      "contracts": ["0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"]
+      "contracts": [
+        "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27",
+        "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+      ],
+      "note": "Aave v3 Pool on Base Sepolia per aave-address-book AaveV3BaseSepolia.POOL (not re-verified on-chain in this wave); USDC for approvals"
     },
     {
       "id": "circle-usdc",
       "name": "Circle USDC (Base Sepolia)",
       "url": "https://www.circle.com/usdc",
       "allowlisted": true,
-      "contracts": ["0x036CbD53842c5426634e7929541eC2318f3dCF7e"]
+      "contracts": ["0x036CbD53842c5426634e7929541eC2318f3dCF7e"],
+      "note": "Official Circle testnet USDC (developers.circle.com)"
     },
     {
       "id": "unknown-dapp",
@@ -53,7 +66,8 @@
       "url": "http://localhost:3000/dapps/unknown",
       "allowlisted": false,
       "contracts": ["0x0000000000000000000000000000000000000BAD"],
-      "simulated": true
+      "simulated": true,
+      "note": "Deliberately not allowlisted — every request is blocked with 'Unknown dApp — request a review'"
     }
   ]
 }

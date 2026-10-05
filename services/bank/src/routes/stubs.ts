@@ -10,10 +10,8 @@ export type Stub = {
   operator?: boolean;
 };
 
-/** Still 501 after Wave 2: Tier-2 step-up (Wave 3). Recovery, desk, contacts and mock e-ID are live. */
-export const WAVE1_STUBS: Stub[] = [
-  { method: 'POST', url: '/policy/:id/step-up', body: 'StepUpBodySchema', response: 'PolicyDecisionSchema' },
-];
+/** Wave 3: nothing left — step-up, cancel, pending approvals and /dapps are live in routes/policy.ts. */
+export const WAVE1_STUBS: Stub[] = [];
 
 export const registerStubs = (app: FastifyInstance): void => {
   for (const stub of WAVE1_STUBS) {

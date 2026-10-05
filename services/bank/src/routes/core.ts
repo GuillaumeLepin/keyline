@@ -158,7 +158,6 @@ export const registerCoreRoutes = (
       .find((c) => c.address.toLowerCase() === address.toLowerCase());
     return reply.status(201).send(ContactSchema.parse(created));
   });
-  app.get('/dapps', async () => ({ dapps: repo.dapps() }));
 
   app.get('/mock/inbox/:email', async (req) => {
     const { email } = EmailParam.parse(req.params);

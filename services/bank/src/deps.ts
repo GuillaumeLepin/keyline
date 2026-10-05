@@ -12,14 +12,17 @@ import type {
 } from '@keyline/chain';
 import * as chain from '@keyline/chain';
 import {
+  type Call,
   type GuardianIdentity,
   GuardianIdentitySchema,
   type GuardianRecoveryRequest,
   type GuardianRecoveryResponse,
   GuardianRecoveryResponseSchema,
+  type Simulation,
 } from '@keyline/shared';
 import { type Address, erc20Abi, getAddress, type Hex, parseAbi, parseEther } from 'viem';
 import { type BankPublicClient, funderClientFor, publicClientFor, relayerClientFor } from './chain/clients';
+import { toSimulation } from './chain/decode';
 import type { BankConfig } from './config';
 import { upstream } from './errors';
 
@@ -90,6 +93,12 @@ export type RecoveryChainDeps = {
 
 export type ChainDeps = RecoveryChainDeps & {
   publicClient: BankPublicClient;
+  /** eth_simulateV1 (viem simulateCalls) with an 8 s timeout → decode-only fallback. Never throws for chain reasons. */
+  simulate: (input: { from: Address; calls: Call[]; tokens?: Address[] }) => Promise<Simulation>;
+  /** `eth_getCode(address) !== 0x` — the Safe was deployed (possibly outside the bank's relay). */
+  walletHasCode: (address: Address) => Promise<boolean>;
+  /** `SocialRecoveryModule.getGuardians(wallet)` — the recoverers the chain actually holds. */
+  onchainGuardians: (wallet: Address) => Promise<Address[]>;
   sponsor: (pk: PasskeyAccount, userOp: UserOperationV7) => Promise<{ userOp: UserOperationV7 }>;
   sendUserOp: (pk: PasskeyAccount, userOp: UserOperationV7) => Promise<SendUseroperationResponse>;
   userOpStatus: (userOpHash: Hex) => Promise<UserOpChainStatus>;
@@ -214,6 +223,30 @@ export const createChainDeps = (config: BankConfig): ChainDeps => {
 
   return {
     publicClient,
+    walletHasCode: async (address) => {
+      const code = await publicClient.getCode({ address });
+      return code !== undefined && code !== '0x';
+    },
+    onchainGuardians: async (wallet) =>
+      [
+        ...(await publicClient.readContract({
+          address: module,
+          abi: chain.socialRecoveryModuleAbi,
+          functionName: 'getGuardians',
+          args: [wallet],
+        })),
+      ].map((g) => getAddress(g)),
+    simulate: async ({ from, calls, tokens }) =>
+      toSimulation(
+        await chain.simulate({
+          client: publicClient,
+          from,
+          calls,
+          tokens,
+          timeoutMs: 8_000,
+          decode: { wallet: from },
+        }),
+      ),
     recoveryStatus: (wallet) => chain.recovery.status(publicClient, module, wallet),
     recoveryNonce: (wallet) => chain.recoveryNonce(publicClient, module, wallet),
     deploySignerProxy: async (owner) => {

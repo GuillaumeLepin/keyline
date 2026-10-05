@@ -17,6 +17,7 @@ import type { ChainDeps } from '../deps';
 import { conflict, forbidden, notFound, policyRefused } from '../errors';
 import type { EventStore } from '../events';
 import type { Repo } from '../repo';
+import { syncWalletStatus } from '../wallet-sync';
 
 type Deps = { config: BankConfig; db: Db; events: EventStore; repo: Repo; chain: ChainDeps };
 const WalletParam = z.object({ wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/) });
@@ -73,7 +74,7 @@ export const registerAttestationRoutes = (
     const wallet = repo.walletByAddress(address);
     if (!wallet) throw notFound('Wallet');
     if (wallet.clientId !== client.clientId) throw forbidden('This wallet belongs to another client');
-    if (wallet.status !== 'deployed')
+    if ((await syncWalletStatus({ db, repo, events, chain }, wallet)).status !== 'deployed')
       throw conflict('Protect your wallet first — the proof is signed by the deployed wallet');
     // 32 random bytes from Node's CSPRNG (a nonce, not key material); the typed data wants bytes32.
     const nonce = bytesToHex(randomBytes(32));
@@ -97,7 +98,7 @@ export const registerAttestationRoutes = (
     if (!wallet) throw notFound('Wallet');
     if (wallet.clientId !== client.clientId) throw forbidden('This wallet belongs to another client');
     if (body.clientId !== client.clientId) throw forbidden('clientId does not match the signed-in client');
-    if (wallet.status !== 'deployed')
+    if ((await syncWalletStatus({ db, repo, events, chain }, wallet)).status !== 'deployed')
       throw policyRefused('The wallet must be protected (deployed) before it can prove ownership');
 
     const nonceRow = findNonce.get(body.nonce) as NonceRow | undefined;

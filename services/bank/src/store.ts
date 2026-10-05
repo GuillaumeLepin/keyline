@@ -44,6 +44,16 @@ type PasskeyKeyRow = { credential_id: string; pub_key_x: string; pub_key_y: stri
 export const dayStartIso = (now = new Date()): string =>
   new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
 
+const rowToDecision = (row: DecisionRow): PolicyDecision & { consumedAt?: string } => {
+  const decision = PolicyDecisionSchema.parse(JSON.parse(row.decision_json));
+  return {
+    ...decision,
+    expiresAt: row.expires_at,
+    consumedAt: row.consumed_at ?? undefined,
+    status: decision.status === 'cancelled' ? 'cancelled' : row.consumed_at ? 'consumed' : 'open',
+  };
+};
+
 const rowToGuardian = (r: GuardianRow): Guardian =>
   GuardianSchema.parse({
     walletAddress: r.wallet_address,
@@ -73,9 +83,20 @@ export const createStore = (db: Db) => {
   const consumeDecision = db.prepare(
     'UPDATE policy_decisions SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL',
   );
+  // Daily spend = CHF value of the decisions actually relayed today (UTC) — one userops row per /userops/send.
   const dailySpent = db.prepare(
-    `SELECT COALESCE(SUM(chf_value), 0) AS total FROM policy_decisions
-     WHERE lower(wallet_address) = lower(?) AND verdict = 'approve' AND consumed_at IS NOT NULL AND created_at >= ?`,
+    `SELECT COALESCE(SUM(d.chf_value), 0) AS total FROM userops u JOIN policy_decisions d ON d.id = u.decision_id
+     WHERE lower(u.wallet_address) = lower(?) AND u.status != 'failed' AND u.created_at >= ?`,
+  );
+  const updateDecisionStmt = db.prepare(
+    'UPDATE policy_decisions SET decision_json = ?, verdict = ?, expires_at = ? WHERE id = ?',
+  );
+  const pendingStepUpsStmt = db.prepare(
+    `SELECT * FROM policy_decisions WHERE lower(wallet_address) = lower(?) AND verdict = 'step-up'
+     AND consumed_at IS NULL AND expires_at > ? ORDER BY created_at DESC`,
+  );
+  const recentDecisionsStmt = db.prepare(
+    'SELECT * FROM policy_decisions WHERE lower(wallet_address) = lower(?) ORDER BY created_at DESC LIMIT ?',
   );
   const sponsoredToday = db.prepare(
     `SELECT COUNT(DISTINCT decision_id) AS n FROM sponsorships WHERE lower(wallet_address) = lower(?) AND created_at >= ?`,
@@ -137,9 +158,23 @@ export const createStore = (db: Db) => {
 
     decision(id: string): (PolicyDecision & { consumedAt?: string }) | null {
       const row = decisionById.get(id) as DecisionRow | undefined;
-      if (!row) return null;
-      const decision = PolicyDecisionSchema.parse(JSON.parse(row.decision_json));
-      return { ...decision, expiresAt: row.expires_at, consumedAt: row.consumed_at ?? undefined };
+      return row ? rowToDecision(row) : null;
+    },
+    /** Rewrites a stored decision (step-up satisfied, cooling elapsed, cancelled). */
+    updateDecision(decision: PolicyDecision): void {
+      updateDecisionStmt.run(
+        JSON.stringify(decision),
+        decision.verdict,
+        decision.expiresAt,
+        decision.decisionId,
+      );
+    },
+    /** Unexpired, unconsumed `step-up` decisions awaiting the laptop (cancelled ones are filtered by the caller). */
+    pendingStepUps(wallet: string): (PolicyDecision & { consumedAt?: string })[] {
+      return (pendingStepUpsStmt.all(wallet, nowIso()) as DecisionRow[]).map(rowToDecision);
+    },
+    recentDecisions(wallet: string, limit = 20): (PolicyDecision & { consumedAt?: string })[] {
+      return (recentDecisionsStmt.all(wallet, limit) as DecisionRow[]).map(rowToDecision);
     },
     saveDecision(decision: PolicyDecision, request: unknown): void {
       insertDecision.run(

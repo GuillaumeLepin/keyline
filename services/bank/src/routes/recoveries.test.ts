@@ -67,6 +67,8 @@ const confirmWithSignatures = vi.fn(async () => {
 });
 
 const chainStub: Partial<ChainDeps> = {
+  walletHasCode: async () => false,
+  onchainGuardians: async () => [],
   guardianIdentity: async (kind) => ({ kind, guardianAddress: sq.address, chainId: 84532 }),
   recoveryNonce: async () => state.nonce,
   recoveryStatus: async () => ({

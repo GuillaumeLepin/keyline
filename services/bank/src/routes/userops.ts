@@ -23,6 +23,7 @@ import type { BankConfig } from '../config';
 import type { ChainDeps } from '../deps';
 import { conflict, notFound, policyRefused, upstream } from '../errors';
 import type { EventStore } from '../events';
+import { loadDecision } from '../policy/decisions';
 import type { Repo } from '../repo';
 import type { Store } from '../store';
 
@@ -41,8 +42,9 @@ export const registerUserOpRoutes = (
 
   /** The checks both /sponsor and /send apply to (decisionId, userOp). */
   const approvedDecisionFor = (decisionId: string, sender: Address, callData: Hex) => {
-    const decision = store.decision(decisionId);
+    const decision = loadDecision(store, events, decisionId);
     if (!decision) throw policyRefused('No policy decision for this id — call POST /policy/evaluate first');
+    if (decision.status === 'cancelled') throw policyRefused('This request was cancelled — nothing was sent');
     if (decision.verdict !== 'approve')
       throw policyRefused(`This action was not approved (${decision.verdict})`, {
         reasons: decision.reasons,

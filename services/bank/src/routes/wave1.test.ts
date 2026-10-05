@@ -2,6 +2,7 @@
 import {
   counterfactualAddress,
   createPasskeyAccount,
+  decodeCalls,
   dummySignature,
   encodeCallData,
   initOwnerTransactions,
@@ -14,6 +15,7 @@ import { type Address, getAddress, type Hex, keccak256 } from 'viem';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app';
 import { metaTransactionToCall, protectCallData } from '../chain/calldata';
+import { toSimulation } from '../chain/decode';
 import type { ChainDeps } from '../deps';
 import { testConfig } from '../test-env';
 
@@ -41,6 +43,18 @@ const state = {
   },
 };
 const chainStub: Partial<ChainDeps> = {
+  walletHasCode: async () => false,
+  onchainGuardians: async () => [],
+  // Decode-only simulation so the suite never touches the RPC (the real eth_simulateV1 path is smoke-tested).
+  simulate: async ({ from, calls }) =>
+    toSimulation({
+      ok: true,
+      assetChanges: [],
+      decodedCalls: decodeCalls(calls, { wallet: from }),
+      gasEstimate: '90000',
+      provider: 'fallback',
+      simulated: true,
+    }),
   guardianIdentity: async (kind) => ({ kind, guardianAddress: getAddress(SQ_GUARDIAN), chainId: 84532 }),
   sponsor: async (_pk, userOp) => ({
     userOp: {
@@ -88,6 +102,7 @@ describe('Wave 1 bank flows', () => {
       {
         logger: false,
         chain: chainStub,
+        screeningOffline: true,
       },
     );
   });
@@ -349,6 +364,14 @@ describe('Wave 1 bank flows', () => {
   });
 
   it('evaluates a USDC transfer: 100 USDC = CHF 80 → Tier 1 approve, 1300 USDC → step-up', async () => {
+    // Wave 3: a first transfer to an unknown address is Tier 3 (cooling) — save the recipient as a contact first.
+    const saved = await app.inject({
+      method: 'POST',
+      url: '/contacts',
+      headers: dev,
+      payload: { label: 'Emergency card holder', address: EMERGENCY },
+    });
+    expect(saved.statusCode, saved.body).toBe(201);
     const tx = transferTransaction({ token: USDC, to: EMERGENCY, amount: 100_000_000n });
     const res = await app.inject({
       method: 'POST',

@@ -1,0 +1,11 @@
+{
+  "$comment": "The one simulated sanctions hit in the demo. The address itself is the seeded contact 'Sanctioned test address' (services/bank/src/seed.ts → table contacts, simulated = 1): it is a random EOA generated once by the seed, never a real SDN entry, so the screening module resolves it from the database at startup and flags the hit simulatedHit: true (docs/MOCKS.md).",
+  "entries": [
+    {
+      "contactLabel": "Sanctioned test address",
+      "source": "seeded-test",
+      "simulatedHit": true,
+      "reason": "Counterparty appears on the OFAC SDN list — simulated test entry"
+    }
+  ]
+}
