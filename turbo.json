@@ -1,0 +1,12 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "globalEnv": ["CHAIN_ID", "RPC_URL", "USDC_ADDRESS", "RECOVERY_MODULE_ADDRESS", "DEMO_FAST_MODE"],
+  "tasks": {
+    "dev": { "cache": false, "persistent": true, "dependsOn": ["^build"] },
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**", "!.next/cache/**"] },
+    "typecheck": { "dependsOn": ["^build"] },
+    "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"] },
+    "lint": {}
+  }
+}

@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+  - services/*
+  - e2e
+  - scripts
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
+  - sharp

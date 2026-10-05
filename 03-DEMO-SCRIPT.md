@@ -1,0 +1,46 @@
+# Demo script (3 minutes) and judge Q&A
+
+Ask the organisers on day 0: demo length, slides allowed or not (LauzHack 2023 banned slides — if so, every "slide" below is an in-app screen), projector, Wi-Fi. Bring a phone hotspot. Record a backup video the night before.
+
+## Window layout
+
+Five Chrome profiles, none signed in to Google, each with a coloured label bar from `?device=`: **Lea · phone** (phone frame, left), **Lea · laptop — Safety key** (top right), **Lea · new phone** (opened at 1:40), **Thief · stolen phone** (bottom right, red bar), **Swissquote desk (simulated)** (second screen or a tab). Zoom 125 %. `pnpm demo:reset` done; `demo-state.json` present as fallback; the Emergency card hex in a text file on the desktop (for variant B).
+
+**Timing trick for a 3-minute slot:** the on-chain waiting period is 3 minutes and cannot be shortened. Run `pnpm demo:stage-recovery` about 2 min 30 s before you start: it starts a recovery on a *twin* wallet whose countdown will end around 2:30 of your pitch. You show the live execute + countdown on Lea's wallet, then switch to the twin to finalize live, and say so. With a 5-minute slot, do everything live on one wallet.
+
+## Script
+
+| Time | Screen | Say |
+|---|---|---|
+| 0:00 | Home (pre-created wallet) | "In 2024, USD 409 million was stolen through compromised private keys — Swissquote's own figure in its case for bank custody. Today a Swissquote client who wants their own keys has to leave. Keyline is the third option: your keys, a Swiss bank as a safety net that can never move your money." |
+| 0:15 | Security centre → keys | "No seed phrase. One passkey on her phone signs. Three recoverers can restore access only two together: her Safety key on her laptop, her Emergency card in a drawer, and Swissquote. Swissquote is the only institution on that list — you can check it on Basescan." Point at "Ownership proven to Swissquote — Travel Rule" and the top-up row: "Her Swissquote account topped this up instantly, because the wallet is verified as hers." |
+| 0:40 | Send → Review | "Twenty-five USDC to Lukas. Before she signs, we simulate it and say it in words: balance 120 to 95, nothing else changes, counterparty screened, network fee paid by Swissquote." Face ID → Signed → Sent → Confirmed in two seconds. Click Basescan. "Real transaction, Base Sepolia." Then, mandatory (+15 s, it is the Authentication topic): "CHF 2'000 — above her daily limit, so her laptop must approve." Laptop shows the request and approves. |
+| 1:10 | Close Lea · phone | "Lea's phone is gone." |
+| 1:15 | Thief window | "The thief has her phone and her email. He can't sign — the key needs her face. He tries recovery: the email code passes, because he has the inbox. The identity check fails." Desk: `identity-refused`, reasons. "And suppose the bank *had* been fooled —" click **Override (demo)** — "Swissquote's confirmation alone leaves it waiting forever. It cannot finish a recovery by itself. That's the chain, not our code." |
+| 1:40 | Lea · new phone → Recover | "Lea on a new phone: Swissquote verifies her identity — simulated e-ID — and confirms as one recoverer. Her laptop is the second." Laptop: confirm. "Executed. Now the chain enforces a waiting period: three minutes here, seventy-two hours in production. It's public — her laptop, Swissquote, anyone can see it. Nothing can shortcut it." Show the countdown with the exact time; desk shows the on-chain state and the audit log. |
+| 2:10 | (while waiting) Security centre → "If Swissquote disappears" | "If Swissquote is gone: her phone key still signs through any public bundler, and her Safety key plus her Emergency card restore access with no Swissquote process at all — here is the command. We're honest about one thing: passkeys are tied to the app's web address, so in production the open-source client lives on an address held in escrow." |
+| 2:30 | Twin wallet → countdown ends → "Welcome back, Lea" → Send | "This one we started before walking up so you can see the end: restored, old key revoked on-chain, and she sends again." |
+| 2:45 | Legal / business screen (or slide) | Three lines each — see below. |
+| 2:55 | Real vs Simulated screen | "Real: passkeys, the Safe account, sponsored transactions, on-chain recovery with a veto window, simulation, screening, a separate guardian process. Simulated: the identity check, notifications, the Swissquote account balance. Not built: Bitcoin — the same policy is expressible in miniscript timelocks or a threshold key." |
+
+Legal (three lines): "No power of disposal → not custody under the DLT Act and FINMA 01/2026; Swissquote is the only institution among the recoverers; the opt-in assisted mode is the grey zone and we say so." · "Travel Rule: FINMA 02/2019 requires proof of wallet ownership with no threshold — we sign it at creation; no screenshots." · "Paying a third party from the wallet: Swissquote is not the sending institution; the receiving VASP gets a one-tap signed proof."
+
+Business (three lines): "Crypto income CHF 85.7 m in 2025, CHF 14.6 m in H1 2026: it follows volatility." · "Keyline keeps the client who would otherwise leave, adds non-cyclical revenue (swap fee, staking share, a Protected tier) and removes manual ownership checks." · "Precedents: Sygnum recovery on Safe; eToro paid USD 70 m for Zengo."
+
+## Variant B (if there is time or a judge asks "and if the bank is fooled *and* he has her card?")
+
+On a second wallet: desk override + paste the Emergency card → 2 of 3 → executed → Lea's phone (she still has it in this scenario) shows "Recovery started from a new device — wasn't you?" → **Cancel recovery** → cancelled on-chain. "The last word is the owner's, on-chain, during the waiting period."
+
+## Q&A crib sheet
+
+- **Could Swissquote move my funds?** No. Swissquote's recovery key cannot sign transactions and cannot complete a recovery alone; the other two recoverers are yours. Any recovery needs two of three and waits 72 hours in public; while you hold your phone, it can cancel; if you've lost it, the second recoverer is what protects you. Verify the guardian list on Basescan. The remaining trust is in the app's code, as with any non-custodial wallet — open source, reproducible builds.
+- **Could Swissquote plus a partner?** Not in default mode — no partner is on the list. In the opt-in assisted mode, yes, after a 14-day public delay you can cancel; that is the legal grey zone the brief mentions, and we'd seek a FINMA no-action letter for it.
+- **What is real and what is mocked?** Real: passkeys, the Safe on Base Sepolia, sponsored userOps, on-chain recovery with delay and cancel, simulation, OFAC screening, a separate guardian process with its own key and database. Simulated: the identity check (e-ID/KYC), notifications, the Swissquote account balance, the partner's independence, CHF rates. The thief persona is scripted. Prototype simplifications: the Safety key is a software key on the laptop (production: hardware wallet), Tier-2 approval is enforced by the policy layer (production: on-chain).
+- **Isn't the Emergency card a seed phrase?** No: it cannot spend. Stolen, it can only start a recovery you will see and cancel, together with a second recoverer. Lost, it costs you nothing while you have your phone and laptop.
+- **Why not MPC?** MPC gives Bitcoin but no on-chain veto window: two stolen or colluding shares move funds instantly. For a bank, the slow, public, cancellable recovery is the feature. Bitcoin is on the roadmap: the same policy — your key now, two of three recoverers after a timelock — exists natively in Bitcoin miniscript (Liana), or via a 2-of-3 threshold key under the same identity rules.
+- **Thief with an unlocked phone and PIN?** In the prototype he can spend up to the balance — the policy layer only withholds sponsorship — and we say so. In production the daily limit is an on-chain allowance and anything above needs the Safety key. That residual risk is the price of self-custody; it's the same for every wallet.
+- **Who pays gas and how do you stop abuse?** Swissquote, as part of the Protected tier; the paymaster key lives only in the bank service, which sponsors only userOps its policy engine approved (allowlist, simulation, screening, 20/day cap); the client can always pay their own fee.
+- **What if the bank is fooled by a deepfake e-ID?** Then it still needs a second recoverer that only Lea has — that is what stops the thief who holds her phone. If Lea still has her phone, she also sees the public countdown and cancels; variant B shows that.
+- **Is this custody under FINMA?** Not under the power-of-disposal test; FINMA has not ruled on key-share models, so we would seek a no-action letter before launch.
+- **Why Base and not Swissquote's chain of choice?** Base Sepolia has 2-second blocks, the P-256 precompile, audited Safe contracts, free paymasters and a 3-minute recovery module for demos; the design is EVM-portable (Ethereum, Arbitrum, Optimism, Polygon all have the same precompile and contracts).
+- **What did AI do?** Claude Code with seven subagents wrote most of the code and the first draft of the docs; I designed the custody model, the threat model, the demo, verified every on-chain step and reviewed the legal and business sections. Listed in `docs/AI-TOOLS.md`.

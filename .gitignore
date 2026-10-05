@@ -1,0 +1,22 @@
+node_modules/
+.turbo/
+dist/
+.next/
+out/
+coverage/
+*.log
+.DS_Store
+# secrets: one .env per process, never committed
+.env
+.env.*
+!.env.example
+!.env.anvil.example
+data/
+*.sqlite
+*.sqlite-journal
+test-results/
+playwright-report/
+e2e/.auth/
+docs/demo.webm
+docs/demo.mp4
+_kit/

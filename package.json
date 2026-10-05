@@ -1,0 +1,34 @@
+{
+  "name": "keyline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Keyline — self-custody wallet prototype for Swissquote (EPFL hackathon). Passkey-owned Safe on Base Sepolia with 2-of-3 recoverers.",
+  "engines": { "node": ">=22", "pnpm": ">=10" },
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "dev": "turbo run dev --filter=@keyline/wallet --filter=@keyline/bank --filter=@keyline/sq-guardian --parallel --no-cache --continue",
+    "dev:partner": "turbo run dev --filter=@keyline/wallet --filter=@keyline/bank --filter=@keyline/sq-guardian --filter=@keyline/partner-guardian --parallel --no-cache --continue",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check . && turbo run typecheck",
+    "lint:fix": "biome check --write .",
+    "test": "turbo run test --continue",
+    "e2e": "pnpm --filter @keyline/e2e e2e",
+    "screenshots": "pnpm --filter @keyline/e2e screenshots",
+    "demo:reset": "pnpm --filter @keyline/scripts demo:reset",
+    "demo:predeploy": "pnpm --filter @keyline/scripts demo:predeploy",
+    "demo:stage-recovery": "pnpm --filter @keyline/scripts demo:stage-recovery",
+    "demo:open": "bash scripts/demo-open.sh",
+    "check-balances": "pnpm --filter @keyline/scripts check-balances",
+    "keyline": "pnpm --filter @keyline/scripts keyline"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.9.0",
+    "tsx": "^4.20.0",
+    "vitest": "^3.2.0",
+    "dotenv": "^17.2.0",
+    "viem": "^2.37.0"
+  }
+}
