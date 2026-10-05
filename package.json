@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Keyline — self-custody wallet prototype for Swissquote (EPFL hackathon). Passkey-owned Safe on Base Sepolia with 2-of-3 recoverers.",
-  "engines": { "node": ">=22", "pnpm": ">=10" },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
   "packageManager": "pnpm@10.17.1",
   "scripts": {
     "dev": "turbo run dev --filter=@keyline/wallet --filter=@keyline/bank --filter=@keyline/sq-guardian --parallel --no-cache --continue",

@@ -191,6 +191,21 @@ const fixtures: Record<string, [z.ZodType, unknown]> = {
     },
   ],
   CallSchema: [S.CallSchema, { to: addr, value: '0', data: '0x' }],
+  DappDemoRequestSchema: [
+    S.DappDemoRequestSchema,
+    { calls: [{ to: addr2, value: '0', data: '0x095ea7b3' }], description: 'Approve USDC for swapping' },
+  ],
+  SuggestedCapSchema: [
+    S.SuggestedCapSchema,
+    {
+      call: { to: addr2, value: '0', data: '0x095ea7b3' },
+      amount: '100',
+      symbol: 'USDC',
+      humanText: 'Approve 100.00 USDC instead',
+    },
+  ],
+  PendingApprovalsResponseSchema: [S.PendingApprovalsResponseSchema, { decisions: [] }],
+  DappsResponseSchema: [S.DappsResponseSchema, { dapps: [] }],
   PolicyRequestSchema: [
     S.PolicyRequestSchema,
     {
@@ -487,6 +502,7 @@ describe('shared schemas', () => {
   it('every object schema exported from schemas.ts has a fixture', () => {
     const exported = Object.keys(S).filter((k) => k.endsWith('Schema'));
     const primitiveEnums = new Set([
+      'DecisionStatusSchema',
       'KycLevelSchema',
       'WalletStatusSchema',
       'RecoveryModeSchema',
