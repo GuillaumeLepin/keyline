@@ -1,6 +1,6 @@
 # VERIFIED — chain facts checked against the installed SDK, the live docs and Base Sepolia
 
-Owner: `account-chain`. All checks 5 Oct 2026, 17:00–19:40 CEST, against `abstractionkit@0.4.2` (installed in
+Owner: `account-chain`. Checks 5 Oct 2026 17:00 – 6 Oct 00:10 CEST, against `abstractionkit@0.4.2` (installed in
 `packages/chain`), `viem@2.57.3`, RPC `https://sepolia.base.org` (chainId 84532). `cast` = Foundry at `~/.foundry/bin`.
 
 ## SPEC corrections needed (orchestrator edits SPEC/CLAUDE.md; I do not)
@@ -70,7 +70,32 @@ Grace period: `recoveryPeriod()` / `getRecoveryPeriod()` / `RECOVERY_PERIOD()` /
 
 | Claim | Verified value | How |
 |---|---|---|
-| Supported | **Yes** — a `blockStateCalls` request with `traceTransfers: true` returned a simulated block (`result[0].hash/parentHash/miner 0x42…11…`) at 17:11 CEST. (Orchestrator saw the same at 15:08.) | raw JSON-RPC via `curl` (the viem `simulateCalls` wrapper is exercised in `simulate.ts`, next wave) |
+| Supported (raw) | **Yes** — a `blockStateCalls` request with `traceTransfers: true` returned a simulated block (`result[0].hash/parentHash/miner 0x42…11…`) at 17:11 CEST. (Orchestrator saw the same at 15:08.) | raw JSON-RPC via `curl` |
+| Supported (viem `simulateCalls`, `traceAssetChanges: true`) | **Yes** — 6 Oct 00:00 CEST, `simulate({ client, from: Safe 0x2eac…0dea, calls: [USDC.transfer(funder, 1 USDC)], tokens: [USDC] })` answered in **454 ms** with `assetChanges = [ETH 0→0, USDC 0→0 (symbol/decimals discovered by viem)]` and `results[0] = { status: 'failure', gasUsed: 36176, data: Error("ERC20: transfer amount exceeds balance") }` → normalised `{ ok: false, provider: 'eth_simulateV1', revertReason: 'ERC20: transfer amount exceeds balance', gasEstimate: '36176' }`. viem's wrapper issues ONE `eth_simulateV1` with 4 extra `blockStateCalls` (balance / `balanceOf` / `decimals` / `symbol` discovery), all honoured by the node. | `packages/chain/src/simulate.ts` (`simulate`), live vitest `simulate.test.ts` |
+| Fallback | A dead RPC (`http://127.0.0.1:9`, `retryCount: 0`) → `{ provider: 'fallback', simulated: true, ok: true, assetChanges: [], decodedCalls, gasEstimate: 90000 × calls }` in < 1 s; the 8 s `withTimeout` race covers a hanging RPC. For a plain ERC-20 `transfer` the fallback tries `balanceOf(from)` (3 s cap) and reports `before = balance, after = before − amount`. | `simulate.test.ts` "dead RPC → fallback" |
+| Output shape | Parses with `SimulationSchema` / `DecodedCallSchema` from `@keyline/shared` (asserted in the tests): `assetChanges[].token` is checksummed, ETH is viem's `0xEeee…EEeE` pseudo-address, `before/after` unsigned base-unit strings, `delta` signed. | `SimulationSchema.parse(result)` in both live tests |
+
+### 4b. `decodeCalls` table (`simulate.test.ts`, 15 rows + helpers, all pure viem `decodeFunctionData`)
+
+| Call | `fn` | risk | humanText |
+|---|---|---|---|
+| USDC `transfer(alice, 1e6)` | `transfer(address,uint256)` | none | `Send 1 USDC to 0x482B…458A` |
+| USDC `transfer(alice, 1 250 000)` | same | none | `Send 1.25 USDC to 0x482B…458A` |
+| USDC `approve(dapp, 2^256−1)` or `≥ 2^255` | `approve(address,uint256)` | **danger** | `This lets 0x1111…1111 spend an unlimited amount of USDC — we recommend a cap` |
+| USDC `approve(dapp, 100e6)` | same | warn | `Allow 0x1111…1111 to spend up to 100 USDC on your behalf` |
+| USDC `approve(dapp, 0)` | same | none | `Revoke 0x1111…1111's permission to spend your USDC` |
+| USDC `transferFrom(safe, alice, 5e6)` | `transferFrom(address,address,uint256)` | warn | `Move 5 USDC from 0x2eac…0dea to 0x482B…458A using an existing allowance` |
+| USDC `permit(…, ∞, ∞ deadline, …)` | `permit(address,address,uint256,uint256,uint8,bytes32,bytes32)` | **danger** | `This signed permit lets … spend an unlimited amount of USDC with no expiry — we recommend a cap` |
+| ERC-721/1155 `setApprovalForAll(op, true)` | `setApprovalForAll(address,bool)` | **danger** | `This lets 0x1111…1111 move every item you hold in the collection at 0x2222…2222 — only continue if you trust them` |
+| `setApprovalForAll(op, false)` | same | none | `Revoke 0x1111…1111's access to your items in the collection at 0x2222…2222` |
+| unknown selector `0xdeadbeef` | `unknown` | warn | `Unknown action on 0x1111…1111` |
+| `{ to: alice, value: 0.5 ETH, data: 0x }` | `eth-transfer` | none | `Send 0.5 ETH to 0x482B…458A` |
+| Safe `enableModule(known Candide recovery module)` | `enableModule(address)` | none | `Turn on recovery for this wallet` |
+| Safe `enableModule(anything else)` | same | **danger** | `This gives 0x… full control over your wallet — only continue if you know exactly what it is` |
+| unknown ERC-20 `transfer(alice, 42)` | `transfer(address,uint256)` | none | `Send 42 units of the token at 0x1111…1111 to 0x482B…458A` |
+| factory `createSigner(x, y, verifiers)` | `createSigner(uint256,uint256,uint176)` | none | `Register your passkey as an on-chain signer` |
+
+Also decoded: `swapOwner`, `addGuardianWithThreshold`, `cancelRecovery`, ERC-721 `safeTransferFrom`. `suggestedApprovalCap(call, '100')` re-encodes an unlimited `approve` as `approve(spender, 100 USDC)` (same `to`, same spender; decodes as `warn`). `worstRisk(decoded)` = header colour. Known tokens: USDC Base Sepolia `0x036C…CF7e`, USDC Ethereum Sepolia `0x1c7D…7238` (6 decimals) — pass `decode.tokens` for others.
 
 ## 5. Candide endpoints (Base Sepolia)
 
@@ -163,3 +188,45 @@ Two workable options, both using only `multiConfirmRecovery` (no `confirmRecover
 | B sq-guardian owns its **own sponsored Safe** that is the on-chain guardian | Register `sponsoredRelayer({ ownerPrivateKey: GUARDIAN_PRIVATE_KEY }).address` as the guardian at create+protect; sq-guardian then calls `confirmAsGuardian({ client: relayerSafe })` itself (`msg.sender` = its Safe = the guardian). | sq-guardian submits its own transaction, no bank in the loop. | The guardian set changes (a Safe instead of an EOA; existing test Safes must be redeployed); the guardian Safe needs the Candide sponsorship URL inside the guardian process (today the public endpoint; in prod a second API key); ERC-1271 path for `multiConfirm` signatures becomes more complex. |
 
 Go with **A**. Only the Safety key / Emergency card flow (F3 step 3) and sq's confirmation differ in *who signs*, not in *how it is submitted*. If ETH arrives, switch `pickSubmitter` to the EOA (`eoaSubmitter(walletClient)`) — nothing else changes. `confirmRecovery` by a funded sq EOA remains available via `confirmAsGuardian` for the "guardian sends its own tx" narrative.
+
+## 14. Wave 3 — `pnpm keyline recover --without-bank` (F5 exit hatch) proven live, plus Gate 1 USDC leg re-check
+
+Command (no bank, no guardian service, no Keyline server running — only the RPC and Candide's public testnet sponsor):
+
+```
+pnpm keyline recover --without-bank --safe 0x17049195C25b075c224AA05368287832F6d678c6 \
+  --safety-key ../data/safety-key-cli.json --emergency-card 0x<card hex> \
+  --new-passkey ../data/test-keyfile-cli-newphone.json --finalize --public
+pnpm keyline guardians --safe <addr>          # "verify yourself": owners, guardians, threshold, pending request, Basescan link
+pnpm keyline status    --safe <addr>
+```
+
+| Step (6 Oct 2026, 00:02–00:08 CEST) | Result (Base Sepolia) |
+|---|---|
+| Fresh Safe (`spike:create-and-send --public --keyfile ../data/test-keyfile-cli.json`) | **`0x17049195C25b075c224AA05368287832F6d678c6`**, owner = proxy `0xc86D…30Fe`; guardians `[sq 0x01Bb…4dE8, emergency 0xe5E3…4DA1, safety 0x8FA5…edcd]`, threshold 2. Create+protect <https://sepolia.basescan.org/tx/0x1d3bdd5dfba562014e645d5862e61dbd66e0b62557df1558be11b799d986f3b4> (actualGasUsed 875 589, sponsor Trilema). |
+| `keyline guardians` before | owners `[0xc86D…30Fe]`, guardians as above, `2 of 3`, pending `none`, link `…/address/<module>#readContract → getGuardians(<safe>)`. |
+| Submitter chosen by the CLI | Emergency card EOA 0 ETH, Safety key EOA 0 ETH → **sponsored relayer Safe `0xB303a9E0581104EC1E2DbC2662d891c5552fe106` owned by the Safety key** (Candide public sponsor). With ETH on either EOA the CLI uses it directly (`eoaSubmitter`, threshold 0.0003 ETH). In production the client pays gas from any funded account — the sponsor is a testnet convenience, not a dependency. |
+| (a) new passkey (`--new-passkey`, test keyfile created on the fly) → signer proxy deployed by the relayer Safe (its first sponsored userOp also deployed the relayer Safe) | proxy **`0xfe9532EB16eED4d9d77FA727509494658D3a89C5`** <https://sepolia.basescan.org/tx/0x23bd6357244f523c4fa744bf6aebc57e35a94f000c46ed07bf731444160fb497> |
+| (b) Safety key + Emergency card `signTypedData(ExecuteRecovery)` (recoveryHash `0x5678f8d8…dc96` = on-chain, nonce 0) → `multiConfirmRecovery(execute=true)` | <https://sepolia.basescan.org/tx/0x7f7254b7ca8b5ced992d042052aeadb0d9302b9616bc588e7be1570dc3ae75cd> → approvals 2, **`executeAfter 2026-10-05T22:06:28Z`** (printed as "finishes at 06/10/2026 00:06:28"), grace 180 s. |
+| second invocation without `--finalize` while pending | prints the pending request and `next step: re-run this command after 06/10/2026 00:06:28 (in 72 s), or add --finalize to wait here` — exit 0, no tx. `keyline status` shows `nonce: 1`, `pendingRecovery {…}`. |
+| (c) `--finalize`: polled block timestamp vs `executeAfter` → `finalizeRecovery` by the relayer Safe | <https://sepolia.basescan.org/tx/0xfad34f525dd19f01862aa581c0227c9ee7673288b9ae8d81e490c90cb28a16c8> → **`getOwners() = [0xfe9532EB16eED4d9d77FA727509494658D3a89C5]`**, threshold 1. `RESULT: RECOVERED — your new key owns the wallet. Swissquote was not involved.` |
+
+Safety-key file format — **decision**: the prototype reads the plain JSON the wallet's "Export Safety key" writes,
+`{ "address": "0x…", "privateKey": "0x…" }`, mode 0600 (the CLI checks `address` matches `privateKey`). No keystore
+library is installed in the workspace (`node_modules/.pnpm` has `@scure/bip32|bip39|base` only — no EIP-2335 / Web3
+Secret Storage implementation, and `viem` ships none), and a hand-rolled AES-GCM/PBKDF2 would violate "no homemade
+crypto". Production: EIP-2335 / Web3 keystore v3 (scrypt + AES-128-CTR) via `ethereum-cryptography`/`@ethereumjs/wallet`
+— the F5 screen says "password-encrypted JSON"; mark the export as **prototype: plain JSON** until that package is added.
+The Emergency card is the 32-byte hex on the card itself (`--emergency-card 0x…`).
+
+Gate 1 USDC leg re-check (6 Oct 00:01 CEST): bank funder `0x482B…458A` still holds **0 USDC and 0 ETH**; the Safe
+`0x1704…78c6` holds 0 USDC → `spike:create-and-send` printed `USDC transfer skipped … https://faucet.circle.com`. The
+sponsored transfer leg (`buildTransferUserOp` → `signSponsorSend`) is unchanged and runs automatically once ≥ 1 USDC
+is on the Safe (same `--keyfile`); the live `eth_simulateV1` test above exercises the same `transfer` calldata.
+
+Quality (6 Oct 00:10): `packages/chain` typecheck clean, vitest 46/46 (5 files, incl. the live `eth_simulateV1` and
+the live ERC-1271 tests); `scripts` typecheck clean for every file owned by account-chain — `scripts/demo-lib.ts`
+(qa-demo) fails TS2742 ("inferred type of `publicClient` cannot be named") and `scripts/anvil-fork.ts`, `demo-lib.ts`,
+`demo-reset.ts` (qa-demo) fail `biome check` formatting; `biome check packages/chain scripts/src scripts/keyline-cli.ts
+scripts/spike-*.ts` is clean.
+

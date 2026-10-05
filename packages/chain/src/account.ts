@@ -377,7 +377,7 @@ export function initOwnerTransactions(owner: PasskeyPublicKey, safe: Address): M
   return [deploySignerProxyTx(owner), { to: getAddress(safe), value: 0n, data: swapOwner }];
 }
 
-export interface DecodedCall {
+export interface DecodedInnerCall {
   readonly to: Address;
   readonly value: bigint;
   readonly data: Hex;
@@ -399,7 +399,7 @@ const MULTISEND_ABI = [
  * evaluates THESE, not what the client claims). MultiSend's packed layout is
  * `operation(1) ‖ to(20) ‖ value(32) ‖ dataLength(32) ‖ data` per call (plain ABI slicing — no cryptography).
  */
-export function decodeCallData(callData: Hex): DecodedCall[] {
+export function decodeCallData(callData: Hex): DecodedInnerCall[] {
   const [outer] = SafeAccountV0_3_0.decodeAccountCallData(callData);
   const outerData = outer.data as Hex;
   const isMultiSend =
@@ -418,7 +418,7 @@ export function decodeCallData(callData: Hex): DecodedCall[] {
   }
   const { args } = decodeFunctionData({ abi: MULTISEND_ABI, data: outerData });
   const packed = args[0];
-  const calls: DecodedCall[] = [];
+  const calls: DecodedInnerCall[] = [];
   let offset = 0;
   const total = size(packed);
   while (offset < total) {

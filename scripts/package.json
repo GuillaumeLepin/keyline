@@ -10,7 +10,8 @@
     "spike:create-and-send": "tsx spike-create-and-send.ts",
     "spike:attestation": "tsx spike-attestation.ts",
     "spike:recovery": "tsx spike-recovery.ts",
-    "fund-guardians": "tsx fund-guardians.ts"
+    "fund-guardians": "tsx fund-guardians.ts",
+    "keyline": "tsx --env-file=../.env keyline-cli.ts"
   },
   "dependencies": {
     "viem": "^2.57.3",

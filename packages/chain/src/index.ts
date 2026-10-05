@@ -40,3 +40,25 @@ export {
   sortGuardianSignatures,
 } from './recovery.js';
 export * from './relayer.js';
+export * as simulation from './simulate.js';
+export {
+  type CallLike,
+  type DecodedCall,
+  type DecodeOptions,
+  decodeCalls,
+  ETH_PSEUDO_ADDRESS,
+  formatTokenAmount,
+  isUnlimitedAllowance,
+  KNOWN_TOKENS,
+  type Risk,
+  revertReasonFrom,
+  type SimulatedAssetChange,
+  type SimulateInput,
+  type Simulation,
+  shortAddress,
+  simulate,
+  suggestedApprovalCap,
+  type TokenInfo,
+  UNLIMITED_ALLOWANCE_THRESHOLD,
+  worstRisk,
+} from './simulate.js';
