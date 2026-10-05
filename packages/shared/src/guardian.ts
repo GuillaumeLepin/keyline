@@ -30,11 +30,28 @@ export const GuardianRecoveryRequestSchema = z.object({
 });
 export type GuardianRecoveryRequest = z.infer<typeof GuardianRecoveryRequestSchema>;
 
-export const GuardianRecoveryResponseSchema = z.object({
-  confirmed: z.literal(true),
-  txHash: Hex.optional(),
-  executed: z.boolean(),
-});
+// Two confirmation modes (docs/DECISIONS.md #15, Option A is the default):
+//  - 'signature': the guardian returns its EIP-712 `ExecuteRecovery` signature (viem `signTypedData` over the
+//    module's `getRecoveryHash` at `nonce`); the bank relayer aggregates it with the client guardian's signature in
+//    ONE `multiConfirmRecovery`. The module attributes the approval to `guardianAddress`. Nothing is executed yet.
+//  - 'onchain': the guardian EOA sent `confirmRecovery` itself (needs ETH); `executed` says whether that call
+//    reached the threshold and started the grace period.
+export const GuardianRecoveryResponseSchema = z.discriminatedUnion('mode', [
+  z.object({
+    confirmed: z.literal(true),
+    mode: z.literal('signature'),
+    guardianAddress: Address,
+    signature: Hex,
+    nonce: z.string().regex(/^\d+$/, 'uint256 as decimal string'), // module.nonce(wallet) the signature is bound to
+    executed: z.literal(false),
+  }),
+  z.object({
+    confirmed: z.literal(true),
+    mode: z.literal('onchain'),
+    txHash: Hex,
+    executed: z.boolean(),
+  }),
+]);
 export type GuardianRecoveryResponse = z.infer<typeof GuardianRecoveryResponseSchema>;
 
 export const GuardianIdentitySchema = z.object({

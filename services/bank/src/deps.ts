@@ -5,13 +5,25 @@ import type { PasskeyAccount, SendUseroperationResponse, UserOperationV7 } from 
 import * as chain from '@keyline/chain';
 import { type GuardianIdentity, GuardianIdentitySchema } from '@keyline/shared';
 import { type Address, erc20Abi, type Hex } from 'viem';
-import { type AttestationVerify, attestationVerify } from './chain/attestation';
 import { type BankPublicClient, funderClientFor, publicClientFor } from './chain/clients';
-import { getUserOpStatus, type UserOpChainStatus } from './chain/userop-status';
 import type { BankConfig } from './config';
 import { upstream } from './errors';
 
 export type FunderBalances = { eth: bigint; usdc: bigint; address: Address };
+export type UserOpChainStatus = {
+  status: 'pending' | 'included' | 'failed';
+  txHash?: Hex;
+  blockNumber?: number;
+};
+export type AttestationVerifyInput = {
+  client: BankPublicClient;
+  wallet: Address;
+  fields: chain.AttestationFields;
+  signature: Hex;
+};
+export type AttestationVerify = (
+  input: AttestationVerifyInput,
+) => Promise<{ ok: boolean; method: 'erc1271'; reason?: string }>;
 
 export type ChainDeps = {
   publicClient: BankPublicClient;
@@ -41,8 +53,16 @@ export const createChainDeps = (config: BankConfig): ChainDeps => {
     publicClient,
     sponsor: (pk, userOp) => chain.sponsor(pk, userOp, requireUrl()),
     sendUserOp: (pk, userOp) => chain.sendUserOp(pk, userOp, requireUrl().bundlerUrl),
-    userOpStatus: (hash) => getUserOpStatus(requireUrl().bundlerUrl, hash),
-    verifyAttestation: attestationVerify,
+    userOpStatus: async (hash) => {
+      const s = await chain.getUserOpStatus(requireUrl().bundlerUrl, hash);
+      return {
+        status: s.status,
+        txHash: s.txHash,
+        blockNumber: s.blockNumber == null ? undefined : Number(s.blockNumber),
+      };
+    },
+    // ERC-1271 against the deployed Safe through viem — a library call, nothing hand-rolled (see packages/chain).
+    verifyAttestation: (input) => chain.attestation.verify(input),
     guardianIdentity: async (kind) => {
       const base = kind === 'swissquote' ? config.SQ_GUARDIAN_URL : config.PARTNER_GUARDIAN_URL;
       const res = await fetch(`${base}/identity`).catch((err: unknown) => {

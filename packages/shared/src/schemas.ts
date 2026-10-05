@@ -476,22 +476,31 @@ export const AttestationResponseSchema = z.object({
 });
 export type AttestationResponse = z.infer<typeof AttestationResponseSchema>;
 
-/** EIP-712 payload the passkey signs through the Safe (ERC-1271). Exactly what GET /attestations/:wallet/challenge returns. */
+/**
+ * EIP-712 payload the passkey signs through the Safe (ERC-1271) — the JSON form of
+ * `@keyline/chain.attestationTypedData(fields)` (domain `Keyline Ownership Attestation`, verifyingContract = the Safe,
+ * nonce = bytes32 issued by the bank). `message.chainId` is a number here; pass it as a uint256 when hashing.
+ */
 export const AttestationTypedDataSchema = z.object({
-  domain: z.object({ name: z.string(), version: z.string(), chainId: z.number().int().positive() }),
+  domain: z.object({
+    name: z.string(),
+    version: z.string(),
+    chainId: z.number().int().positive(),
+    verifyingContract: Address,
+  }),
   types: z.record(z.string(), z.array(z.object({ name: z.string(), type: z.string() }))),
-  primaryType: z.literal('OwnershipAttestation'),
+  primaryType: z.literal('Attestation'),
   message: z.object({
     clientId: z.string(),
     wallet: Address,
     chainId: z.number().int().positive(),
-    nonce: z.string(),
+    nonce: Hash32,
   }),
 });
 export type AttestationTypedData = z.infer<typeof AttestationTypedDataSchema>;
 
 export const AttestationChallengeResponseSchema = z.object({
-  nonce: z.string().min(1),
+  nonce: Hash32,
   typedData: AttestationTypedDataSchema,
   expiresAt: IsoDate,
 });

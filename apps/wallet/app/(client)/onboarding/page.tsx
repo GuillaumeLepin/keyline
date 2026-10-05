@@ -25,7 +25,7 @@ import { ArrowSquareOut, Bank, CheckCircle, IdentificationCard, Key } from '@pho
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type Address as Addr, type Hex, getAddress } from 'viem';
+import { type Address as Addr, getAddress, type Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { copy, copyGaps } from '@/src/copy';
@@ -36,14 +36,19 @@ import {
   buildOpFromDecision,
   PasskeyCancelledError,
   pollUserOp,
+  type SubmitStage,
   signAttestation,
   sponsorSignAndSend,
-  type SubmitStage,
   txUrl,
 } from '@/src/lib/chain';
 import { getDeviceLabel } from '@/src/lib/device';
 import { useLocalWallet } from '@/src/lib/hooks';
-import { localWalletFromLogin, loginWithPasskey, PasskeyUnsupportedError, registerPasskey } from '@/src/lib/passkey';
+import {
+  localWalletFromLogin,
+  loginWithPasskey,
+  PasskeyUnsupportedError,
+  registerPasskey,
+} from '@/src/lib/passkey';
 import type { LocalWallet } from '@/src/lib/storage';
 
 const TOTAL = 6;
@@ -70,9 +75,13 @@ export default function OnboardingPage() {
     case 1:
       return <Step1 onCreated={save} />;
     case 2:
-      return wallet ? <Step2 wallet={wallet} onNext={(g) => go(3, g ? { guardians: { safetyKey: g } } : {})} /> : null;
+      return wallet ? (
+        <Step2 wallet={wallet} onNext={(g) => go(3, g ? { guardians: { safetyKey: g } } : {})} />
+      ) : null;
     case 3:
-      return wallet ? <Step3 wallet={wallet} onNext={(addr) => go(4, { guardians: { emergencyCard: addr } })} /> : null;
+      return wallet ? (
+        <Step3 wallet={wallet} onNext={(addr) => go(4, { guardians: { emergencyCard: addr } })} />
+      ) : null;
     case 4:
       return wallet ? <Step4 wallet={wallet} onNext={() => go(5, { recoveryMode: 'default' })} /> : null;
     case 5:
@@ -113,6 +122,7 @@ function Step1({ onCreated }: { onCreated: (wallet: LocalWallet) => void }) {
         pubKeyY: passkey.pubKeyY,
         credentialId: passkey.credentialId,
         deviceLabel: getDeviceLabel(),
+        recoveryMode: 'default',
       });
       return {
         address: created.address,
@@ -192,7 +202,8 @@ function Step2({ wallet, onNext }: { wallet: LocalWallet; onNext: (safetyKey?: A
   const expiresAt = pairing.data ? new Date(pairing.data.expiresAt).getTime() : 0;
   const remaining = Math.max(0, expiresAt - now);
   const claimed = status.data?.status === 'claimed' || wallet.guardians.safetyKey !== undefined;
-  const expired = !claimed && (status.data?.status === 'expired' || (pairing.data !== undefined && remaining === 0));
+  const expired =
+    !claimed && (status.data?.status === 'expired' || (pairing.data !== undefined && remaining === 0));
   const guardianAddress = status.data?.guardian?.address ?? wallet.guardians.safetyKey;
 
   return (
@@ -206,10 +217,14 @@ function Step2({ wallet, onNext }: { wallet: LocalWallet; onNext: (safetyKey?: A
       {pairing.isPending ? (
         <Skeleton kind="amount" />
       ) : pairing.isError ? (
-        <ApiErrorState error={pairing.error} body={copy.common.offlineBody} onRetry={() => setAttempt((a) => a + 1)} />
+        <ApiErrorState
+          error={pairing.error}
+          body={copy.common.offlineBody}
+          onRetry={() => setAttempt((a) => a + 1)}
+        />
       ) : (
         <div className="kl-stack kl-stack--tight items-center text-center">
-          <p className="kl-pairing-code" aria-label={pairing.data.code}>
+          <p className="kl-pairing-code">
             {pairing.data.code.slice(0, 3)} {pairing.data.code.slice(3)}
           </p>
           {expired ? (
@@ -236,7 +251,11 @@ function Step2({ wallet, onNext }: { wallet: LocalWallet; onNext: (safetyKey?: A
         icon={<Key size={20} aria-hidden="true" />}
         status={claimed ? 'active' : 'pending'}
         statusWord={claimed ? undefined : s.waiting}
-        action={guardianAddress ? <Address value={guardianAddress} explorerUrl={addressUrl(guardianAddress)} /> : undefined}
+        action={
+          guardianAddress ? (
+            <Address value={guardianAddress} explorerUrl={addressUrl(guardianAddress)} />
+          ) : undefined
+        }
       />
 
       <Disclosure summary={copy.common.technicalDetails}>
@@ -290,7 +309,8 @@ function Step3({ wallet, onNext }: { wallet: LocalWallet; onNext: (address: Addr
     setCard({ privateKey, address: privateKeyToAccount(privateKey).address });
   }, []);
   const register = useMutation({
-    mutationFn: (address: Addr) => api.wallets.addGuardian(wallet.address, { kind: 'emergency-card', address }),
+    mutationFn: (address: Addr) =>
+      api.wallets.addGuardian(wallet.address, { kind: 'emergency-card', address }),
     onSuccess: (guardian: Guardian) => {
       const address = getAddress(guardian.address);
       setCard(null); // drop the key from memory
@@ -399,7 +419,11 @@ function Step4({ wallet, onNext }: { wallet: LocalWallet; onNext: () => void }) 
         />
       </div>
       {setRemote.isError ? (
-        <ApiErrorState error={setRemote.error} body={copy.common.offlineBody} onRetry={() => setRemote.mutate()} />
+        <ApiErrorState
+          error={setRemote.error}
+          body={copy.common.offlineBody}
+          onRetry={() => setRemote.mutate()}
+        />
       ) : null}
       <div className="kl-actions">
         <Button variant="primary" full loading={setRemote.isPending} onClick={() => setRemote.mutate()}>
@@ -433,9 +457,11 @@ function Step5({
   onNext: () => void;
 }) {
   const s = copy.onboarding.s5;
-  const [phase, setPhase] = useState<ProtectPhase>(wallet.status === 'deployed' && wallet.protectTxHash
-    ? { kind: 'confirmed', userOpHash: '0x', txHash: wallet.protectTxHash as Hex }
-    : { kind: 'idle' });
+  const [phase, setPhase] = useState<ProtectPhase>(
+    wallet.status === 'deployed' && wallet.protectTxHash
+      ? { kind: 'confirmed', userOpHash: '0x', txHash: wallet.protectTxHash as Hex }
+      : { kind: 'idle' },
+  );
   const sqRef = useRef<Addr | undefined>(wallet.guardians.swissquote as Addr | undefined);
 
   const run = useCallback(async () => {
@@ -487,7 +513,12 @@ function Step5({
       }
       if (final.txHash) {
         onProtected(final.txHash as Hex, sqRef.current);
-        setPhase({ kind: 'confirmed', userOpHash: result.userOpHash, txHash: final.txHash as Hex, blockNumber: final.blockNumber });
+        setPhase({
+          kind: 'confirmed',
+          userOpHash: result.userOpHash,
+          txHash: final.txHash as Hex,
+          blockNumber: final.blockNumber,
+        });
       }
     } catch (error) {
       setPhase({ kind: 'error', error, cancelled: error instanceof PasskeyCancelledError });
@@ -555,11 +586,19 @@ function Step5({
           <Panel title={s.panelTitle} rows={s.rows.map(([label, value]) => ({ label, value }))} />
           {phase.kind === 'refused' ? (
             <PolicyLine
-              verdict={phase.decision.verdict === 'block' ? 'block' : phase.decision.verdict === 'cooling' ? 'cooling' : 'step-up'}
+              verdict={
+                phase.decision.verdict === 'block'
+                  ? 'block'
+                  : phase.decision.verdict === 'cooling'
+                    ? 'cooling'
+                    : 'step-up'
+              }
               reason={phase.decision.reasons.join(' · ')}
             />
           ) : null}
-          {phase.kind === 'error' && phase.cancelled ? <Note tone="warn">{copy.review.passkeyCancelled}</Note> : null}
+          {phase.kind === 'error' && phase.cancelled ? (
+            <Note tone="warn">{copy.review.passkeyCancelled}</Note>
+          ) : null}
           {phase.kind === 'error' && !phase.cancelled ? (
             <ApiErrorState error={phase.error} title={s.errorTitle} body={s.errorBody} onRetry={run} />
           ) : null}
@@ -585,7 +624,11 @@ function protectSequence(phase: ProtectPhase): StatusStep[] | null {
   if (phase.kind === 'idle' || phase.kind === 'refused' || phase.kind === 'error') return null;
   const stageIndex =
     phase.kind === 'running'
-      ? phase.stage === 'signing' || phase.stage === 'building' || phase.stage === 'sponsoring' || phase.stage === 'guardians' || phase.stage === 'policy'
+      ? phase.stage === 'signing' ||
+        phase.stage === 'building' ||
+        phase.stage === 'sponsoring' ||
+        phase.stage === 'guardians' ||
+        phase.stage === 'policy'
         ? 0
         : 1
       : phase.kind === 'sent'
@@ -593,9 +636,10 @@ function protectSequence(phase: ProtectPhase): StatusStep[] | null {
         : phase.kind === 'included'
           ? 3
           : 4;
-  const blockLabel = phase.kind === 'included' || phase.kind === 'confirmed'
-    ? copy.review.inBlock(phase.blockNumber ? formatInteger(phase.blockNumber) : '…')
-    : labels[2];
+  const blockLabel =
+    phase.kind === 'included' || phase.kind === 'confirmed'
+      ? copy.review.inBlock(phase.blockNumber ? formatInteger(phase.blockNumber) : '…')
+      : labels[2];
   return [
     { label: labels[0], state: stageIndex > 0 ? 'done' : 'active' },
     { label: labels[1], state: stageIndex > 1 ? 'done' : stageIndex === 1 ? 'active' : 'todo' },
@@ -631,7 +675,10 @@ function Step6({ wallet, onDone }: { wallet: LocalWallet; onDone: (attested: boo
         </div>
         <Panel
           rows={[
-            { label: s.rows.wallet, value: <Address value={wallet.address} explorerUrl={addressUrl(wallet.address)} /> },
+            {
+              label: s.rows.wallet,
+              value: <Address value={wallet.address} explorerUrl={addressUrl(wallet.address)} />,
+            },
             { label: s.rows.client, value: sign.data.attestation.clientId },
             { label: s.rows.validFor, value: copy.security.swissquote.name },
           ]}
@@ -654,7 +701,10 @@ function Step6({ wallet, onDone }: { wallet: LocalWallet; onDone: (attested: boo
       </div>
       <Panel
         rows={[
-          { label: s.rows.wallet, value: <Address value={wallet.address} explorerUrl={addressUrl(wallet.address)} /> },
+          {
+            label: s.rows.wallet,
+            value: <Address value={wallet.address} explorerUrl={addressUrl(wallet.address)} />,
+          },
           { label: s.rows.client, value: env.clientId },
           { label: s.rows.validFor, value: copy.security.swissquote.name },
         ]}

@@ -3,7 +3,8 @@ import {
   counterfactualAddress,
   createPasskeyAccount,
   dummySignature,
-  type MetaTransaction,
+  encodeCallData,
+  initOwnerTransactions,
   protectTransactions,
   transferTransaction,
 } from '@keyline/chain';
@@ -12,7 +13,7 @@ import type { FastifyInstance } from 'fastify';
 import { type Address, getAddress, type Hex, keccak256 } from 'viem';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app';
-import { encodeCallDataLocal, metaTransactionToCall, protectCallData } from '../chain/calldata';
+import { metaTransactionToCall, protectCallData } from '../chain/calldata';
 import type { ChainDeps } from '../deps';
 import { testConfig } from '../test-env';
 
@@ -94,23 +95,17 @@ describe('Wave 1 bank flows', () => {
     await app.close();
   });
 
-  it('encodeCallData mirrors abstractionkit for single and batch calls', () => {
-    const ctor = Object.getPrototypeOf(pk.account).constructor as {
-      createAccountCallDataSingleTransaction(tx: MetaTransaction): string;
-      createAccountCallDataBatchTransactions(txs: MetaTransaction[]): string;
-    };
-    const single = transferTransaction({ token: USDC, to: SAFETY, amount: 100_000_000n });
-    expect(encodeCallDataLocal([single]).toLowerCase()).toBe(
-      ctor.createAccountCallDataSingleTransaction(single).toLowerCase(),
-    );
-    const batch = protectTransactions(pk, {
+  it('protectCallData prepends createSigner + swapOwner for an undeployed Safe', () => {
+    const txs = protectTransactions(pk, {
       guardians: [SAFETY, EMERGENCY, SQ_GUARDIAN],
       threshold: 2,
       recoveryModule: MODULE,
     });
-    expect(encodeCallDataLocal(batch).toLowerCase()).toBe(
-      ctor.createAccountCallDataBatchTransactions(batch).toLowerCase(),
+    expect(protectCallData(pk, txs, false)).toBe(
+      encodeCallData([...initOwnerTransactions(pk.owner, pk.address), ...txs]),
     );
+    expect(protectCallData(pk, txs, true)).toBe(encodeCallData(txs));
+    expect(protectCallData(pk, txs, false)).not.toBe(protectCallData(pk, txs, true));
   });
 
   it('refuses client routes without a session or device label', async () => {
@@ -260,7 +255,7 @@ describe('Wave 1 bank flows', () => {
   });
 
   it('refuses sponsorship when the callData does not match the evaluated calls', async () => {
-    const other = encodeCallDataLocal([transferTransaction({ token: USDC, to: SAFETY, amount: 1n })]);
+    const other = encodeCallData([transferTransaction({ token: USDC, to: SAFETY, amount: 1n })]);
     const res = await app.inject({
       method: 'POST',
       url: '/userops/sponsor',
@@ -368,7 +363,7 @@ describe('Wave 1 bank flows', () => {
     });
     expect(res.statusCode, res.body).toBe(201);
     expect(res.json()).toMatchObject({ verdict: 'approve', tier: 1, chfValue: 80, kind: 'transfer' });
-    expect(res.json().callsHash).toBe(keccak256(encodeCallDataLocal([tx])));
+    expect(res.json().callsHash).toBe(keccak256(encodeCallData([tx])));
     expect(res.json().simulation.decodedCalls[0].humanText).toMatch(/Send 100 USDC/);
     expect(res.json().screening).toMatchObject({
       hit: false,
@@ -419,8 +414,10 @@ describe('Wave 1 bank flows', () => {
     const ch = await app.inject({ method: 'GET', url: `/attestations/${wallet}/challenge`, headers: dev });
     expect(ch.statusCode, ch.body).toBe(200);
     const { nonce, typedData } = ch.json();
+    expect(nonce).toMatch(/^0x[0-9a-f]{64}$/);
     expect(typedData).toMatchObject({
-      primaryType: 'OwnershipAttestation',
+      primaryType: 'Attestation',
+      domain: { name: 'Keyline Ownership Attestation', chainId: 84532, verifyingContract: wallet },
       message: { clientId: 'SQ-48213-LK', wallet, chainId: 84532, nonce },
     });
 

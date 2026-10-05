@@ -8,22 +8,36 @@ import {
   buildTransferUserOp,
   buildUserOp,
   type ChainEndpoints,
-  type MetaTransaction,
+  type UserOperationV7 as ChainUserOp,
   createPasskeyAccount,
   explorerTxUrl,
   loadPasskeyAccount,
+  type MetaTransaction,
   type PasskeyAccount,
   type PasskeyPublicKey,
   safeOpHash,
   signUserOpWithPasskey,
   transferTransaction,
-  type UserOperationV7 as ChainUserOp,
   userOpToJson,
   type WebAuthnAssertion,
 } from '@keyline/chain';
-import { type PolicyDecision, type UserOperationV7 as JsonUserOp, UserOperationV7Schema } from '@keyline/shared';
+import {
+  type UserOperationV7 as JsonUserOp,
+  type PolicyDecision,
+  UserOperationV7Schema,
+} from '@keyline/shared';
 import { base64URLStringToBuffer } from '@simplewebauthn/browser';
-import { type Address, createPublicClient, erc20Abi, formatUnits, getAddress, type Hex, hexToBytes, http, parseUnits } from 'viem';
+import {
+  type Address,
+  createPublicClient,
+  erc20Abi,
+  formatUnits,
+  getAddress,
+  type Hex,
+  hexToBytes,
+  http,
+  parseUnits,
+} from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { env } from '../env';
 import { api } from './api';
@@ -91,7 +105,8 @@ export function fromJsonUserOp(json: JsonUserOp): ChainUserOp {
     paymaster: json.paymaster ?? null,
     paymasterVerificationGasLimit:
       json.paymasterVerificationGasLimit === undefined ? null : big(json.paymasterVerificationGasLimit),
-    paymasterPostOpGasLimit: json.paymasterPostOpGasLimit === undefined ? null : big(json.paymasterPostOpGasLimit),
+    paymasterPostOpGasLimit:
+      json.paymasterPostOpGasLimit === undefined ? null : big(json.paymasterPostOpGasLimit),
     paymasterData: json.paymasterData ?? null,
     signature: json.signature,
   };
@@ -107,7 +122,7 @@ export async function assertWithPasskey(challenge: Hex, credentialId: string): P
   try {
     credential = await navigator.credentials.get({
       publicKey: {
-        challenge: hexToBytes(challenge),
+        challenge: Uint8Array.from(hexToBytes(challenge)),
         rpId: window.location.hostname,
         allowCredentials: [{ id: base64URLStringToBuffer(credentialId), type: 'public-key' }],
         userVerification: 'required',
@@ -167,7 +182,10 @@ export async function sponsorSignAndSend(input: SubmitInput): Promise<SubmitResu
   const signedUserOp = signUserOpWithPasskey(sponsoredUserOp, assertion, owner);
 
   onStage?.('sending');
-  const sent = await api.userops.send({ userOp: toJsonUserOp(signedUserOp), decisionId: decision.decisionId });
+  const sent = await api.userops.send({
+    userOp: toJsonUserOp(signedUserOp),
+    decisionId: decision.decisionId,
+  });
   onStage?.('sent');
   return { userOpHash: sent.userOpHash as Hex, safeOpHash: challenge, sponsoredUserOp: sponsored.userOp };
 }
@@ -203,7 +221,11 @@ export function buildTransferOp(wallet: LocalWallet, to: Address, amountUsdc: nu
 
 /** The ERC-20 call as the policy engine expects it (`calls` in PolicyRequest). */
 export function transferCall(to: Address, amountUsdc: number): { to: Address; value: string; data: Hex } {
-  const tx = transferTransaction({ token: env.usdcAddress, to, amount: parseUnits(amountUsdc.toFixed(6), 6) });
+  const tx = transferTransaction({
+    token: env.usdcAddress,
+    to,
+    amount: parseUnits(amountUsdc.toFixed(6), 6),
+  });
   return { to: tx.to as Address, value: '0', data: (tx.data ?? '0x') as Hex };
 }
 

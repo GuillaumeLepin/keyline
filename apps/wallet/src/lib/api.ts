@@ -3,11 +3,11 @@
 // can show "Not available yet" instead of crashing (SPEC §4, services/bank/README.md).
 import {
   type AddGuardianBody,
+  ApiErrorSchema,
   type AttestationBody,
   AttestationChallengeResponseSchema,
   AttestationResponseSchema,
   AttestationSchema,
-  ApiErrorSchema,
   type ClaimPairingBody,
   ContactSchema,
   type CreateWalletBody,
@@ -112,12 +112,13 @@ async function request<T>(
         'not-implemented',
         501,
         'not-implemented-yet',
-        err.success ? err.message : `Not implemented yet (wave ${ni.success ? ni.data.wave : '?'})`,
+        err.success ? err.data.message : `Not implemented yet (wave ${ni.success ? ni.data.wave : '?'})`,
         json,
       );
     }
     const err = ApiErrorSchema.safeParse(json);
-    if (err.success) throw new ApiError('http', response.status, err.data.error, err.data.message, err.data.details);
+    if (err.success)
+      throw new ApiError('http', response.status, err.data.error, err.data.message, err.data.details);
     throw new ApiError('http', response.status, 'http', `${response.status} ${response.statusText}`, json);
   }
   const parsed = schema.safeParse(json);
@@ -139,7 +140,10 @@ const WalletDetailLenient = WalletSchema.extend({
   passkey: PasskeySchema.optional(),
 });
 const GuardiansLenient = z.union([GuardiansResponseSchema, z.array(GuardianSchema)]);
-const ClaimResponse = z.union([PairingSchema, z.object({ guardian: GuardianSchema, status: z.string().optional() })]);
+const ClaimResponse = z.union([
+  PairingSchema,
+  z.object({ guardian: GuardianSchema, status: z.string().optional() }),
+]);
 /** @simplewebauthn options JSON: the server library owns the shape; we only check it is an object with a challenge. */
 const WebAuthnOptions = z.object({ challenge: z.string().min(1) }).passthrough();
 
@@ -166,7 +170,8 @@ export const api = {
   wallets: {
     create: (body: CreateWalletBody) => request('POST', '/wallets', CreateWalletResponseSchema, body),
     get: (address: string) => request('GET', `/wallets/${address}`, WalletDetailLenient),
-    events: async (address: string) => (await request('GET', `/wallets/${address}/events`, EventsResponseSchema)).events,
+    events: async (address: string) =>
+      (await request('GET', `/wallets/${address}/events`, EventsResponseSchema)).events,
     addGuardian: (address: string, body: AddGuardianBody) =>
       request('POST', `/wallets/${address}/guardians`, GuardianSchema, body),
     guardians: async (address: string) => {
@@ -180,7 +185,8 @@ export const api = {
   pairings: {
     create: (wallet: string) => request('POST', '/pairings', PairingSchema, { wallet }),
     get: (code: string) => request('GET', `/pairings/${code}`, PairingSchema),
-    claim: (code: string, body: ClaimPairingBody) => request('POST', `/pairings/${code}/claim`, ClaimResponse, body),
+    claim: (code: string, body: ClaimPairingBody) =>
+      request('POST', `/pairings/${code}/claim`, ClaimResponse, body),
   },
 
   policy: {

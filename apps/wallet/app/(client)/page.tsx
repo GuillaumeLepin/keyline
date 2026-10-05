@@ -135,14 +135,22 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
     <>
       <header className="kl-topbar">
         <h1 className="kl-topbar__title">{copy.brand}</h1>
-        <Link href="/security" className="kl-btn kl-btn--ghost kl-btn--sm kl-btn--icon" aria-label={copy.security.title}>
+        <Link
+          href="/security"
+          className="kl-btn kl-btn--ghost kl-btn--sm kl-btn--icon"
+          aria-label={copy.security.title}
+        >
           <ShieldCheck size={20} aria-hidden="true" />
         </Link>
       </header>
 
       {onboardingPending ? (
         <StatementRow
-          label={copy.onboarding.stepLabel(wallet.onboardingStep, 6, STEP_TITLES[wallet.onboardingStep - 1] ?? '')}
+          label={copy.onboarding.stepLabel(
+            wallet.onboardingStep,
+            6,
+            STEP_TITLES[wallet.onboardingStep - 1] ?? '',
+          )}
           meta={copy.common.continue}
           status="pending"
           href="/onboarding"
@@ -154,7 +162,11 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
         {balance.isPending ? (
           <Skeleton kind="amount" />
         ) : balance.isError ? (
-          <ApiErrorState error={balance.error} body={copy.common.offlineBody} onRetry={() => balance.refetch()} />
+          <ApiErrorState
+            error={balance.error}
+            body={copy.common.offlineBody}
+            onRetry={() => balance.refetch()}
+          />
         ) : (
           <>
             <p className="kl-balance__amount">
@@ -217,7 +229,11 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
           </div>
         )}
         {events.isError ? (
-          <ApiErrorState error={events.error} body={copy.common.offlineBody} onRetry={() => events.refetch()} />
+          <ApiErrorState
+            error={events.error}
+            body={copy.common.offlineBody}
+            onRetry={() => events.refetch()}
+          />
         ) : null}
       </section>
 
@@ -278,7 +294,9 @@ function TopUpForm({ wallet, onDone }: { wallet: LocalWallet; onDone: () => void
       <AmountField value={chf} onChange={setChf} rate={env.chfPerUsdc} error={fieldError} />
       <Note tone="info">{copy.home.topUpNote}</Note>
       <p className="text-14 text-ink-2">
-        {me.isSuccess ? copy.home.topUpBalance(formatCHF(me.data.account.balance)) : copy.home.topUpBalance('—')}{' '}
+        {me.isSuccess
+          ? copy.home.topUpBalance(formatCHF(me.data.account.balance))
+          : copy.home.topUpBalance('—')}{' '}
         <SimulatedBadge />
       </p>
       {topup.isError ? (
@@ -310,7 +328,12 @@ function buildStatement(
 ): Row[] {
   const rows: Row[] = [];
   for (const t of transfers) {
-    const status = t.status === 'confirmed' || t.status === 'included' ? 'ok' : t.status === 'failed' ? 'danger' : 'pending';
+    const status =
+      t.status === 'confirmed' || t.status === 'included'
+        ? 'ok'
+        : t.status === 'failed'
+          ? 'danger'
+          : 'pending';
     rows.push({
       key: t.userOpHash,
       label: t.toLabel,
@@ -319,7 +342,11 @@ function buildStatement(
       amountSub: formatCHF(t.amountChf),
       status,
       statusWord:
-        status === 'ok' ? copy.home.status.confirmed : status === 'danger' ? copy.home.status.failed : copy.home.status.sent,
+        status === 'ok'
+          ? copy.home.status.confirmed
+          : status === 'danger'
+            ? copy.home.status.failed
+            : copy.home.status.sent,
       href: `/activity/${t.userOpHash}`,
       at: new Date(t.at).getTime(),
     });

@@ -23,9 +23,14 @@ export class PasskeyUnsupportedError extends Error {
 
 function translate(error: unknown): never {
   if (error instanceof WebAuthnError) {
-    if (error.code === 'ERROR_CEREMONY_ABORTED' || error.name === 'NotAllowedError') throw new PasskeyCancelledError();
-    if (error.code === 'ERROR_AUTHENTICATOR_GENERAL_ERROR' || error.code === 'ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY') {
-      if (error.cause instanceof DOMException && error.cause.name === 'NotAllowedError') throw new PasskeyCancelledError();
+    if (error.code === 'ERROR_CEREMONY_ABORTED' || error.name === 'NotAllowedError')
+      throw new PasskeyCancelledError();
+    if (
+      error.code === 'ERROR_AUTHENTICATOR_GENERAL_ERROR' ||
+      error.code === 'ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY'
+    ) {
+      if (error.cause instanceof DOMException && error.cause.name === 'NotAllowedError')
+        throw new PasskeyCancelledError();
     }
   }
   if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {
@@ -37,14 +42,19 @@ function translate(error: unknown): never {
 export async function registerPasskey(): Promise<Passkey> {
   if (!browserSupportsWebAuthn()) throw new PasskeyUnsupportedError();
   const deviceLabel = getDeviceLabel();
-  const options = (await api.auth.registerOptions(deviceLabel)) as unknown as PublicKeyCredentialCreationOptionsJSON;
+  const options = (await api.auth.registerOptions(
+    deviceLabel,
+  )) as unknown as PublicKeyCredentialCreationOptionsJSON;
   let credential: Awaited<ReturnType<typeof startRegistration>>;
   try {
     credential = await startRegistration({ optionsJSON: options });
   } catch (error) {
     translate(error);
   }
-  const { passkey } = await api.auth.registerVerify({ credential, deviceLabel });
+  const { passkey } = await api.auth.registerVerify({
+    credential: { ...credential, clientExtensionResults: { ...credential.clientExtensionResults } },
+    deviceLabel,
+  });
   return passkey;
 }
 
@@ -62,7 +72,9 @@ export async function loginWithPasskey(): Promise<LoginResult> {
   } catch (error) {
     translate(error);
   }
-  const result = await api.auth.loginVerify({ credential });
+  const result = await api.auth.loginVerify({
+    credential: { ...credential, clientExtensionResults: { ...credential.clientExtensionResults } },
+  });
   return { passkey: result.passkey, wallet: result.wallet };
 }
 

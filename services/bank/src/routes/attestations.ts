@@ -1,4 +1,6 @@
 // Travel-Rule ownership proof (SPEC F1.6 / F6): challenge → passkey signs through the Safe → ERC-1271 verify.
+import { randomBytes } from 'node:crypto';
+import { attestationTypedData } from '@keyline/chain';
 import {
   AttestationBodySchema,
   AttestationChallengeResponseSchema,
@@ -6,12 +8,11 @@ import {
   AttestationSchema,
 } from '@keyline/shared';
 import type { FastifyInstance } from 'fastify';
-import { getAddress, type Hex } from 'viem';
+import { bytesToHex, getAddress, type Hex } from 'viem';
 import { z } from 'zod';
 import { clientOf } from '../auth';
-import { attestationTypedData } from '../chain/attestation';
 import type { BankConfig } from '../config';
-import { type Db, newId, nowIso } from '../db';
+import { type Db, nowIso } from '../db';
 import type { ChainDeps } from '../deps';
 import { conflict, forbidden, notFound, policyRefused } from '../errors';
 import type { EventStore } from '../events';
@@ -74,15 +75,18 @@ export const registerAttestationRoutes = (
     if (wallet.clientId !== client.clientId) throw forbidden('This wallet belongs to another client');
     if (wallet.status !== 'deployed')
       throw conflict('Protect your wallet first — the proof is signed by the deployed wallet');
-    const nonce = newId('att');
+    // 32 random bytes from Node's CSPRNG (a nonce, not key material); the typed data wants bytes32.
+    const nonce = bytesToHex(randomBytes(32));
     const expiresAt = new Date(Date.now() + NONCE_TTL_MS).toISOString();
     insertNonce.run(nonce, getAddress(wallet.address), client.clientId, nowIso(), expiresAt);
-    const typedData = attestationTypedData({
+    const typed = attestationTypedData({
       clientId: client.clientId,
       wallet: getAddress(wallet.address),
       chainId: config.CHAIN_ID,
       nonce,
     });
+    // JSON-safe copy: message.chainId is a bigint in the chain package.
+    const typedData = { ...typed, message: { ...typed.message, chainId: Number(typed.message.chainId) } };
     return AttestationChallengeResponseSchema.parse({ nonce, typedData, expiresAt });
   });
 
@@ -106,11 +110,12 @@ export const registerAttestationRoutes = (
     if (nonceRow.used_at) throw conflict('This challenge was already used — request a new one');
     if (nonceRow.expires_at <= nowIso()) throw conflict('This challenge expired — request a new one');
 
+    if (!/^0x[0-9a-fA-F]{64}$/.test(body.nonce)) throw notFound('Challenge nonce');
     const fields = {
       clientId: client.clientId,
       wallet: getAddress(wallet.address),
       chainId: config.CHAIN_ID,
-      nonce: body.nonce,
+      nonce: body.nonce as Hex,
     };
     const result = await chain.verifyAttestation({
       client: chain.publicClient,

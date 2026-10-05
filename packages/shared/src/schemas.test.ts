@@ -275,22 +275,32 @@ const fixtures: Record<string, [z.ZodType, unknown]> = {
   AttestationTypedDataSchema: [
     S.AttestationTypedDataSchema,
     {
-      domain: { name: 'KeylineOwnershipAttestation', version: '1', chainId: 84532 },
-      types: { OwnershipAttestation: [{ name: 'clientId', type: 'string' }] },
-      primaryType: 'OwnershipAttestation',
-      message: { clientId: 'SQ-48213-LK', wallet: addr, chainId: 84532, nonce: 'n1' },
+      domain: {
+        name: 'Keyline Ownership Attestation',
+        version: '1',
+        chainId: 84532,
+        verifyingContract: addr,
+      },
+      types: { Attestation: [{ name: 'clientId', type: 'string' }] },
+      primaryType: 'Attestation',
+      message: { clientId: 'SQ-48213-LK', wallet: addr, chainId: 84532, nonce: hash },
     },
   ],
   AttestationChallengeResponseSchema: [
     S.AttestationChallengeResponseSchema,
     {
-      nonce: 'n1',
+      nonce: hash,
       expiresAt: at,
       typedData: {
-        domain: { name: 'KeylineOwnershipAttestation', version: '1', chainId: 84532 },
-        types: { OwnershipAttestation: [{ name: 'clientId', type: 'string' }] },
-        primaryType: 'OwnershipAttestation',
-        message: { clientId: 'SQ-48213-LK', wallet: addr, chainId: 84532, nonce: 'n1' },
+        domain: {
+          name: 'Keyline Ownership Attestation',
+          version: '1',
+          chainId: 84532,
+          verifyingContract: addr,
+        },
+        types: { Attestation: [{ name: 'clientId', type: 'string' }] },
+        primaryType: 'Attestation',
+        message: { clientId: 'SQ-48213-LK', wallet: addr, chainId: 84532, nonce: hash },
       },
     },
   ],

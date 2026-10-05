@@ -4,7 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api';
 import { readUsdcBalance } from './chain';
-import { type LocalTopup, type LocalTransfer, type LocalWallet, topupStore, transferStore, walletStore } from './storage';
+import {
+  type LocalTopup,
+  type LocalTransfer,
+  type LocalWallet,
+  topupStore,
+  transferStore,
+  walletStore,
+} from './storage';
 
 /** The device's local wallet profile; `undefined` until the client has read localStorage (avoids hydration flicker). */
 export function useLocalWallet(): {
@@ -32,7 +39,11 @@ export function useLocalWallet(): {
   return { wallet, save, patch, clear };
 }
 
-export function useLocalTransfers(): { transfers: LocalTransfer[]; topups: LocalTopup[]; refresh: () => void } {
+export function useLocalTransfers(): {
+  transfers: LocalTransfer[];
+  topups: LocalTopup[];
+  refresh: () => void;
+} {
   const [transfers, setTransfers] = useState<LocalTransfer[]>([]);
   const [topups, setTopups] = useState<LocalTopup[]>([]);
   const refresh = useCallback(() => {

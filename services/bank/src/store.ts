@@ -137,7 +137,7 @@ export const createStore = (db: Db) => {
       const row = decisionById.get(id) as DecisionRow | undefined;
       if (!row) return null;
       const decision = PolicyDecisionSchema.parse(JSON.parse(row.decision_json));
-      return { ...decision, consumedAt: row.consumed_at ?? undefined };
+      return { ...decision, expiresAt: row.expires_at, consumedAt: row.consumed_at ?? undefined };
     },
     saveDecision(decision: PolicyDecision, request: unknown): void {
       insertDecision.run(

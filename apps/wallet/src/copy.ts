@@ -50,7 +50,8 @@ export const copy = {
       signIn: 'Already have a Keyline? Sign in',
       cancelled: 'The passkey prompt was closed. Nothing was created — try again when you’re ready.',
       unsupportedTitle: 'This browser can’t create a passkey',
-      unsupportedBody: 'Use Chrome, Safari or Edge on a device with Face ID, Touch ID or a fingerprint reader.',
+      unsupportedBody:
+        'Use Chrome, Safari or Edge on a device with Face ID, Touch ID or a fingerprint reader.',
       techAddress: 'Wallet address (not yet deployed)',
     },
     s2: {
@@ -159,7 +160,8 @@ export const copy = {
     topUpRow: 'Top up from Swissquote',
     receiveNote: 'Only send USDC on Base Sepolia to this address.',
     noKeyTitle: 'This device has no key for this wallet.',
-    noKeyBody: 'Sending is not possible from here. If this is your phone and you lost access, start a recovery.',
+    noKeyBody:
+      'Sending is not possible from here. If this is your phone and you lost access, start a recovery.',
     lostPhone: 'I lost my phone',
     status: { confirmed: 'Confirmed', sent: 'Sent', failed: 'Failed' },
   },
@@ -251,7 +253,11 @@ export const copy = {
     title: 'Security',
     keys: 'Keys',
     phoneKey: { name: 'Phone key', where: 'This phone', can: 'Signs every transfer' },
-    safetyKey: { name: 'Safety key', where: 'Lea’s laptop', can: 'Co-approves above CHF 1’000 · helps restore' },
+    safetyKey: {
+      name: 'Safety key',
+      where: 'Lea’s laptop',
+      can: 'Co-approves above CHF 1’000 · helps restore',
+    },
     emergencyCard: {
       name: 'Emergency card',
       where: 'On paper, with you',
@@ -326,7 +332,8 @@ export const copy = {
     codeWrong: 'That code doesn’t match.',
     idTitle: 'Confirm it’s you',
     idEyebrow: 'swiyu e-ID check',
-    idBody: 'Swissquote checks your identity before its recoverer may act. In production this is the Swiss e-ID (swiyu).',
+    idBody:
+      'Swissquote checks your identity before its recoverer may act. In production this is the Swiss e-ID (swiyu).',
     idName: 'Name on ID',
     idDob: 'Date of birth',
     idLiveness: 'Liveness check passed',

@@ -48,6 +48,12 @@ export const seed = (db: Db, events: EventStore): { seededNow: boolean } => {
       seededNow = true;
     }
 
+    // Wave 0 seeded CHF 5'000; SPEC/Wave 1 says 12'500. Bump an untouched legacy row instead of forcing a reset.
+    db.prepare(
+      `UPDATE clients SET account_balance_chf = ? WHERE id = ? AND account_balance_chf = 5000
+       AND NOT EXISTS (SELECT 1 FROM topups WHERE client_id = clients.id)`,
+    ).run(LEA.accountBalanceChf, LEA.id);
+
     const hasContact = db.prepare('SELECT 1 FROM contacts WHERE client_id = ? AND label = ?');
     const insertContact = db.prepare(
       `INSERT INTO contacts (client_id, label, address, first_seen_at, verified_ownership, simulated) VALUES (?, ?, ?, ?, ?, ?)`,
