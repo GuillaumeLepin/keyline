@@ -1,11 +1,13 @@
 /*
  * Tailwind v4 theme — maps Keyline tokens to utility names (bg-ink, text-ink-2, text-28, rounded-control…).
- * `inline` keeps utilities pointing at the CSS variables, so a token change in @keyline/ui propagates.
+ * `inline reference`: utilities inline the token references and NO :root variables are emitted — the
+ * theme keys share names with the tokens (--text-44, --radius-control…) and emitting them would make
+ * those variables self-referential (cyclic → invalid → square buttons, body-sized amounts).
  *
  * Lives in a .pcss file only because the repo's biome.json does not yet enable
  * `css.parser.tailwindDirectives`; once it does, this block can move back into globals.css.
  */
-@theme inline {
+@theme inline reference {
   --spacing: 0.25rem;
 
   --color-bg: var(--bg);

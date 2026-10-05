@@ -5,8 +5,10 @@
  * Every cryptographic step is a library call (abstractionkit / viem); nothing here parses WebAuthn output by hand.
  */
 import {
+  Bundler,
   CandidePaymaster,
   type MetaTransaction,
+  Operation,
   SafeAccountV0_3_0,
   type SendUseroperationResponse,
   type SignerSignaturePair,
@@ -17,7 +19,18 @@ import {
   type WebauthnPublicKey,
   webauthnSignatureFromAssertion,
 } from 'abstractionkit';
-import { type Address, encodeFunctionData, erc20Abi, getAddress, type Hex } from 'viem';
+import {
+  type Address,
+  decodeFunctionData,
+  encodeFunctionData,
+  erc20Abi,
+  getAddress,
+  type Hex,
+  hexToBigInt,
+  hexToNumber,
+  size,
+  slice,
+} from 'viem';
 import {
   P256_PRECOMPILE,
   WEBAUTHN_CONTRACT_VERIFIER,
@@ -317,4 +330,126 @@ export function userOpToJson(userOp: UserOperationV7): Record<string, string | n
     out[key] = value == null ? null : typeof value === 'bigint' ? value.toString() : String(value);
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// callData encoding / decoding — the bank recomputes `encodeCallData(calls)` and compares it with the client's userOp
+// (DECISIONS #14). Both sides go through the same abstractionkit statics `buildUserOp` uses internally, so they can't
+// drift: 1 tx → `executeUserOpWithErrorString(to, value, data, Call)`; n txs → the same wrapper around a delegatecall to
+// MultiSend 1.4.1 `multiSend(bytes)`.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Exactly the `callData` that `buildUserOp(pk, txs)` produces for a non-init userOp (pure, no RPC). */
+export function encodeCallData(transactions: readonly MetaTransaction[]): Hex {
+  if (transactions.length === 0) throw new ChainError('BAD_INPUT', 'encodeCallData needs at least one transaction');
+  const txs = transactions.map((tx) => ({ ...tx, value: tx.value ?? 0n, data: tx.data ?? '0x' }));
+  const first = txs[0];
+  if (txs.length === 1 && first !== undefined) {
+    return SafeAccountV0_3_0.createAccountCallDataSingleTransaction(first) as Hex;
+  }
+  return SafeAccountV0_3_0.createAccountCallDataBatchTransactions(txs) as Hex;
+}
+
+/**
+ * The two meta-transactions abstractionkit prepends to the FIRST userOp of a passkey Safe:
+ * `factory.createSigner(x, y, verifiers)` + `safe.swapOwner(sentinel, sharedSigner, proxy)`. The bank needs them to
+ * reproduce the create+protect callData: `encodeCallData([...initOwnerTransactions(owner, safe), ...protectTxs])`.
+ */
+export function initOwnerTransactions(owner: PasskeyPublicKey, safe: Address): MetaTransaction[] {
+  const swapOwner = encodeFunctionData({
+    abi: [
+      {
+        type: 'function',
+        name: 'swapOwner',
+        stateMutability: 'nonpayable',
+        inputs: [
+          { name: 'prevOwner', type: 'address' },
+          { name: 'oldOwner', type: 'address' },
+          { name: 'newOwner', type: 'address' },
+        ],
+        outputs: [],
+      },
+    ] as const,
+    functionName: 'swapOwner',
+    args: ['0x0000000000000000000000000000000000000001', WEBAUTHN_SHARED_SIGNER, passkeySignerAddress(owner)],
+  });
+  return [deploySignerProxyTx(owner), { to: getAddress(safe), value: 0n, data: swapOwner }];
+}
+
+export interface DecodedCall {
+  readonly to: Address;
+  readonly value: bigint;
+  readonly data: Hex;
+  readonly operation: 'call' | 'delegatecall';
+}
+
+const MULTISEND_ABI = [
+  {
+    type: 'function',
+    name: 'multiSend',
+    stateMutability: 'payable',
+    inputs: [{ name: 'transactions', type: 'bytes' }],
+    outputs: [],
+  },
+] as const;
+
+/**
+ * Inverse of `encodeCallData`: the list of inner calls a Safe4337Module `executeUserOp*` callData will run (the bank
+ * evaluates THESE, not what the client claims). MultiSend's packed layout is
+ * `operation(1) ‖ to(20) ‖ value(32) ‖ dataLength(32) ‖ data` per call (plain ABI slicing — no cryptography).
+ */
+export function decodeCallData(callData: Hex): DecodedCall[] {
+  const [outer] = SafeAccountV0_3_0.decodeAccountCallData(callData);
+  const outerData = outer.data as Hex;
+  const isMultiSend =
+    outer.operation === Operation.Delegate &&
+    getAddress(outer.to) === getAddress(SafeAccountV0_3_0.DEFAULT_MULTISEND_CONTRACT_ADDRESS) &&
+    outerData.toLowerCase().startsWith('0x8d80ff0a');
+  if (!isMultiSend) {
+    return [
+      {
+        to: getAddress(outer.to),
+        value: outer.value,
+        data: outerData,
+        operation: outer.operation === Operation.Delegate ? 'delegatecall' : 'call',
+      },
+    ];
+  }
+  const { args } = decodeFunctionData({ abi: MULTISEND_ABI, data: outerData });
+  const packed = args[0];
+  const calls: DecodedCall[] = [];
+  let offset = 0;
+  const total = size(packed);
+  while (offset < total) {
+    const operation = hexToNumber(slice(packed, offset, offset + 1));
+    const to = getAddress(slice(packed, offset + 1, offset + 21));
+    const value = hexToBigInt(slice(packed, offset + 21, offset + 53));
+    const dataLength = Number(hexToBigInt(slice(packed, offset + 53, offset + 85)));
+    const data = dataLength === 0 ? ('0x' as Hex) : slice(packed, offset + 85, offset + 85 + dataLength);
+    calls.push({ to, value, data, operation: operation === 1 ? 'delegatecall' : 'call' });
+    offset += 85 + dataLength;
+  }
+  return calls;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Cheap status lookup for the bank's `GET /userops/:hash` — one `eth_getUserOperationReceipt`, no polling.
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface UserOpStatus {
+  readonly status: 'pending' | 'included' | 'failed';
+  readonly txHash?: Hex;
+  readonly blockNumber?: bigint;
+  readonly actualGasUsed?: bigint;
+}
+
+export async function getUserOpStatus(bundlerUrl: string, userOpHash: Hex): Promise<UserOpStatus> {
+  const receipt = await new Bundler(bundlerUrl).getUserOperationReceipt(userOpHash);
+  if (receipt == null) return { status: 'pending' };
+  return {
+    status: receipt.success ? 'included' : 'failed',
+    txHash: receipt.receipt.transactionHash as Hex,
+    blockNumber: BigInt(receipt.receipt.blockNumber),
+    actualGasUsed: BigInt(receipt.actualGasUsed),
+  };
 }

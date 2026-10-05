@@ -795,3 +795,13 @@ export const copy = {
   },
 } as const;
 ```
+
+## Appendix B — Implementation notes for engineers
+
+- **Styling model.** Primitives are styled by `kl-*` classes in `@keyline/ui/components.css` (plain CSS over tokens). Tailwind v4 is loaded **without its default theme** (`preflight.css` + `utilities.css` only); `apps/wallet/app/theme.pcss` maps tokens to utilities with `@theme inline reference` (no default palette exists, so `bg-purple-500` is not a class). Use utilities for layout; never restyle a primitive from outside.
+- **Fonts** are self-hosted woff2 in `apps/wallet/app/fonts` via `next/font/local` (`--font-hanken`, `--font-jetbrains`); no Google Fonts request at runtime.
+- **Icons**: import from `@phosphor-icons/react/dist/ssr` (works in server and client components).
+- **Client components** in the package: `Address`, `CountdownRing`, `EmergencyCard`, `Sheet`. Everything else is server-safe.
+- **CountdownRing hydration**: the clock is a `useSyncExternalStore` with a `null` server snapshot, so SSR and hydration render the full ring and the real time arrives on the first client re-render (no hydration mismatch). Pass `endsAt` straight from `executeAfter` on chain.
+- **Formatters** (`formatCHF`, `formatUSDC`, `formatSignedUSDC`, `formatInteger`, `formatRate`, `shortAddress`, `groupHex`, `formatClock`, `formatDateTime`, `formatShortDateTime`, `formatRelative`, `formatDuration`) are the only way to print money, addresses and times.
+- **Kitchen sink**: `/design` renders every primitive in every state; `pnpm --filter @keyline/ui contrast` verifies every text/background pair.

@@ -52,11 +52,11 @@ export function KeyCard({
         .join(' ')}
     >
       <span className="kl-key__icon">{icon}</span>
+      <span className="kl-key__name">
+        {name}
+        {nameTrailing}
+      </span>
       <div className="kl-key__body">
-        <span className="kl-key__name">
-          {name}
-          {nameTrailing}
-        </span>
         <span className="kl-key__where">{where}</span>
         <span className="kl-key__can">
           {can}

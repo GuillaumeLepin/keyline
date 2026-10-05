@@ -20,3 +20,4 @@ e2e/.auth/
 docs/demo.webm
 docs/demo.mp4
 _kit/
+*.tsbuildinfo

@@ -41,7 +41,7 @@ import {
   Printer,
   ShieldCheck,
 } from '@phosphor-icons/react/dist/ssr';
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
 const WALLET = '0x12AB4c5d6E7f8091a2B3c4D5e6F708192A3b9F3C';
 const LUKAS = '0x7a1F3b2c4D5e6F708192a3B4c5D6e7F8091a3c9E';
@@ -66,9 +66,12 @@ export default function DesignPage() {
   const [toggle, setToggle] = useState(false);
   const [mode, setMode] = useState('default');
   const [sheet, setSheet] = useState(true);
-  const endsIn3 = useMemo(() => Date.now() + 161_000, []);
-  const endsIn45 = useMemo(() => Date.now() + 45_000, []);
-  const ended = useMemo(() => Date.now() - 5_000, []);
+  // Demo end times are set after mount so the server and client never disagree on "Finishes at".
+  const [base, setBase] = useState<number | null>(null);
+  useEffect(() => setBase(Date.now()), []);
+  const endsIn3 = (base ?? 0) + 161_000;
+  const endsIn45 = (base ?? 0) + 45_000;
+  const ended = (base ?? 0) - 5_000;
 
   return (
     <div className="kl-stack" style={{ gap: 0 }}>
@@ -465,8 +468,8 @@ export default function DesignPage() {
         operator="M. Keller"
         onSignOut={() => undefined}
         nav={[
-          { label: 'Queue', href: '#', current: true },
-          { label: 'Audit log', href: '#' },
+          { label: 'Queue', href: '#queue', current: true },
+          { label: 'Audit log', href: '#audit' },
         ]}
       >
         <div className="kl-desk__grid">

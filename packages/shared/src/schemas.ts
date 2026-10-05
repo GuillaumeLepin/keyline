@@ -59,6 +59,8 @@ export const WalletSchema = z.object({
   recoveryMode: RecoveryModeSchema,
   createdAt: IsoDate,
   deployTxHash: Hash32.optional(),
+  /** True once POST /attestations verified ownership (ERC-1271). Top-ups require it (Travel Rule). */
+  attested: z.boolean().default(false),
 });
 export type Wallet = z.infer<typeof WalletSchema>;
 
@@ -123,15 +125,28 @@ export const CallSchema = z.object({
 });
 export type Call = z.infer<typeof CallSchema>;
 
+/**
+ * What the client is asking the policy engine about.
+ * - `protect`: the first userOp (deploy + enable recovery module + add guardians). The bank RECOMPUTES the calls
+ *   from the wallet's registered guardians; `calls` may be empty and is ignored.
+ * - `transfer`: exactly one ERC-20 `transfer` on USDC; `chfValue` is recomputed by the bank from the amount.
+ */
+export const PolicyKindSchema = z.enum(['protect', 'transfer']);
+export type PolicyKind = z.infer<typeof PolicyKindSchema>;
+
 export const PolicyRequestSchema = z.object({
-  id: z.string().min(1),
+  /** Client-generated id (uuid). Becomes the decisionId. Generated server-side when omitted. */
+  id: z.string().min(1).optional(),
+  kind: PolicyKindSchema.default('transfer'),
   walletAddress: Address,
-  calls: z.array(CallSchema).min(1),
-  chfValue: z.number().nonnegative(),
-  recipientAddress: Address,
+  calls: z.array(CallSchema).default([]),
+  /** Client's estimate; the bank recomputes it from the decoded amount and the (simulated) rate. */
+  chfValue: z.number().nonnegative().default(0),
+  /** Defaults to the wallet itself for `protect`; must equal the decoded ERC-20 recipient for `transfer`. */
+  recipientAddress: Address.optional(),
   dappId: z.string().min(1).optional(),
   deviceLabel: z.string().min(1),
-  requestedAt: IsoDate,
+  requestedAt: IsoDate.optional(),
 });
 export type PolicyRequest = z.infer<typeof PolicyRequestSchema>;
 
@@ -160,6 +175,8 @@ export const SimulationSchema = z.object({
   gasEstimate: WeiString,
   provider: z.enum(['eth_simulateV1', 'fallback']),
   revertReason: z.string().optional(),
+  /** Present (true) when provider is `fallback` (decode only, no state simulation). */
+  simulated: z.literal(true).optional(),
 });
 export type Simulation = z.infer<typeof SimulationSchema>;
 
@@ -178,6 +195,7 @@ export type Screening = z.infer<typeof ScreeningSchema>;
 export const SponsorshipSchema = z.object({
   sponsored: z.boolean(),
   remainingToday: z.number().int().nonnegative(),
+  dailyCap: z.number().int().positive().optional(),
 });
 export type Sponsorship = z.infer<typeof SponsorshipSchema>;
 
@@ -188,11 +206,25 @@ export const StepUpStateSchema = z.object({
 });
 export type StepUpState = z.infer<typeof StepUpStateSchema>;
 
+/** Static CHF conversion used by the policy engine (SIMULATED market data). */
+export const FxSchema = z.object({
+  pair: z.literal('USDC/CHF'),
+  rate: z.number().positive(),
+  simulated: z.literal(true),
+});
+export type Fx = z.infer<typeof FxSchema>;
+
 export const PolicyDecisionSchema = z.object({
   requestId: z.string().min(1),
   /** Same as requestId; exposed so clients can pass `decisionId` to /userops/sponsor without ambiguity. */
   decisionId: z.string().min(1),
   walletAddress: Address,
+  kind: PolicyKindSchema,
+  /**
+   * The calls the decision covers — for `protect` these are recomputed by the bank (enableModule + addGuardian×n,
+   * thresholds 1,2,2) and the client MUST build its userOp from them; for `transfer` they echo the validated call.
+   */
+  calls: z.array(CallSchema),
   verdict: PolicyVerdictSchema,
   tier: TierSchema,
   reasons: z.array(z.string()),
@@ -205,6 +237,7 @@ export const PolicyDecisionSchema = z.object({
   /** For `cooling` verdicts: when the client may proceed. */
   coolingUntil: IsoDate.optional(),
   chfValue: z.number().nonnegative(),
+  fx: FxSchema,
   expiresAt: IsoDate,
   decidedAt: IsoDate,
 });
@@ -347,6 +380,8 @@ export const CreateWalletBodySchema = z.object({
   pubKeyX: Hex,
   pubKeyY: Hex,
   credentialId: z.string().min(1),
+  /** Used when the passkey was not registered through /auth (E2E / curl); defaults to the session device. */
+  deviceLabel: z.string().min(1).max(64).optional(),
   recoveryMode: RecoveryModeSchema.default('default'),
   requestId: z.string().min(1).optional(),
 });
@@ -355,12 +390,35 @@ export type CreateWalletBody = z.infer<typeof CreateWalletBodySchema>;
 export const CreateWalletResponseSchema = z.object({ address: Address, wallet: WalletSchema });
 export type CreateWalletResponse = z.infer<typeof CreateWalletResponseSchema>;
 
-export const AddGuardianBodySchema = z.object({
-  kind: GuardianKindSchema,
-  address: Address,
-  requestId: z.string().min(1).optional(),
-});
+export const AddGuardianBodySchema = z
+  .object({
+    kind: GuardianKindSchema,
+    /** Required for client guardians; for `swissquote` / `partner` the bank reads the public address from that process. */
+    address: Address.optional(),
+    requestId: z.string().min(1).optional(),
+  })
+  .refine((b) => b.kind === 'swissquote' || b.kind === 'partner' || b.address != null, {
+    message: 'address is required for safety-key and emergency-card',
+    path: ['address'],
+  });
 export type AddGuardianBody = z.infer<typeof AddGuardianBodySchema>;
+
+export const GuardiansResponseSchema = z.object({
+  walletAddress: Address,
+  recoveryMode: RecoveryModeSchema,
+  /** Kinds this mode needs before the protect op can be evaluated. */
+  requiredKinds: z.array(GuardianKindSchema),
+  guardians: z.array(GuardianSchema),
+  threshold: z.literal(2),
+  complete: z.boolean(),
+});
+export type GuardiansResponse = z.infer<typeof GuardiansResponseSchema>;
+
+export const WalletDetailSchema = WalletSchema.extend({
+  guardians: z.array(GuardianSchema),
+  passkey: PasskeySchema.optional(),
+});
+export type WalletDetail = z.infer<typeof WalletDetailSchema>;
 
 export const SetModeBodySchema = z.object({
   recoveryMode: RecoveryModeSchema,
@@ -384,6 +442,22 @@ export const AttestationResponseSchema = z.object({
 });
 export type AttestationResponse = z.infer<typeof AttestationResponseSchema>;
 
+/** EIP-712 payload the passkey signs through the Safe (ERC-1271). Exactly what GET /attestations/:wallet/challenge returns. */
+export const AttestationTypedDataSchema = z.object({
+  domain: z.object({ name: z.string(), version: z.string(), chainId: z.number().int().positive() }),
+  types: z.record(z.string(), z.array(z.object({ name: z.string(), type: z.string() }))),
+  primaryType: z.literal('OwnershipAttestation'),
+  message: z.object({ clientId: z.string(), wallet: Address, chainId: z.number().int().positive(), nonce: z.string() }),
+});
+export type AttestationTypedData = z.infer<typeof AttestationTypedDataSchema>;
+
+export const AttestationChallengeResponseSchema = z.object({
+  nonce: z.string().min(1),
+  typedData: AttestationTypedDataSchema,
+  expiresAt: IsoDate,
+});
+export type AttestationChallengeResponse = z.infer<typeof AttestationChallengeResponseSchema>;
+
 export const TopupBodySchema = z.object({
   wallet: Address,
   amountUsdc: z.number().positive(), // whole USDC, e.g. 25.5 (converted to 6-decimals server-side)
@@ -393,12 +467,32 @@ export type TopupBody = z.infer<typeof TopupBodySchema>;
 
 export const TopupResponseSchema = z.object({
   txHash: Hash32,
+  explorerUrl: z.string().url(),
   amountUsdc: z.number().positive(),
+  /** CHF debited from the SIMULATED account at the static rate. */
+  amountChf: z.number().positive(),
   /** Remaining SIMULATED Swissquote account balance, in CHF. */
   accountBalanceChf: z.number(),
+  fx: FxSchema,
   simulated: z.literal(true),
 });
 export type TopupResponse = z.infer<typeof TopupResponseSchema>;
+
+/** GET /me — the signed-in client, their SIMULATED account and their wallet (if any). */
+export const MeResponseSchema = z.object({
+  client: ClientSchema,
+  account: z.object({
+    currency: z.literal('CHF'),
+    balance: z.number(),
+    sponsoredToday: z.number().int().nonnegative(),
+    sponsoredDailyCap: z.number().int().positive(),
+    simulated: z.literal(true),
+  }),
+  wallet: WalletSchema.nullable(),
+  /** How the caller was authenticated: passkey session, or the DEMO_FAST_MODE X-Device-Label header. */
+  auth: z.enum(['session', 'device-label']),
+});
+export type MeResponse = z.infer<typeof MeResponseSchema>;
 
 export const StepUpBodySchema = z.object({
   kind: z.literal('safety-key'),
@@ -451,10 +545,15 @@ export const SendUserOpResponseSchema = z.object({ userOpHash: Hash32 });
 export type SendUserOpResponse = z.infer<typeof SendUserOpResponseSchema>;
 
 export const UserOpStatusSchema = z.object({
+  userOpHash: Hash32,
   status: UserOpStatusValueSchema,
   txHash: Hash32.optional(),
   blockNumber: z.number().int().nonnegative().optional(),
   explorerUrl: z.string().url().optional(),
+  walletAddress: Address.optional(),
+  decisionId: z.string().optional(),
+  /** Set when the included op was the wallet's protect op. */
+  walletStatus: WalletStatusSchema.optional(),
 });
 export type UserOpStatus = z.infer<typeof UserOpStatusSchema>;
 

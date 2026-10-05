@@ -805,23 +805,31 @@
 .kl-key {
   display: grid;
   grid-template-columns: 20px 1fr auto;
+  grid-template-areas:
+    "icon name status"
+    ". body body"
+    ". action action";
   column-gap: var(--space-3);
+  row-gap: 2px;
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--line);
   align-items: start;
 }
 .kl-key__icon {
+  grid-area: icon;
   color: var(--ink-2);
   display: inline-flex;
   margin-top: 2px;
 }
 .kl-key__body {
+  grid-area: body;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 .kl-key__name {
+  grid-area: name;
   font-size: var(--text-16);
   line-height: var(--leading-16);
   font-weight: 600;
@@ -840,6 +848,7 @@
   color: var(--ink-3);
 }
 .kl-key__cannot {
+  display: block;
   font-size: var(--text-12);
   line-height: var(--leading-12);
   color: var(--ink-3);
@@ -848,6 +857,7 @@
   content: "\2014\00a0";
 }
 .kl-key__status {
+  grid-area: status;
   font-size: var(--text-12);
   line-height: var(--leading-12);
   display: inline-flex;
@@ -873,7 +883,7 @@
   text-decoration: line-through;
 }
 .kl-key__action {
-  grid-column: 2 / -1;
+  grid-area: action;
   margin-top: var(--space-2);
 }
 

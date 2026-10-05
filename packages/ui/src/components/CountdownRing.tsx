@@ -1,7 +1,31 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { formatClock, formatDuration } from '../format';
+
+/**
+ * A 1 s clock as an external store. The server snapshot is `null` so SSR and the hydrating client
+ * render the same full ring; the real time arrives on the first client re-render — no hydration mismatch.
+ */
+function useClock(active: boolean): number | null {
+  const now = useRef<number>(Date.now());
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      if (!active) return () => undefined;
+      const t = setInterval(() => {
+        now.current = Date.now();
+        onChange();
+      }, 1000);
+      return () => clearInterval(t);
+    },
+    [active],
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => now.current,
+    () => null,
+  );
+}
 
 export type CountdownRingProps = {
   /** Exact end time (ms epoch or Date) — read from the chain, never computed client-side. */
@@ -35,16 +59,10 @@ export function CountdownRing({
   className,
 }: CountdownRingProps) {
   const end = typeof endsAt === 'number' ? endsAt : endsAt.getTime();
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (now >= end) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [end, now]);
-
-  const remaining = Math.max(0, end - now);
-  const done = remaining === 0;
+  const clock = useClock(true);
+  // Before hydration completes the clock is null: show the full period rather than a server-side time.
+  const remaining = clock === null ? durationMs : Math.max(0, end - clock);
+  const done = clock !== null && remaining === 0;
 
   useEffect(() => {
     if (done) onDone?.();
