@@ -8,5 +8,15 @@
     "start": "tsx --env-file=.env src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "fastify": "^5.6.0",
+    "@keyline/guardian-core": "workspace:*",
+    "@keyline/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "vitest": "^3.2.7",
+    "pino-pretty": "^13.1.0"
   }
 }

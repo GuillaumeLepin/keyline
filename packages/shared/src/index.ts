@@ -1,2 +1,3 @@
-export * from './typed-data';
 export * from './guardian';
+export * from './schemas';
+export * from './typed-data';

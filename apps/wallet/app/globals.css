@@ -1,0 +1,87 @@
+@import 'tailwindcss';
+@import '@keyline/ui/tokens.css';
+@import '@keyline/ui/components.css';
+
+/*
+ * Tailwind v4 theme — maps the Keyline tokens to utility names.
+ * `inline` keeps utilities pointing at the CSS variables so a token change
+ * in @keyline/ui propagates without touching this file.
+ */
+@theme inline {
+  --color-*: initial;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-on-ink: var(--on-ink);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-pending: var(--pending);
+  --color-pending-bg: var(--pending-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-simulated-bg: var(--simulated-bg);
+  --color-simulated-text: var(--simulated-text);
+  --color-simulated-border: var(--simulated-border);
+  --color-white: #ffffff;
+  --color-transparent: transparent;
+
+  --font-sans: var(--font-hanken), 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, Menlo, monospace;
+
+  --text-12: var(--text-12);
+  --text-12--line-height: var(--leading-12);
+  --text-14: var(--text-14);
+  --text-14--line-height: var(--leading-14);
+  --text-16: var(--text-16);
+  --text-16--line-height: var(--leading-16);
+  --text-20: var(--text-20);
+  --text-20--line-height: var(--leading-20);
+  --text-28: var(--text-28);
+  --text-28--line-height: var(--leading-28);
+  --text-28--letter-spacing: var(--tracking-display);
+  --text-44: var(--text-44);
+  --text-44--line-height: var(--leading-44);
+  --text-44--letter-spacing: var(--tracking-display);
+
+  --radius-*: initial;
+  --radius-control: var(--radius-control);
+  --radius-sheet: var(--radius-sheet);
+  --radius-full: 9999px;
+
+  --shadow-*: initial;
+  --shadow-modal: var(--shadow-modal);
+
+  --ease-out: var(--ease-out);
+}
+
+:root {
+  /* next/font/local sets --font-hanken / --font-jetbrains on <html>; re-point the raw tokens at them. */
+  --font-sans: var(--font-hanken), 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: 'tnum' 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
+}

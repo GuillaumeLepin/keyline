@@ -1,0 +1,96 @@
+/*
+ * Keyline design tokens — the single source of truth for colour, type, space, shape, motion.
+ * Consumed by apps/wallet/app/globals.css through Tailwind v4 `@theme`.
+ * Contrast ratios are checked by `pnpm --filter @keyline/ui contrast` (scripts/contrast.ts).
+ * Purple/indigo/violet are banned. One accent. Hairlines instead of shadows.
+ */
+:root {
+  /* Surfaces */
+  --bg: #f7f6f3; /* warm paper — page background */
+  --surface: #ffffff; /* sheets, inputs, the phone frame screen */
+  --surface-2: #efede8; /* skeletons, pressed states, table header */
+  --line: #e4e2dd; /* 1 px hairline separators and borders */
+  --line-strong: #8a877f; /* input borders, secondary button border on paper */
+
+  /* Ink */
+  --ink: #141414; /* primary text, primary button fill */
+  --ink-2: #5c5c57; /* secondary text (7.3:1 on paper) */
+  --ink-3: #6b6b68; /* tertiary / meta (4.9:1 on paper, 4.6:1 on surface-2) */
+  --on-ink: #ffffff; /* text on --ink */
+
+  /* Accent — Swissquote-adjacent orange-red. Never for body text. */
+  --accent: #fa5b35; /* focus rings, active step, countdown ring, links on dark */
+  --accent-text: #c8371a; /* links and accent words on light (5.2:1 on paper) */
+
+  /* Status — always paired with an icon AND a word */
+  --ok: #1f7a4d;
+  --ok-bg: #e8f3ec;
+  --pending: #9a5b00;
+  --pending-bg: #fbf1e0;
+  --danger: #b42318;
+  --danger-bg: #fbe9e7;
+  --danger-bar: #b42318; /* Thief device bar */
+
+  /* Simulated — honest-mock marking, dashed border */
+  --simulated-bg: #fff4e5;
+  --simulated-text: #7a4b00;
+  --simulated-border: #b07a1e;
+
+  /* Type */
+  --font-sans: 'Hanken Grotesk', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --text-12: 0.75rem;
+  --leading-12: 1rem;
+  --text-14: 0.875rem;
+  --leading-14: 1.25rem;
+  --text-16: 1rem;
+  --leading-16: 1.5rem;
+  --text-20: 1.25rem;
+  --leading-20: 1.75rem;
+  --text-28: 1.75rem;
+  --leading-28: 2rem;
+  --text-44: 2.75rem;
+  --leading-44: 3rem;
+  --tracking-display: -0.02em; /* at >= 28 px */
+
+  /* Space — 4-pt base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Shape — 6 px (controls, badges) and 10 px (sheets, modals). Nothing else. */
+  --radius-control: 6px;
+  --radius-sheet: 10px;
+
+  /* Elevation — one level, modals only */
+  --shadow-modal: 0 8px 24px rgba(20, 20, 20, 0.12);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+
+  /* Focus ring — replaces the browser default, never removed without this */
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+
+  /* Layout */
+  --phone-width: 390px;
+  --phone-height: 844px;
+  --gutter-phone: 16px;
+  --gutter-desk: 24px;
+  --desk-max: 1200px;
+  --control-height: 48px;
+  --tap-min: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+  }
+}

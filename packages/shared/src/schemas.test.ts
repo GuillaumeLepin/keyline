@@ -1,0 +1,382 @@
+import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
+import { GuardianIdentitySchema, GuardianRecoveryRequestSchema, IdentityVerdictSchema } from './guardian';
+import * as S from './schemas';
+
+const addr = '0x0000000000000000000000000000000000000001';
+const addr2 = '0x00000000000000000000000000000000000000a2';
+const hash = `0x${'ab'.repeat(32)}`;
+const hex32 = `0x${'cd'.repeat(32)}`;
+const sig = `0x${'ef'.repeat(65)}`;
+const at = '2026-10-05T15:00:00.000Z';
+
+const simulation: z.input<typeof S.SimulationSchema> = {
+  ok: true,
+  assetChanges: [{ token: addr2, symbol: 'USDC', before: '1000000', after: '0', delta: '-1000000' }],
+  decodedCalls: [
+    {
+      to: addr2,
+      fn: 'transfer(address,uint256)',
+      args: [addr, '1000000'],
+      humanText: 'Send 1 USDC',
+      risk: 'none',
+    },
+  ],
+  gasEstimate: '120000',
+  provider: 'eth_simulateV1',
+};
+const screening: z.input<typeof S.ScreeningSchema> = {
+  counterparty: addr,
+  listsChecked: ['OFAC-SDN', 'SECO'],
+  hit: false,
+  simulatedHit: false,
+  simulated: true,
+};
+const identityVerdict: z.input<typeof IdentityVerdictSchema> = {
+  recoveryRequestId: 'rec_1',
+  wallet: addr,
+  newOwner: addr2,
+  method: 'eid-simulated',
+  emailOtpPassed: true,
+  idCheckPassed: true,
+  livenessPassed: true,
+  verdict: 'pass',
+  signedBy: 'bank',
+  issuedAt: 1_759_676_400,
+  signature: sig,
+  simulated: true,
+};
+const passkey: z.input<typeof S.PasskeySchema> = {
+  credentialId: 'Y3JlZA',
+  walletAddress: addr,
+  role: 'owner',
+  pubKeyX: hex32,
+  pubKeyY: hex32,
+  deviceLabel: 'Lea · phone',
+  createdAt: at,
+};
+const wallet: z.input<typeof S.WalletSchema> = {
+  address: addr,
+  clientId: 'SQ-48213-LK',
+  chainId: 84532,
+  ownerCredentialId: 'Y3JlZA',
+  status: 'deployed',
+  recoveryMode: 'default',
+  createdAt: at,
+  deployTxHash: hash,
+};
+const client: z.input<typeof S.ClientSchema> = {
+  id: 'SQ-48213-LK',
+  name: 'Lea Keller',
+  email: 'lea.keller@example.ch',
+  kycLevel: 'full',
+  createdAt: at,
+};
+const userOp: z.input<typeof S.UserOperationV7Schema> = {
+  sender: addr,
+  nonce: '0x0',
+  callData: '0x',
+  callGasLimit: '0x1',
+  verificationGasLimit: '100000',
+  preVerificationGas: '0x1',
+  maxFeePerGas: '0x1',
+  maxPriorityFeePerGas: '0x1',
+  signature: '0x',
+};
+const recovery: z.input<typeof S.RecoveryRequestSchema> = {
+  id: 'rec_1',
+  walletAddress: addr,
+  newOwner: { pubKeyX: hex32, pubKeyY: hex32, credentialId: 'bmV3', signerProxyAddress: addr2 },
+  requestedFrom: { deviceLabel: 'Lea · new phone', ip: '127.0.0.1', userAgent: 'test' },
+  identity: identityVerdict,
+  guardianConfirmations: [{ kind: 'swissquote', txHash: hash, at }],
+  onchain: { executedTxHash: hash, executeAfter: at },
+  status: 'executed-waiting',
+  recoveryMode: 'default',
+  createdAt: at,
+  updatedAt: at,
+};
+const decision: z.input<typeof S.PolicyDecisionSchema> = {
+  requestId: 'req_1',
+  decisionId: 'req_1',
+  walletAddress: addr,
+  verdict: 'approve',
+  tier: 1,
+  reasons: ["Within your CHF 1'000 daily limit · no second approval needed"],
+  simulation,
+  screening,
+  sponsorship: { sponsored: true, remainingToday: 19 },
+  callsHash: hash,
+  chfValue: 80,
+  expiresAt: at,
+  decidedAt: at,
+};
+const registrationCredential: z.input<typeof S.WebAuthnRegistrationCredentialSchema> = {
+  id: 'Y3JlZA',
+  rawId: 'Y3JlZA',
+  type: 'public-key',
+  response: { clientDataJSON: 'e30', attestationObject: 'oA' },
+  clientExtensionResults: {},
+};
+const authenticationCredential: z.input<typeof S.WebAuthnAuthenticationCredentialSchema> = {
+  id: 'Y3JlZA',
+  rawId: 'Y3JlZA',
+  type: 'public-key',
+  response: { clientDataJSON: 'e30', authenticatorData: 'oA', signature: 'oA' },
+  clientExtensionResults: {},
+};
+const inboxMessage: z.input<typeof S.InboxMessageSchema> = {
+  id: 'msg_1',
+  to: 'lea.keller@example.ch',
+  subject: 'Your Keyline recovery code',
+  body: 'Code: 123456',
+  otp: '123456',
+  recoveryRequestId: 'rec_1',
+  sentAt: at,
+  channel: 'email-simulated',
+  simulated: true,
+};
+const eid: z.input<typeof S.EidPayloadSchema> = {
+  name: 'Lea Keller',
+  dateOfBirth: '1991-04-12',
+  documentNumber: 'C1234567',
+  liveness: true,
+};
+
+// One valid fixture per exported schema. Adding a schema without a fixture fails the "coverage" test below.
+const fixtures: Record<string, [z.ZodType, unknown]> = {
+  ClientSchema: [S.ClientSchema, client],
+  WalletSchema: [S.WalletSchema, wallet],
+  PasskeySchema: [S.PasskeySchema, passkey],
+  GuardianSchema: [
+    S.GuardianSchema,
+    { walletAddress: addr, kind: 'safety-key', address: addr2, addedTxHash: hash },
+  ],
+  AttestationSchema: [
+    S.AttestationSchema,
+    {
+      walletAddress: addr,
+      clientId: 'SQ-48213-LK',
+      nonce: 'n1',
+      chainId: 84532,
+      signature: sig,
+      verifiedAt: at,
+      method: 'erc1271',
+    },
+  ],
+  ContactSchema: [
+    S.ContactSchema,
+    {
+      clientId: 'SQ-48213-LK',
+      label: 'Lukas Meier',
+      address: addr2,
+      firstSeenAt: at,
+      verifiedOwnership: true,
+    },
+  ],
+  DappSchema: [
+    S.DappSchema,
+    {
+      id: 'demoswap',
+      name: 'DemoSwap',
+      url: 'https://demoswap.example',
+      allowlisted: true,
+      contracts: [addr2],
+      simulated: true,
+    },
+  ],
+  CallSchema: [S.CallSchema, { to: addr, value: '0', data: '0x' }],
+  PolicyRequestSchema: [
+    S.PolicyRequestSchema,
+    {
+      id: 'req_1',
+      walletAddress: addr,
+      calls: [{ to: addr2, value: '0', data: '0xa9059cbb' }],
+      chfValue: 80,
+      recipientAddress: addr2,
+      deviceLabel: 'Lea · phone',
+      requestedAt: at,
+    },
+  ],
+  AssetChangeSchema: [S.AssetChangeSchema, simulation.assetChanges[0]],
+  DecodedCallSchema: [S.DecodedCallSchema, simulation.decodedCalls[0]],
+  SimulationSchema: [S.SimulationSchema, simulation],
+  ScreeningSchema: [S.ScreeningSchema, screening],
+  SponsorshipSchema: [S.SponsorshipSchema, { sponsored: true, remainingToday: 19 }],
+  StepUpStateSchema: [S.StepUpStateSchema, { satisfiedBy: 'safety-key', signature: sig, satisfiedAt: at }],
+  PolicyDecisionSchema: [S.PolicyDecisionSchema, decision],
+  NewOwnerSchema: [S.NewOwnerSchema, recovery.newOwner],
+  RequestedFromSchema: [S.RequestedFromSchema, recovery.requestedFrom],
+  GuardianConfirmationSchema: [S.GuardianConfirmationSchema, recovery.guardianConfirmations[0]],
+  RecoveryOnchainSchema: [S.RecoveryOnchainSchema, recovery.onchain],
+  IdentityPendingSchema: [
+    S.IdentityPendingSchema,
+    { emailOtpPassed: false, verdict: 'pending', simulated: true },
+  ],
+  RecoveryRequestSchema: [S.RecoveryRequestSchema, recovery],
+  EventSchema: [
+    S.EventSchema,
+    {
+      id: 'evt_1',
+      service: 'bank',
+      type: 'passkey.registered',
+      walletAddress: addr,
+      payload: { deviceLabel: 'x' },
+      at,
+    },
+  ],
+  WebAuthnRegistrationCredentialSchema: [S.WebAuthnRegistrationCredentialSchema, registrationCredential],
+  WebAuthnAuthenticationCredentialSchema: [
+    S.WebAuthnAuthenticationCredentialSchema,
+    authenticationCredential,
+  ],
+  RegisterOptionsBodySchema: [S.RegisterOptionsBodySchema, { deviceLabel: 'Lea · phone' }],
+  RegisterVerifyBodySchema: [
+    S.RegisterVerifyBodySchema,
+    { credential: registrationCredential, deviceLabel: 'Lea · phone' },
+  ],
+  RegisterVerifyResponseSchema: [S.RegisterVerifyResponseSchema, { passkey }],
+  LoginVerifyBodySchema: [S.LoginVerifyBodySchema, { credential: authenticationCredential }],
+  SessionSchema: [S.SessionSchema, { clientId: 'SQ-48213-LK', credentialId: 'Y3JlZA', expiresAt: at }],
+  LoginVerifyResponseSchema: [
+    S.LoginVerifyResponseSchema,
+    { session: { clientId: 'SQ-48213-LK', credentialId: 'Y3JlZA', expiresAt: at }, wallet, passkey },
+  ],
+  CreateWalletBodySchema: [
+    S.CreateWalletBodySchema,
+    { pubKeyX: hex32, pubKeyY: hex32, credentialId: 'Y3JlZA' },
+  ],
+  CreateWalletResponseSchema: [S.CreateWalletResponseSchema, { address: addr, wallet }],
+  AddGuardianBodySchema: [S.AddGuardianBodySchema, { kind: 'emergency-card', address: addr2 }],
+  SetModeBodySchema: [S.SetModeBodySchema, { recoveryMode: 'assisted' }],
+  AttestationBodySchema: [
+    S.AttestationBodySchema,
+    { wallet: addr, clientId: 'SQ-48213-LK', nonce: 'n1', signature: sig },
+  ],
+  AttestationResponseSchema: [
+    S.AttestationResponseSchema,
+    {
+      verified: true,
+      method: 'erc1271',
+      attestation: {
+        walletAddress: addr,
+        clientId: 'SQ-48213-LK',
+        nonce: 'n1',
+        chainId: 84532,
+        signature: sig,
+        verifiedAt: at,
+        method: 'erc1271',
+      },
+    },
+  ],
+  TopupBodySchema: [S.TopupBodySchema, { wallet: addr, amountUsdc: 25 }],
+  TopupResponseSchema: [
+    S.TopupResponseSchema,
+    { txHash: hash, amountUsdc: 25, accountBalanceChf: 4980, simulated: true },
+  ],
+  StepUpBodySchema: [S.StepUpBodySchema, { kind: 'safety-key', signature: sig }],
+  UserOperationV7Schema: [S.UserOperationV7Schema, userOp],
+  SponsorBodySchema: [S.SponsorBodySchema, { decisionId: 'req_1', userOp }],
+  SponsorResponseSchema: [
+    S.SponsorResponseSchema,
+    {
+      userOp: { ...userOp, paymaster: addr2, paymasterData: '0x' },
+      sponsorship: { sponsored: true, remainingToday: 18 },
+    },
+  ],
+  SendUserOpBodySchema: [S.SendUserOpBodySchema, { userOp }],
+  SendUserOpResponseSchema: [S.SendUserOpResponseSchema, { userOpHash: hash }],
+  UserOpStatusSchema: [S.UserOpStatusSchema, { status: 'confirmed', txHash: hash, blockNumber: 12 }],
+  CreateRecoveryBodySchema: [
+    S.CreateRecoveryBodySchema,
+    { wallet: addr, newOwner: recovery.newOwner, device: { deviceLabel: 'Lea · new phone' } },
+  ],
+  EidPayloadSchema: [S.EidPayloadSchema, eid],
+  RecoveryIdentityBodySchema: [S.RecoveryIdentityBodySchema, { emailOtp: '123456', eidPayload: eid }],
+  RecoveryConfirmBodySchema: [
+    S.RecoveryConfirmBodySchema,
+    { kind: 'safety-key', signature: sig, guardianAddress: addr2 },
+  ],
+  OperatorActionBodySchema: [S.OperatorActionBodySchema, { action: 'refuse', note: 'ID name mismatch' }],
+  CreateContactBodySchema: [S.CreateContactBodySchema, { label: 'Marta Rossi', address: addr2 }],
+  DeskQueueItemSchema: [
+    S.DeskQueueItemSchema,
+    { recovery, client, signals: ['device label contains "thief"'] },
+  ],
+  DeskQueueResponseSchema: [
+    S.DeskQueueResponseSchema,
+    { items: [{ recovery, client, signals: [] }], counts: { 'executed-waiting': 1 } },
+  ],
+  EventsResponseSchema: [S.EventsResponseSchema, { events: [] }],
+  InboxMessageSchema: [S.InboxMessageSchema, inboxMessage],
+  InboxResponseSchema: [S.InboxResponseSchema, { messages: [inboxMessage], simulated: true }],
+  EidResponseSchema: [
+    S.EidResponseSchema,
+    { eidPayload: eid, issuer: 'swiyu-simulated', issuedAt: at, simulated: true },
+  ],
+  HealthSchema: [
+    S.HealthSchema,
+    {
+      ok: true,
+      service: 'bank',
+      chainId: 84532,
+      paymasterEnabled: false,
+      addresses: { verdict: addr, relayer: addr2, funder: addr },
+    },
+  ],
+  ApiErrorSchema: [S.ApiErrorSchema, { error: 'validation', message: 'bad body' }],
+  NotImplementedSchema: [S.NotImplementedSchema, { error: 'not-implemented-yet', wave: 1 }],
+  // Pinned by the orchestrator in guardian.ts — exercised here so a schema change there is caught too.
+  IdentityVerdictSchema: [IdentityVerdictSchema, identityVerdict],
+  GuardianRecoveryRequestSchema: [
+    GuardianRecoveryRequestSchema,
+    { recoveryRequestId: 'rec_1', wallet: addr, newOwners: [addr2], newThreshold: 1, identityVerdict },
+  ],
+  GuardianIdentitySchema: [
+    GuardianIdentitySchema,
+    { kind: 'swissquote', guardianAddress: addr2, chainId: 84532 },
+  ],
+};
+
+describe('shared schemas', () => {
+  for (const [name, [schema, fixture]] of Object.entries(fixtures)) {
+    it(`${name} accepts its fixture`, () => {
+      const result = schema.safeParse(fixture);
+      if (!result.success) throw new Error(`${name}: ${result.error.message}`);
+      expect(result.success).toBe(true);
+    });
+  }
+
+  it('every object schema exported from schemas.ts has a fixture', () => {
+    const exported = Object.keys(S).filter((k) => k.endsWith('Schema'));
+    const primitiveEnums = new Set([
+      'KycLevelSchema',
+      'WalletStatusSchema',
+      'RecoveryModeSchema',
+      'GuardianKindSchema',
+      'ClientGuardianKindSchema',
+      'PolicyVerdictSchema',
+      'TierSchema',
+      'RiskSchema',
+      'RecoveryStatusSchema',
+      'UserOpStatusValueSchema',
+      'OperatorActionSchema',
+      'ServiceNameSchema',
+    ]);
+    const missing = exported.filter((k) => !primitiveEnums.has(k) && !(k in fixtures));
+    expect(missing).toEqual([]);
+  });
+
+  it('rejects a recovery status outside the SPEC enum', () => {
+    expect(S.RecoveryStatusSchema.safeParse('pending').success).toBe(false);
+  });
+
+  it('rejects a Call whose value is not a decimal wei string', () => {
+    expect(S.CallSchema.safeParse({ to: addr, value: '0x10', data: '0x' }).success).toBe(false);
+  });
+
+  it('requires simulated: true on mocked payloads', () => {
+    expect(S.ScreeningSchema.safeParse({ ...screening, simulated: false }).success).toBe(false);
+    expect(S.InboxMessageSchema.safeParse({ ...inboxMessage, simulated: undefined }).success).toBe(false);
+  });
+});

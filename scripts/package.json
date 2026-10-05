@@ -5,6 +5,18 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "check-balances": "tsx check-balances.ts"
+  },
+  "dependencies": {
+    "viem": "^2.57.3",
+    "dotenv": "^17.2.0",
+    "abstractionkit": "^0.4.2",
+    "@keyline/chain": "workspace:*",
+    "@keyline/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "vitest": "^3.2.7"
   }
 }

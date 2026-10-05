@@ -5,6 +5,17 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "e2e": "playwright test",
+    "screenshots": "playwright test --project=screenshots"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.56.0",
+    "viem": "^2.57.3",
+    "@keyline/chain": "workspace:*",
+    "@keyline/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0"
   }
 }

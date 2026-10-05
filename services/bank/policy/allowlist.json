@@ -1,0 +1,59 @@
+{
+  "$comment": "dApp allowlist for the policy engine. Addresses are Base Sepolia (chainId 84532). Entries with simulated:true are mock protocols for the demo. 'unknown-dapp' is deliberately NOT allowlisted so F2 can show a blocked request.",
+  "dapps": [
+    {
+      "id": "keyline-usdc-transfer",
+      "name": "USDC transfer",
+      "url": "http://localhost:3000/send",
+      "allowlisted": true,
+      "contracts": ["0x036CbD53842c5426634e7929541eC2318f3dCF7e"]
+    },
+    {
+      "id": "keyline-self",
+      "name": "Keyline wallet setup (deploy + protect)",
+      "url": "http://localhost:3000/onboarding",
+      "allowlisted": true,
+      "contracts": ["0x949d01d424bE050D09C16025dd007CB59b3A8c66"]
+    },
+    {
+      "id": "demoswap",
+      "name": "DemoSwap",
+      "url": "http://localhost:3000/dapps/demoswap",
+      "allowlisted": true,
+      "contracts": ["0xDe305aa9000000000000000000000000000000De"],
+      "simulated": true
+    },
+    {
+      "id": "uniswap",
+      "name": "Uniswap",
+      "url": "https://app.uniswap.org",
+      "allowlisted": true,
+      "contracts": [
+        "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4",
+        "0x050E797f3625EC8785265e1d9BDd4799b97528A1"
+      ]
+    },
+    {
+      "id": "aave",
+      "name": "Aave",
+      "url": "https://app.aave.com",
+      "allowlisted": true,
+      "contracts": ["0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"]
+    },
+    {
+      "id": "circle-usdc",
+      "name": "Circle USDC (Base Sepolia)",
+      "url": "https://www.circle.com/usdc",
+      "allowlisted": true,
+      "contracts": ["0x036CbD53842c5426634e7929541eC2318f3dCF7e"]
+    },
+    {
+      "id": "unknown-dapp",
+      "name": "Unknown dApp",
+      "url": "http://localhost:3000/dapps/unknown",
+      "allowlisted": false,
+      "contracts": ["0x0000000000000000000000000000000000000BAD"],
+      "simulated": true
+    }
+  ]
+}

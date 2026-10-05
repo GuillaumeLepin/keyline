@@ -1,0 +1,14 @@
+/* Keyline primitives — plain CSS on top of tokens.css. Prefix: kl- */
+
+.kl-link {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  border-radius: 2px;
+}
+.kl-link:focus-visible,
+.kl-focus:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
