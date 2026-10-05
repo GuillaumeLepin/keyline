@@ -18,7 +18,12 @@ import {
   webauthnSignatureFromAssertion,
 } from 'abstractionkit';
 import { type Address, encodeFunctionData, erc20Abi, getAddress, type Hex } from 'viem';
-import { P256_PRECOMPILE, WEBAUTHN_CONTRACT_VERIFIER, WEBAUTHN_OVERRIDES, WEBAUTHN_SHARED_SIGNER } from './constants.js';
+import {
+  P256_PRECOMPILE,
+  WEBAUTHN_CONTRACT_VERIFIER,
+  WEBAUTHN_OVERRIDES,
+  WEBAUTHN_SHARED_SIGNER,
+} from './constants.js';
 
 export interface PasskeyPublicKey {
   readonly x: bigint;
@@ -42,7 +47,8 @@ export interface ChainEndpoints {
 export interface WebAuthnAssertion {
   readonly authenticatorData: ArrayBuffer | Uint8Array | string;
   readonly clientDataJSON: ArrayBuffer | Uint8Array | string;
-  readonly signature: ArrayBuffer | Uint8Array | string | { r: bigint; s: bigint };
+  /** Raw r||s or DER bytes from the authenticator, or already-split (r, s). abstractionkit parses it. */
+  readonly signature: ArrayBuffer | Uint8Array | { r: bigint; s: bigint };
 }
 
 export class ChainError extends Error {
@@ -86,7 +92,9 @@ export function counterfactualAddress(owner: PasskeyPublicKey): Address {
  * `newOwners[0]` of a recovery. Deterministic (CREATE2 from the factory); deploy it with `deploySignerProxyTx`.
  */
 export function passkeySignerAddress(owner: PasskeyPublicKey): Address {
-  return getAddress(SafeAccountV0_3_0.createWebAuthnSignerVerifierAddress(owner.x, owner.y, WEBAUTHN_OVERRIDES));
+  return getAddress(
+    SafeAccountV0_3_0.createWebAuthnSignerVerifierAddress(owner.x, owner.y, WEBAUTHN_OVERRIDES),
+  );
 }
 
 /** Plain transaction `{to: factory, data: createSigner(x, y, verifiers)}` anyone can send (idempotent on-chain). */
@@ -109,7 +117,10 @@ export function dummySignature(owner: PasskeyPublicKey, isInit: boolean): Hex {
     [toWebauthnPublicKey(owner)],
     { isInit, ...WEBAUTHN_OVERRIDES },
   );
-  return SafeAccountV0_3_0.formatSignaturesToUseroperationSignature(pairs, { isInit, ...WEBAUTHN_OVERRIDES }) as Hex;
+  return SafeAccountV0_3_0.formatSignaturesToUseroperationSignature(pairs, {
+    isInit,
+    ...WEBAUTHN_OVERRIDES,
+  }) as Hex;
 }
 
 export interface BuildOptions {
@@ -128,7 +139,8 @@ export async function buildUserOp(
   endpoints: ChainEndpoints,
   options: BuildOptions = {},
 ): Promise<UserOperationV7> {
-  if (transactions.length === 0) throw new ChainError('BAD_INPUT', 'buildUserOp needs at least one transaction');
+  if (transactions.length === 0)
+    throw new ChainError('BAD_INPUT', 'buildUserOp needs at least one transaction');
   const userOp = await pk.account.createUserOperation(transactions, endpoints.rpcUrl, endpoints.bundlerUrl, {
     expectedSigners: [toWebauthnPublicKey(pk.owner)],
     skipGasEstimation: options.sponsored === true,
@@ -147,7 +159,10 @@ export interface CreateAndProtectInput {
 /** Guardian meta-transactions: the module requires threshold ≤ guardian count at each step, hence 1, 2, 2… */
 export function protectTransactions(pk: PasskeyAccount, input: CreateAndProtectInput): MetaTransaction[] {
   if (input.threshold < 1 || input.threshold > input.guardians.length) {
-    throw new ChainError('BAD_INPUT', `threshold ${input.threshold} must be within 1..${input.guardians.length}`);
+    throw new ChainError(
+      'BAD_INPUT',
+      `threshold ${input.threshold} must be within 1..${input.guardians.length}`,
+    );
   }
   const module = new SocialRecoveryModule(input.recoveryModule);
   const txs: MetaTransaction[] = [module.createEnableModuleMetaTransaction(pk.address)];
@@ -178,7 +193,11 @@ export function transferTransaction(input: TransferInput): MetaTransaction {
   return {
     to: getAddress(input.token),
     value: 0n,
-    data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [getAddress(input.to), input.amount] }),
+    data: encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [getAddress(input.to), input.amount],
+    }),
   };
 }
 
@@ -215,7 +234,8 @@ export async function sponsor(
   userOp: UserOperationV7,
   input: SponsorInput,
 ): Promise<{ userOp: UserOperationV7; sponsorMetadata?: SponsorMetadata }> {
-  if (!input.paymasterUrl) throw new ChainError('MISSING_PAYMASTER', 'paymasterUrl is empty — BANK_CANDIDE_API_KEY missing?');
+  if (!input.paymasterUrl)
+    throw new ChainError('MISSING_PAYMASTER', 'paymasterUrl is empty — BANK_CANDIDE_API_KEY missing?');
   const paymaster = new CandidePaymaster(input.paymasterUrl);
   const result = await paymaster.createSponsorPaymasterUserOperation(
     pk.account,
@@ -231,9 +251,16 @@ export function safeOpHash(userOp: UserOperationV7, chainId: bigint): Hex {
   return SafeAccountV0_3_0.getUserOperationEip712Hash(userOp, chainId) as Hex;
 }
 
+export interface SafeOpTypedData {
+  readonly domain: { chainId: number; verifyingContract: string };
+  readonly types: Record<string, { name: string; type: string }[]>;
+  readonly messageValue: Record<string, string | bigint>;
+}
+
 /** Full typed data of the SafeOp, for display / audit. */
-export function safeOpTypedData(userOp: UserOperationV7, chainId: bigint) {
-  return SafeAccountV0_3_0.getUserOperationEip712Data(userOp, chainId);
+export function safeOpTypedData(userOp: UserOperationV7, chainId: bigint): SafeOpTypedData {
+  const data = SafeAccountV0_3_0.getUserOperationEip712Data(userOp, chainId);
+  return { domain: data.domain, types: data.types, messageValue: { ...data.messageValue } };
 }
 
 /**
@@ -275,7 +302,10 @@ export async function waitForReceipt(
     throw new ChainError('RECEIPT_TIMEOUT', `userOp ${response.userOperationHash} not included in time`);
   }
   if (!receipt.success) {
-    throw new ChainError('USEROP_FAILED', `userOp ${response.userOperationHash} reverted in tx ${receipt.receipt.transactionHash}`);
+    throw new ChainError(
+      'USEROP_FAILED',
+      `userOp ${response.userOperationHash} reverted in tx ${receipt.receipt.transactionHash}`,
+    );
   }
   return receipt;
 }

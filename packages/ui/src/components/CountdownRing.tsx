@@ -1,0 +1,103 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { formatClock, formatDuration } from '../format';
+
+export type CountdownRingProps = {
+  /** Exact end time (ms epoch or Date) — read from the chain, never computed client-side. */
+  endsAt: Date | number;
+  /** Total period in ms, used for the arc proportion (e.g. 3 min grace, 60 s cooling). */
+  durationMs: number;
+  /** Outer diameter in px (default 200). */
+  size?: number;
+  /** Small caption under the ring, e.g. the demo-acceleration sentence. */
+  caption?: string;
+  /** Word shown under the remaining time (default "remaining"). */
+  subLabel?: string;
+  /** Replaces the centre when the countdown has finished (default "Ready to finish"). */
+  doneLabel?: string;
+  onDone?: () => void;
+  className?: string;
+};
+
+/**
+ * The one signature animation. SVG arc driven by `stroke-dashoffset` with a 1 s linear CSS transition;
+ * `prefers-reduced-motion` removes the tween (components.css). Always shows the exact finish time.
+ */
+export function CountdownRing({
+  endsAt,
+  durationMs,
+  size = 200,
+  caption,
+  subLabel = 'remaining',
+  doneLabel = 'Ready to finish',
+  onDone,
+  className,
+}: CountdownRingProps) {
+  const end = typeof endsAt === 'number' ? endsAt : endsAt.getTime();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (now >= end) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [end, now]);
+
+  const remaining = Math.max(0, end - now);
+  const done = remaining === 0;
+
+  useEffect(() => {
+    if (done) onDone?.();
+  }, [done, onDone]);
+
+  const stroke = Math.max(4, Math.round(size / 25));
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const fraction = durationMs > 0 ? Math.min(1, remaining / durationMs) : 0;
+  const offset = c * (1 - fraction);
+  const remainingSize = size >= 160 ? 'var(--text-44)' : size >= 100 ? 'var(--text-28)' : 'var(--text-16)';
+  const remainingLine =
+    size >= 160 ? 'var(--leading-44)' : size >= 100 ? 'var(--leading-28)' : 'var(--leading-16)';
+
+  return (
+    <div
+      className={['kl-ring', done ? 'kl-ring--done' : '', className ?? ''].filter(Boolean).join(' ')}
+      role="timer"
+      aria-live="polite"
+      aria-label={
+        done ? doneLabel : `${formatDuration(remaining)} remaining, finishes at ${formatClock(end)}`
+      }
+    >
+      <div className="kl-ring__box" style={{ width: size, height: size }}>
+        <svg
+          className="kl-ring__svg"
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          aria-hidden="true"
+        >
+          <circle className="kl-ring__track" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} />
+          <circle
+            className="kl-ring__arc"
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            strokeWidth={stroke}
+            strokeDasharray={c}
+            strokeDashoffset={offset}
+          />
+        </svg>
+        <div className="kl-ring__center">
+          <span className="kl-ring__remaining" style={{ fontSize: remainingSize, lineHeight: remainingLine }}>
+            {done ? (size >= 100 ? 'Done' : '00:00') : formatDuration(remaining)}
+          </span>
+          {size >= 100 ? <span className="kl-ring__sub">{done ? doneLabel : subLabel}</span> : null}
+        </div>
+      </div>
+      <p className="kl-ring__finish">
+        {done ? `Finished at ${formatClock(end)}` : `Finishes at ${formatClock(end)}`}
+      </p>
+      {caption ? <p className="kl-ring__caption">{caption}</p> : null}
+    </div>
+  );
+}

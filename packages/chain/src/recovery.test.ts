@@ -1,8 +1,8 @@
+import type { UserOperationV7 } from 'abstractionkit';
 import { describe, expect, it } from 'vitest';
+import { counterfactualAddress, passkeySignerAddress, safeOpHash } from './account.js';
 import { RECOVERY_MODULE_3_MINUTES } from './constants.js';
 import { recoveryHash, recoveryTypedData, sortGuardianSignatures } from './recovery.js';
-import { counterfactualAddress, passkeySignerAddress, safeOpHash } from './account.js';
-import type { UserOperationV7 } from 'abstractionkit';
 
 const wallet = '0x1111111111111111111111111111111111111111';
 const input = {

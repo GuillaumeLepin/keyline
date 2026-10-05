@@ -156,8 +156,20 @@ export const socialRecoveryModuleAbi = [
     inputs: [{ name: '_wallet', type: 'address' }],
     outputs: [{ name: '_nonce', type: 'uint256' }],
   },
-  { type: 'function', name: 'NAME', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'string' }] },
-  { type: 'function', name: 'VERSION', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'string' }] },
+  {
+    type: 'function',
+    name: 'NAME',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'string' }],
+  },
+  {
+    type: 'function',
+    name: 'VERSION',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'string' }],
+  },
   {
     type: 'function',
     name: 'domainSeparator',

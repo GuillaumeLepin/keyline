@@ -37,8 +37,8 @@
   --simulated-border: #b07a1e;
 
   /* Type */
-  --font-sans: 'Hanken Grotesk', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-sans: "Hanken Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --text-12: 0.75rem;
   --leading-12: 1rem;
   --text-14: 0.875rem;

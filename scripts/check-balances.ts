@@ -6,7 +6,16 @@
  */
 import { resolve } from 'node:path';
 import { config } from 'dotenv';
-import { http, createPublicClient, erc20Abi, formatEther, formatUnits, getAddress, parseEther, parseUnits } from 'viem';
+import {
+  createPublicClient,
+  erc20Abi,
+  formatEther,
+  formatUnits,
+  getAddress,
+  http,
+  parseEther,
+  parseUnits,
+} from 'viem';
 import { baseSepolia } from 'viem/chains';
 
 config({ path: resolve(import.meta.dirname, '../.env') });
@@ -29,7 +38,12 @@ const TARGETS: readonly Target[] = [
   { label: 'Swissquote guardian', envVar: 'SQ_GUARDIAN_ADDRESS', minEth: parseEther('0.05'), minUsdc: 0n },
   { label: 'Partner guardian', envVar: 'PARTNER_GUARDIAN_ADDRESS', minEth: parseEther('0.05'), minUsdc: 0n },
   { label: 'Bank relayer', envVar: 'BANK_RELAYER_ADDRESS', minEth: parseEther('0.05'), minUsdc: 0n },
-  { label: 'Bank funder', envVar: 'BANK_FUNDER_ADDRESS', minEth: parseEther('0.02'), minUsdc: parseUnits('10', 6) },
+  {
+    label: 'Bank funder',
+    envVar: 'BANK_FUNDER_ADDRESS',
+    minEth: parseEther('0.02'),
+    minUsdc: parseUnits('10', 6),
+  },
   { label: 'Bank verdict signer', envVar: 'BANK_VERDICT_ADDRESS', minEth: 0n, minUsdc: 0n },
 ];
 
@@ -56,9 +70,16 @@ async function main(): Promise<void> {
       `    ETH  ${formatEther(eth).padStart(12)}  (min ${formatEther(target.minEth)})`,
     ];
     if (target.minUsdc > 0n) {
-      const bal = await client.readContract({ address: usdc, abi: erc20Abi, functionName: 'balanceOf', args: [address] });
+      const bal = await client.readContract({
+        address: usdc,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [address],
+      });
       const usdcOk = bal >= target.minUsdc;
-      lines.push(`    USDC ${formatUnits(bal, 6).padStart(12)}  (min ${formatUnits(target.minUsdc, 6)}) ${usdcOk ? '✓' : '✗'}`);
+      lines.push(
+        `    USDC ${formatUnits(bal, 6).padStart(12)}  (min ${formatUnits(target.minUsdc, 6)}) ${usdcOk ? '✓' : '✗'}`,
+      );
       if (!usdcOk) short = true;
     }
     if (!ethOk) short = true;

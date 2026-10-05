@@ -76,7 +76,7 @@ Small modules, named exports, explicit error types (`Result`-style or thrown typ
 
 ## Known pitfalls (learned, keep updated)
 
-See `docs/STRATEGY.md §13`. Highlights: sponsor before signing (v0.7); the WebAuthn challenge is the SafeOp EIP-712 hash; never hand-parse WebAuthn output; rpId binding (never change the domain); demo with real platform passkeys in non-synced Chrome profiles, virtual authenticators only in Playwright; save passkey pubkey (x,y) at creation; set the P-256 precompile verifier explicitly; new owner after recovery = `SafeWebAuthnSignerProxy` address (deploy via factory); EntryPoint v0.7 only; fund guardian/relayer/funder EOAs early; Candide 10 req/s; the 3-min grace does not fit a 3-min pitch (stage a twin recovery).
+See `docs/STRATEGY.md §13`. Highlights: sponsor before signing (v0.7); the WebAuthn challenge is the SafeOp EIP-712 hash; never hand-parse WebAuthn output; rpId binding (never change the domain); demo with real platform passkeys in non-synced Chrome profiles, virtual authenticators only in Playwright; save passkey pubkey (x,y) at creation; set the P-256 precompile verifier explicitly; the Safe's owner is always a `SafeWebAuthnSignerProxy` (abstractionkit deploys + swaps it in the first userOp; after recovery the new passkey's proxy is deployed via the factory first); EntryPoint v0.7 only; fund guardian/relayer/funder EOAs early; Candide 10 req/s; one Candide URL serves bundler+paymaster (public no-key endpoint sponsors on testnet — dev fallback only); the recovery module's grace period has no getter (180 s, verified from bytecode) — show `executeAfter`; the 3-min grace does not fit a 3-min pitch (stage a twin recovery).
 
 ## Vocabulary in UI copy (never show the left column to a client)
 

@@ -40,5 +40,11 @@ export const safeWebAuthnSignerFactoryAbi = [
     ],
     outputs: [{ name: 'magicValue', type: 'bytes4' }],
   },
-  { type: 'function', name: 'SINGLETON', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }] },
+  {
+    type: 'function',
+    name: 'SINGLETON',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }],
+  },
 ] as const;

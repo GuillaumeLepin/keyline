@@ -3,7 +3,11 @@
  * the gas-estimation dummy signature and the real signature agree on the same contracts.
  * Every address is verified on Base Sepolia in docs/VERIFIED.md.
  */
-import { DEFAULT_SECP256R1_PRECOMPILE_ADDRESS, SafeAccountV0_3_0, SocialRecoveryModuleGracePeriodSelector } from 'abstractionkit';
+import {
+  DEFAULT_SECP256R1_PRECOMPILE_ADDRESS,
+  SafeAccountV0_3_0,
+  SocialRecoveryModuleGracePeriodSelector,
+} from 'abstractionkit';
 import type { Address } from 'viem';
 
 export const BASE_SEPOLIA_CHAIN_ID = 84532n;
@@ -62,11 +66,17 @@ export function candideEndpoint(chainId: bigint | number, apiKey?: string): stri
 }
 
 export function explorerTxUrl(chainId: bigint | number, txHash: string): string {
-  const base = BigInt(chainId) === ETHEREUM_SEPOLIA_CHAIN_ID ? 'https://sepolia.etherscan.io' : 'https://sepolia.basescan.org';
+  const base =
+    BigInt(chainId) === ETHEREUM_SEPOLIA_CHAIN_ID
+      ? 'https://sepolia.etherscan.io'
+      : 'https://sepolia.basescan.org';
   return `${base}/tx/${txHash}`;
 }
 
 export function explorerAddressUrl(chainId: bigint | number, address: string): string {
-  const base = BigInt(chainId) === ETHEREUM_SEPOLIA_CHAIN_ID ? 'https://sepolia.etherscan.io' : 'https://sepolia.basescan.org';
+  const base =
+    BigInt(chainId) === ETHEREUM_SEPOLIA_CHAIN_ID
+      ? 'https://sepolia.etherscan.io'
+      : 'https://sepolia.basescan.org';
   return `${base}/address/${address}`;
 }

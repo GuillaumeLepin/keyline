@@ -14,8 +14,8 @@
 import type { Account, Address, Chain, Client, Hex, Transport, TypedDataDefinition } from 'viem';
 import { getAddress, hashTypedData } from 'viem';
 import { readContract, sendTransaction, writeContract } from 'viem/actions';
-import { socialRecoveryModuleAbi } from './abi/socialRecoveryModule.js';
 import { safeWebAuthnSignerFactoryAbi } from './abi/safeWebAuthnSignerFactory.js';
+import { socialRecoveryModuleAbi } from './abi/socialRecoveryModule.js';
 import { deploySignerProxyTx, type PasskeyPublicKey, passkeySignerAddress } from './account.js';
 import { KNOWN_GRACE_PERIODS_SECONDS, WEBAUTHN_SIGNER_FACTORY } from './constants.js';
 
@@ -71,7 +71,12 @@ type ReadClient = Client<Transport, Chain | undefined>;
 type WriteClient = Client<Transport, Chain, Account>;
 
 export function recoveryNonce(client: ReadClient, module: Address, wallet: Address): Promise<bigint> {
-  return readContract(client, { address: module, abi: socialRecoveryModuleAbi, functionName: 'nonce', args: [wallet] });
+  return readContract(client, {
+    address: module,
+    abi: socialRecoveryModuleAbi,
+    functionName: 'nonce',
+    args: [wallet],
+  });
 }
 
 export function recoveryHashOnChain(client: ReadClient, input: RecoveryRequestInput): Promise<Hex> {
@@ -129,7 +134,10 @@ export interface ConfirmWithSignaturesInput {
 
 /** Relayed `multiConfirmRecovery` with the Safety key's / Emergency card's EIP-712 signatures. */
 export function confirmWithSignatures(input: ConfirmWithSignaturesInput): Promise<Hex> {
-  const sorted = sortGuardianSignatures(input.signatures).map((s) => ({ signer: s.signer, signature: s.signature }));
+  const sorted = sortGuardianSignatures(input.signatures).map((s) => ({
+    signer: s.signer,
+    signature: s.signature,
+  }));
   return writeContract(input.client, {
     address: input.module,
     abi: socialRecoveryModuleAbi,
@@ -196,7 +204,8 @@ export async function status(client: ReadClient, module: Address, wallet: Addres
  */
 export function gracePeriodSeconds(module: Address): number {
   const value = KNOWN_GRACE_PERIODS_SECONDS[module.toLowerCase()];
-  if (value === undefined) throw new Error(`Unknown SocialRecoveryModule ${module}: grace period not verified`);
+  if (value === undefined)
+    throw new Error(`Unknown SocialRecoveryModule ${module}: grace period not verified`);
   return value;
 }
 
@@ -220,7 +229,11 @@ export async function deploySignerProxy(input: {
 }
 
 /** Precomputed proxy address straight from the factory (cross-check for `passkeySignerAddress`). */
-export function signerAddressFromFactory(client: ReadClient, owner: PasskeyPublicKey, verifiers: bigint): Promise<Address> {
+export function signerAddressFromFactory(
+  client: ReadClient,
+  owner: PasskeyPublicKey,
+  verifiers: bigint,
+): Promise<Address> {
   return readContract(client, {
     address: WEBAUTHN_SIGNER_FACTORY,
     abi: safeWebAuthnSignerFactoryAbi,

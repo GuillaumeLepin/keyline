@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
-    "check-balances": "tsx check-balances.ts"
+    "check-balances": "tsx check-balances.ts",
+    "spike:create-and-send": "tsx spike-create-and-send.ts"
   },
   "dependencies": {
     "viem": "^2.57.3",
