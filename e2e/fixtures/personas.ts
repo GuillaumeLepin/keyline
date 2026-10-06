@@ -4,6 +4,8 @@
 // laptop's Safety key) and its own authenticator (the phone's passkey). "Losing the phone" is
 // `WebAuthn.removeVirtualAuthenticator` on Lea's phone — the credential is gone, exactly like a lost device.
 // Virtual authenticators exist only for the lifetime of the CDP session; the live demo uses real platform passkeys.
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Browser, BrowserContext, CDPSession, Page } from '@playwright/test';
 
 export type Persona = 'lea-phone' | 'lea-laptop' | 'lea-new-phone' | 'thief' | 'desk';
@@ -41,6 +43,11 @@ export interface PersonaSession {
 export interface OpenPersonaOptions {
   /** Record video into this directory (Playwright `recordVideo`). */
   readonly videoDir?: string;
+  /**
+   * Force a virtual authenticator on/off. The thief has no credential for Lea's wallet, but his stolen phone can
+   * still enrol a *new* passkey for the recovery flow (SPEC F4.2) — the attacker spec opens him with `true`.
+   */
+  readonly withAuthenticator?: boolean;
   /** Default 1280×960: the phone frame plus the DeviceBar, readable in the demo video. */
   readonly viewport?: { width: number; height: number };
 }
@@ -66,7 +73,7 @@ export async function openPersona(
 
   let cdp: CDPSession | null = null;
   let authenticatorId: string | null = null;
-  if (WITH_AUTHENTICATOR.has(persona)) {
+  if (options.withAuthenticator ?? WITH_AUTHENTICATOR.has(persona)) {
     cdp = await context.newCDPSession(page);
     await cdp.send('WebAuthn.enable');
     const added = await cdp.send('WebAuthn.addVirtualAuthenticator', {
@@ -93,7 +100,26 @@ export async function openPersona(
     async goto(path: string): Promise<void> {
       const url = new URL(path, base);
       url.searchParams.set('device', persona);
-      await page.goto(url.toString(), { waitUntil: 'networkidle' });
+      // Two `next dev` servers share apps/wallet/.next (docs/DEMO.md §4): the other agent's recompile can leave ours
+      // answering 500 "ENOENT .next/…" for a few seconds. Wait 20 s and retry, up to three times.
+      for (let attempt = 0; ; attempt += 1) {
+        const response = await page.goto(url.toString(), { waitUntil: 'networkidle' });
+        const status = response?.status() ?? 200;
+        const broken =
+          status >= 500 ||
+          (status === 404 && attempt < 3) ||
+          (
+            await page
+              .locator('body')
+              .innerText()
+              .catch(() => '')
+          ).includes('ENOENT');
+        if (!broken || attempt >= 3) return;
+        console.warn(
+          `[${persona}] ${url.pathname} answered ${status} (dev server rebuilding) — retry in 20 s`,
+        );
+        await page.waitForTimeout(20_000);
+      }
     },
     async loseDevice(): Promise<void> {
       if (!cdp || !authenticatorId) return;
@@ -127,6 +153,73 @@ export async function bankGet<T>(
   });
   const text = await response.text();
   return { status: response.status, body: (text ? JSON.parse(text) : null) as T };
+}
+
+/** Operator routes (`/desk/*`) take the token from `services/bank/.env` (never printed). */
+export function operatorToken(): string {
+  const fromEnv = process.env.DESK_OPERATOR_TOKEN ?? process.env.E2E_OPERATOR_TOKEN;
+  if (fromEnv) return fromEnv;
+  const envFile = resolve(import.meta.dirname, '../../services/bank/.env');
+  if (existsSync(envFile)) {
+    const line = readFileSync(envFile, 'utf8')
+      .split('\n')
+      .find((l) => l.startsWith('DESK_OPERATOR_TOKEN='));
+    if (line)
+      return line
+        .slice('DESK_OPERATOR_TOKEN='.length)
+        .trim()
+        .replace(/^["']|["']$/g, '');
+  }
+  throw new Error('DESK_OPERATOR_TOKEN not set and services/bank/.env not found');
+}
+
+export async function bankOperatorGet<T>(path: string): Promise<{ status: number; body: T }> {
+  const response = await fetch(`${bankUrl()}${path}`, {
+    headers: { Accept: 'application/json', 'X-Operator-Token': operatorToken() },
+  });
+  const text = await response.text();
+  return { status: response.status, body: (text ? JSON.parse(text) : null) as T };
+}
+
+/** Lea's file at the SIMULATED bank (services/bank/src/seed.ts). */
+export const LEA_EMAIL = 'lea.keller@example.ch';
+
+interface InboxMessage {
+  otp?: string;
+  recoveryRequestId?: string;
+  sentAt: string;
+}
+
+/** The 6-digit email code from the SIMULATED inbox (`GET /mock/inbox/:email`), newest first. */
+export async function inboxOtp(email: string = LEA_EMAIL, recoveryId?: string): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const inbox = await bankGet<{ messages: InboxMessage[] }>(`/mock/inbox/${encodeURIComponent(email)}`);
+    const message = inbox.body?.messages?.find(
+      (m) => m.otp && (!recoveryId || m.recoveryRequestId === recoveryId),
+    );
+    if (message?.otp) return message.otp;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error(`no email code in the mock inbox for ${email}${recoveryId ? ` / ${recoveryId}` : ''}`);
+}
+
+/** Polls `GET /recoveries/:id` until `predicate` holds (bank status mirrors the chain + sq-guardian). */
+export async function waitForRecovery<T extends { status: string }>(
+  id: string,
+  predicate: (r: T) => boolean,
+  { timeoutMs = 240_000, label = 'recovery state' }: { timeoutMs?: number; label?: string } = {},
+): Promise<T> {
+  const started = Date.now();
+  let last: T | undefined;
+  while (Date.now() - started < timeoutMs) {
+    const res = await bankGet<T>(`/recoveries/${id}`);
+    if (res.status === 200 && res.body) {
+      last = res.body;
+      if (predicate(res.body)) return res.body;
+    }
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  throw new Error(`timed out waiting for ${label} (last status: ${last?.status ?? 'none'})`);
 }
 
 /** The wallet profile the app keeps in localStorage (apps/wallet/src/lib/storage.ts `LocalWalletSchema`). */

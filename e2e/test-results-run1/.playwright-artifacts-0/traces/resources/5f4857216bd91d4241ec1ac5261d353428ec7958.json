@@ -1,0 +1,9 @@
+{
+  "emailOtp": "518520",
+  "eidPayload": {
+    "name": "Lea Keller",
+    "dateOfBirth": "1991-03-14",
+    "documentNumber": "C1234567",
+    "liveness": true
+  }
+}

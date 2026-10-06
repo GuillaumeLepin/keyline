@@ -1,0 +1,18 @@
+{
+  "credential": {
+    "id": "ZX0B4j4KQpcRXxSmNH6wKh3S1mwv_AMsd-uEYUgxjuo",
+    "rawId": "ZX0B4j4KQpcRXxSmNH6wKh3S1mwv_AMsd-uEYUgxjuo",
+    "response": {
+      "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikSZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NFAAAAAQECAwQFBgcIAQIDBAUGBwgAIGV9AeI-CkKXEV8UpjR-sCod0tZsL_wDLHfrhGFIMY7qpQECAyYgASFYINn4cTbYvEUbcOS96V2ujkTf5P6gLJ6vXOto1Xij03ZBIlggNyMWvYkMlDYs7aB9E9oq9We6KIfyc7k_aWqHHJXpRtk",
+      "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiNm96Zlp3cmdGY2p5a2N6UEh2bjhzdVFvd25RM3FYd0RZR2FuZXpJaWM1OCIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzEwMCIsImNyb3NzT3JpZ2luIjpmYWxzZSwib3RoZXJfa2V5c19jYW5fYmVfYWRkZWRfaGVyZSI6ImRvIG5vdCBjb21wYXJlIGNsaWVudERhdGFKU09OIGFnYWluc3QgYSB0ZW1wbGF0ZS4gU2VlIGh0dHBzOi8vZ29vLmdsL3lhYlBleCJ9",
+      "transports": ["internal"],
+      "publicKeyAlgorithm": -7,
+      "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE2fhxNti8RRtw5L3pXa6ORN_k_qAsnq9c62jVeKPTdkE3Ixa9iQyUNiztoH0T2ir1Z7ooh_JzuT9paocclelG2Q",
+      "authenticatorData": "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NFAAAAAQECAwQFBgcIAQIDBAUGBwgAIGV9AeI-CkKXEV8UpjR-sCod0tZsL_wDLHfrhGFIMY7qpQECAyYgASFYINn4cTbYvEUbcOS96V2ujkTf5P6gLJ6vXOto1Xij03ZBIlggNyMWvYkMlDYs7aB9E9oq9We6KIfyc7k_aWqHHJXpRtk"
+    },
+    "type": "public-key",
+    "clientExtensionResults": { "credProps": { "rk": true } },
+    "authenticatorAttachment": "platform"
+  },
+  "deviceLabel": "Lea · new phone"
+}

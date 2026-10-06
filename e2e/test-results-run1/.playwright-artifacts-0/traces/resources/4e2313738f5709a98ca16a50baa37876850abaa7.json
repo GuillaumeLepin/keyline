@@ -1,0 +1,27 @@
+{
+  "nonce": "0x92a361923b11ef47c4371d203007aa4e46e8c34adf2a8f4172eaf752f82ffc50",
+  "typedData": {
+    "domain": {
+      "name": "Keyline Ownership Attestation",
+      "version": "1",
+      "chainId": 84532,
+      "verifyingContract": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52"
+    },
+    "types": {
+      "Attestation": [
+        { "name": "clientId", "type": "string" },
+        { "name": "wallet", "type": "address" },
+        { "name": "chainId", "type": "uint256" },
+        { "name": "nonce", "type": "bytes32" }
+      ]
+    },
+    "primaryType": "Attestation",
+    "message": {
+      "clientId": "SQ-48213-LK",
+      "wallet": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "chainId": 84532,
+      "nonce": "0x92a361923b11ef47c4371d203007aa4e46e8c34adf2a8f4172eaf752f82ffc50"
+    }
+  },
+  "expiresAt": "2026-10-06T06:59:13.201Z"
+}

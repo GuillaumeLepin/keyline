@@ -1,0 +1,28 @@
+{
+  "client": {
+    "id": "SQ-48213-LK",
+    "name": "Lea Keller",
+    "email": "lea.keller@example.ch",
+    "kycLevel": "full",
+    "createdAt": "2026-10-06T06:37:39.212Z"
+  },
+  "account": {
+    "currency": "CHF",
+    "balance": 12500,
+    "sponsoredToday": 3,
+    "sponsoredDailyCap": 20,
+    "simulated": true
+  },
+  "wallet": {
+    "address": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+    "clientId": "SQ-48213-LK",
+    "chainId": 84532,
+    "ownerCredentialId": "qgrqEPTMmnlf2JqPUcylPFepf4Nk7xW91L0WmqV59bE",
+    "status": "deployed",
+    "recoveryMode": "default",
+    "createdAt": "2026-10-06T06:49:02.628Z",
+    "deployTxHash": "0xaefe6ef9a1d950f42b9104ddf891199ec3632941052a9288e9a07e4d1dcc6532",
+    "attested": true
+  },
+  "auth": "device-label"
+}

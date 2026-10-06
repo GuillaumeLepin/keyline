@@ -1,0 +1,5 @@
+{
+  "error": "upstream",
+  "message": "Bank funder 0x482B512e50e6FB886A70D027DF20b1D55369458A holds 0 USDC — fund it at faucet.circle.com",
+  "details": { "funder": "0x482B512e50e6FB886A70D027DF20b1D55369458A", "usdc": "0" }
+}

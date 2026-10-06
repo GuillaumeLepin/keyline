@@ -1,0 +1,22 @@
+{
+  "challenge": "6ozfZwrgFcjykczPHvn8suQownQ3qXwDYGanezIic58",
+  "rp": { "name": "Keyline by Swissquote", "id": "localhost" },
+  "user": { "id": "U1EtNDgyMTMtTEs", "name": "lea.keller@example.ch", "displayName": "Lea Keller" },
+  "pubKeyCredParams": [{ "alg": -7, "type": "public-key" }],
+  "timeout": 60000,
+  "attestation": "none",
+  "excludeCredentials": [
+    { "id": "zeoHhrRUupxW86vitabZiRpSCmKY71Spqm6BpKEEsuQ", "transports": ["internal"], "type": "public-key" },
+    { "id": "0DvOhdWtKwZvnXrA9OcTAK3rCtrAChC0A0dRxqEs-UI", "transports": ["internal"], "type": "public-key" },
+    { "id": "-PBUW9HE36cYMC1HoAwSd1YM7EuwgVCNjus0oUbDDgQ", "transports": ["internal"], "type": "public-key" },
+    { "id": "qgrqEPTMmnlf2JqPUcylPFepf4Nk7xW91L0WmqV59bE", "transports": ["internal"], "type": "public-key" }
+  ],
+  "authenticatorSelection": {
+    "authenticatorAttachment": "platform",
+    "residentKey": "required",
+    "userVerification": "required",
+    "requireResidentKey": true
+  },
+  "extensions": { "credProps": true },
+  "hints": []
+}

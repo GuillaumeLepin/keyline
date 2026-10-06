@@ -1,7 +1,8 @@
 // The Keyline story, end to end, against a live stack and Base Sepolia:
 //   F1 create wallet (phone) → pair the Safety key (laptop) → Emergency card → mode → PROTECT (real sponsored
 //   userOp) → prove ownership (ERC-1271) → top up → F2 send (real sponsored USDC transfer)
-//   F3 lose the phone & recover and F4 attacker refused are `test.fixme` until Wave 2/3 ship their screens.
+//   → F3 lose the phone (virtual authenticator removed) → new phone /recover → laptop /approve → 180 s on-chain grace
+//   → finalize → "Welcome back, Lea" → send again from the new phone. F4 / F4b: attacker.spec.ts, fraud-cancel.spec.ts.
 //
 // Every "it worked" is checked on-chain (e2e/chain.ts), not only on UI copy. Serial: later tests reuse the wallet
 // the first test created. Run: `pnpm e2e` (defaults: wallet :3000, bank :4000) or with E2E_WALLET_URL/E2E_BANK_URL.
@@ -14,15 +15,25 @@ import {
   addressUrl,
   chainEnv,
   formatUsdc,
+  gracePeriodSeconds,
   guardianSet,
   hasCode,
   recoveryStatus,
+  safeOwners,
   txHashFromUrl,
   txSucceeded,
   txUrl,
   usdcBalance,
 } from './chain';
-import { bankGet, bodyText, openPersona, type PersonaSession, readLocalWallet } from './fixtures/personas';
+import {
+  bankGet,
+  bodyText,
+  openPersona,
+  type PersonaSession,
+  readLocalWallet,
+  waitForRecovery,
+} from './fixtures/personas';
+import { type RecoveryView, startRecoveryToIdentity, submitIdentity } from './fixtures/recover';
 
 const SCREENS = resolve(import.meta.dirname, '../docs/screens');
 const PROTECT_TIMEOUT = 240_000; // bundler inclusion + 2 confirmations; usually 20–60 s on Base Sepolia
@@ -32,7 +43,12 @@ const SEND_CHF = 2; // = 2.50 USDC to Lukas Meier
 interface Story {
   phone: PersonaSession;
   laptop: PersonaSession;
+  newPhone: PersonaSession;
   safe: Address;
+  ownersBefore: Address[];
+  recoveryId: string;
+  newProxy: Address;
+  executeAfter: Date;
   safetyKey?: Address;
   emergencyCard?: Address;
   swissquote?: Address;
@@ -63,29 +79,56 @@ function laptop(): PersonaSession {
   if (!story.laptop) throw new Error('laptop persona not open');
   return story.laptop;
 }
+function newPhone(): PersonaSession {
+  if (!story.newPhone) throw new Error('new phone persona not open');
+  return story.newPhone;
+}
 function safe(): Address {
   if (!story.safe) throw new Error('wallet not created yet (earlier step failed)');
   return story.safe;
 }
+function recoveryId(): string {
+  if (!story.recoveryId) throw new Error('no recovery started (F3.1 failed)');
+  return story.recoveryId;
+}
+function newProxy(): Address {
+  if (!story.newProxy) throw new Error('new signer proxy unknown (F3.1 failed)');
+  return story.newProxy;
+}
 
 test.describe.configure({ mode: 'serial' });
 
-test.describe('Keyline story — Wave 1 scope (F1 create + protect + prove, top-up, F2 send)', () => {
+test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F3 lose & recover', () => {
   test.beforeAll(async ({ browser }, testInfo) => {
     const videoDir = testInfo.outputPath('videos');
     story.phone = await openPersona(browser, 'lea-phone', { videoDir });
     story.laptop = await openPersona(browser, 'lea-laptop', { videoDir });
+    story.newPhone = await openPersona(browser, 'lea-new-phone', { videoDir });
   });
 
   test.afterAll(async () => {
-    const pageErrors = [...(story.phone?.errors ?? []), ...(story.laptop?.errors ?? [])].filter((e) =>
-      e.startsWith('[pageerror'),
-    );
+    const pageErrors = [
+      ...(story.phone?.errors ?? []),
+      ...(story.laptop?.errors ?? []),
+      ...(story.newPhone?.errors ?? []),
+    ].filter((e) => e.startsWith('[pageerror'));
     await story.phone?.close();
     await story.laptop?.close();
+    await story.newPhone?.close();
     console.info('\n== story result');
     console.info(
-      JSON.stringify({ safe: story.safe, ...story.txs, funderHasUsdc: story.funderHasUsdc }, null, 2),
+      JSON.stringify(
+        {
+          safe: story.safe,
+          recoveryId: story.recoveryId,
+          newProxy: story.newProxy,
+          executeAfter: story.executeAfter?.toISOString(),
+          ...story.txs,
+          funderHasUsdc: story.funderHasUsdc,
+        },
+        null,
+        2,
+      ),
     );
     expect(pageErrors, 'no uncaught page errors in any persona').toEqual([]);
   });
@@ -330,43 +373,140 @@ test.describe('Keyline story — Wave 1 scope (F1 create + protect + prove, top-
   });
 
   // ---------------------------------------------------------------------------------------------------------------
-  // Wave 2/3 — exact SPEC §3 steps, enabled when the screens exist. "Losing the phone" = phone.loseDevice().
+  // F3 — lose the phone & recover (SPEC §3 F3.1–F3.5). F4 / F4b live in attacker.spec.ts / fraud-cancel.spec.ts.
   // ---------------------------------------------------------------------------------------------------------------
 
-  test.fixme('F3 Lose the phone & recover (Lea · new phone + Lea · laptop)', async () => {
-    // 1. phone.loseDevice() (WebAuthn.removeVirtualAuthenticator) — the old passkey is gone for good.
-    //    newPhone = openPersona('lea-new-phone') → /recover → "I lost my phone" → email code from /mock/inbox
-    //    (SIMULATED) → swiyu e-ID form with "Lea Keller" (SIMULATED, persona rules SPEC §7) → create the new passkey
-    //    → chain.deploySignerProxy → POST /recoveries → status identity-pending → awaiting-guardians once `pass`.
-    // 2. Bank signs IdentityVerdict → sq-guardian validates (signature, mode, 24-h rule, guardian set from chain) →
-    //    returns its ExecuteRecovery signature (Option A, DECISIONS #15) → confirmation 1 shown with the tx hash.
-    //    Assert: recoveryStatus(safe).approvals === 1n after the relayer submits it alone (execute=false).
-    // 3. laptop: /approve shows "Restore access on a new phone? Requested … from Zürich." → "Confirm with Safety key"
-    //    → Safety key signs the module's EIP-712 hash → POST /recoveries/:id/confirm → relayer multiConfirmRecovery
-    //    (execute=true). Assert on-chain: recoveryStatus(safe).pending === true, newOwners = [new proxy],
-    //    executeAfter ≈ now + gracePeriodSeconds() (180 s).
-    // 4. New phone: countdown ring shows the exact `executeAfter` read from chain + caption "Waiting period
-    //    accelerated for the demo: 3 min instead of 72 h". Desk (/desk) shows states + audit log.
-    // 5. After executeAfter (poll the chain head): sq-guardian finalizeRecovery → safeOwners(safe) = [new proxy],
-    //    recoveryStatus(safe).pending === false → "Welcome back, Lea" → F2 transfer from the new phone proves control
-    //    (balance delta on-chain).
+  test('F3.1 Lea loses her phone; her new phone starts a recovery (email code → e-ID → new key)', async () => {
+    story.ownersBefore = await safeOwners(safe());
+    expect(story.ownersBefore, 'the Safe has exactly one owner (the passkey signer proxy)').toHaveLength(1);
+    await phone().loseDevice();
+    const np = newPhone();
+    // Step 1 (new key) + step 2 (email → bank deploys the signer → code from the SIMULATED inbox).
+    const { recoveryId } = await startRecoveryToIdentity(np);
+    story.recoveryId = recoveryId;
+    await shot(np, '11-recover-identity');
+    // Step 3: swiyu e-ID (SIMULATED) prefilled with Lea's file → the bank's persona rules pass → verdict signed.
+    await submitIdentity(np);
+    await expect(np.page.getByText('Waiting for a second recoverer')).toBeVisible({ timeout: 120_000 });
+    await expect(np.page.getByText('Swissquote has confirmed.')).toBeVisible();
+    await shot(np, '12-recover-recoverers');
+
+    const r = await waitForRecovery<RecoveryView>(recoveryId, (x) => x.status === 'awaiting-guardians');
+    expect(r.waitingFor).toBe('second-recoverer');
+    expect(r.guardianConfirmations.some((c) => c.kind === 'swissquote' && !c.void)).toBe(true);
+    story.newProxy = getAddress(r.newOwner.signerProxyAddress);
+    expect(await hasCode(story.newProxy), 'new signer proxy deployed by the bank relayer').toBe(true);
+    const events = await bankGet<{ events: { type: string; payload: Record<string, unknown> }[] }>(
+      `/wallets/${safe()}/events`,
+    );
+    const deployed = events.body.events.find((e) => e.type === 'recovery.signer-deployed');
+    if (deployed && typeof deployed.payload.txHash === 'string')
+      story.txs.signerDeployTx = txUrl(deployed.payload.txHash);
+    // Swissquote alone: nothing is pending on the module yet (its signature is held, DECISIONS #15).
+    const status = await recoveryStatus(safe());
+    expect(status.pending).toBe(false);
   });
 
-  test.fixme('F4 Attacker refused (Thief · stolen phone) — Swissquote cannot finish a recovery alone', async () => {
-    // 1. thief = openPersona('thief') → / shows "This device has no key for this wallet." — no Send button.
-    // 2. thief → /recover → email code passes (he has the inbox) → identity check fails (deviceLabel contains
-    //    "thief", SPEC §7) → /refused: "Recovery can't start: the identity check failed. The owner has been notified."
-    //    Desk: identity-refused with reasons. Lea's devices (/alerts): "Recovery attempt refused."
-    //    Assert on-chain: recoveryStatus(safe).approvals === 0n, pending === false.
-    // 3. Desk "Override (demo: assume the bank was fooled)" → sq-guardian confirms alone → status stays
-    //    awaiting-guardians ("Waiting for a second recoverer — Swissquote cannot finish this alone").
-    //    Assert on-chain: approvals === 1n, pending === false, safeOwners unchanged — the custody claim, verified.
+  test('F3.2 Lea · laptop confirms with the Safety key → multiConfirmRecovery(execute) → 180 s waiting period on-chain', async () => {
+    const l = laptop();
+    const np = newPhone();
+    const id = recoveryId();
+    await l.goto('/approve');
+    await expect(l.page.getByText('Restore access on a new phone?')).toBeVisible({ timeout: 30_000 });
+    await expect(l.page.getByText('Lea · new phone')).toBeVisible();
+    await shot(l, '13-laptop-approve');
+    const started = Date.now();
+    await l.page.getByRole('button', { name: 'Confirm with Safety key' }).click();
+    await expect(l.page.getByText('Confirmed. The waiting period starts')).toBeVisible({ timeout: 240_000 });
+    await shot(l, '13-laptop-confirmed');
+
+    const r = await waitForRecovery<RecoveryView>(id, (x) => x.status === 'executed-waiting', {
+      label: 'executed-waiting',
+    });
+    console.info(`executed ${Math.round((Date.now() - started) / 1000)} s after the laptop's click`);
+    expect(r.onchain.executedTxHash).toBeTruthy();
+    if (r.onchain.executedTxHash) {
+      story.txs.executeTx = txUrl(r.onchain.executedTxHash);
+      expect(await txSucceeded(r.onchain.executedTxHash as Hex)).toBe(true);
+    }
+
+    // On-chain truth: pending, newOwners = [new proxy], executeAfter ≈ now + 180 s (module grace, VERIFIED).
+    const status = await recoveryStatus(safe());
+    expect(status.pending).toBe(true);
+    expect(status.newOwners?.map((o) => o.toLowerCase())).toEqual([newProxy().toLowerCase()]);
+    expect(status.executeAfter).toBeDefined();
+    if (status.executeAfter) {
+      const ahead = (status.executeAfter.getTime() - Date.now()) / 1000;
+      console.info(`executeAfter ${status.executeAfter.toISOString()} (${Math.round(ahead)} s ahead)`);
+      expect(ahead).toBeGreaterThan(gracePeriodSeconds() - 120);
+      expect(ahead).toBeLessThanOrEqual(gracePeriodSeconds() + 5);
+      story.executeAfter = status.executeAfter;
+    }
+
+    await expect(np.page.getByText(/Access restores at \d{2}:\d{2}/)).toBeVisible({ timeout: 30_000 });
+    await expect(np.page.getByText('Waiting period accelerated for the demo')).toBeVisible();
+    await shot(np, '14-recover-waiting');
   });
 
-  test.fixme('F4b Fraud while Lea still has her phone — owner cancels the executed recovery', async () => {
-    // Override + pasted Emergency card key → 2 of 3 → executed (pending === true) → Lea · phone /alerts
-    // "Recovery started from a new device — wasn't you?" → "Cancel recovery — it wasn't me" (sponsored owner userOp,
-    // buildCancelRecoveryUserOp) → recoveryStatus(safe).pending === false, owners unchanged; fraudster sees
-    // "Recovery cancelled by the owner."
+  test('F3.3 After the waiting period the bank finalizer rotates the owner — "Welcome back, Lea" (on-chain)', async () => {
+    const np = newPhone();
+    const id = recoveryId();
+    const until = (story.executeAfter?.getTime() ?? Date.now()) - Date.now();
+    console.info(`waiting ${Math.max(0, Math.round(until / 1000))} s for the on-chain grace period…`);
+    // Finalizer loop every 5 s + sponsored finalize tx: allow 5 min after executeAfter.
+    const r = await waitForRecovery<RecoveryView>(id, (x) => x.status === 'finalized', {
+      timeoutMs: Math.max(0, until) + 300_000,
+      label: 'finalized',
+    });
+    expect(r.onchain.finalizedTxHash).toBeTruthy();
+    if (r.onchain.finalizedTxHash) {
+      story.txs.finalizeTx = txUrl(r.onchain.finalizedTxHash);
+      expect(await txSucceeded(r.onchain.finalizedTxHash as Hex)).toBe(true);
+    }
+
+    await expect(np.page.getByText('Welcome back, Lea')).toBeVisible({ timeout: 30_000 });
+    await shot(np, '15-recover-welcome');
+    const owners = await safeOwners(safe());
+    expect(owners.map((o) => o.toLowerCase())).toEqual([newProxy().toLowerCase()]);
+    for (const old of story.ownersBefore ?? [])
+      expect(owners.map((o) => o.toLowerCase())).not.toContain(old.toLowerCase());
+    expect((await recoveryStatus(safe())).pending).toBe(false);
+    console.info(`owners: ${story.ownersBefore?.join(',')} → ${owners.join(',')}`);
+
+    await np.page.getByRole('button', { name: 'Go to my wallet' }).click();
+    await np.page.waitForURL(/\/(\?.*)?$/, { timeout: 10_000 });
+    const local = await readLocalWallet(np.page);
+    expect(local?.address.toLowerCase()).toBe(safe().toLowerCase());
+    expect(local?.status).toBe('deployed');
+    await shot(np, '16-home-recovered');
+  });
+
+  test('F3.4 The new phone spends: 2.50 USDC to Lukas Meier proves control after recovery', async () => {
+    test.skip(!story.funderHasUsdc, 'funder has no USDC — the wallet holds nothing to send');
+    const np = newPhone();
+    const before = await usdcBalance(safe());
+    const amountUsdc = parseUnits((SEND_CHF / 0.8).toFixed(6), 6);
+    test.skip(before < amountUsdc, `wallet holds ${formatUsdc(before)} USDC — not enough to send`);
+    await np.goto('/send');
+    await np.page.getByText('Lukas Meier').first().click();
+    await np.page.locator('.kl-amount__input').fill(String(SEND_CHF));
+    await np.page.getByRole('button', { name: 'Review' }).click();
+    await expect(np.page.getByText('Approved', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await np.page.getByRole('button', { name: 'Confirm with Face ID' }).click();
+    await np.page.waitForURL(/\/activity\/0x[0-9a-fA-F]{64}$/, { timeout: 120_000 });
+    const confirmed = np.page.getByText('Confirmed', { exact: true });
+    const failed = np.page.getByText('Not accepted by the network');
+    await expect(confirmed.or(failed)).toBeVisible({ timeout: 180_000 });
+    if (await failed.isVisible())
+      throw new Error(`transfer after recovery failed: ${await bodyText(np.page)}`);
+    const tx = txHashFromUrl(
+      await np.page.getByRole('link', { name: 'View on Basescan' }).getAttribute('href'),
+    );
+    if (tx) {
+      story.txs.transferAfterRecoveryTx = txUrl(tx);
+      expect(await txSucceeded(tx)).toBe(true);
+    }
+    expect(before - (await usdcBalance(safe()))).toBe(amountUsdc);
+    await shot(np, '17-activity-after-recovery');
   });
 });

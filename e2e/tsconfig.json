@@ -1,5 +1,9 @@
 {
   "extends": "../tsconfig.base.json",
-  "compilerOptions": { "noEmit": true, "types": ["node"] },
-  "include": ["src/**/*.ts", "*.ts"]
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "*.ts"],
+  "exclude": [".wallet-snapshot", "node_modules"]
 }

@@ -1,0 +1,333 @@
+{
+  "events": [
+    {
+      "id": "evt_7a2a577691164f61aa16",
+      "service": "bank",
+      "type": "notification.sent",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "channel": "push-simulated",
+        "simulated": true,
+        "kind": "recovery-started",
+        "title": "Recovery started from a new device",
+        "body": "Recovery started from “Lea · new phone”. If nobody cancels, that device becomes the only key at 06:52.",
+        "recoveryRequestId": "rec_7204a1c3d8a042f39545",
+        "requestedFrom": {
+          "deviceLabel": "Lea · new phone",
+          "ip": "127.0.0.1",
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36"
+        },
+        "executeAfter": "2026-10-06T06:52:32.000Z",
+        "txHash": "0xe312dc6015a8f77c285e6531482412c84484a0f35b35f98471b87de5409266a0"
+      },
+      "at": "2026-10-06T06:49:34.850Z"
+    },
+    {
+      "id": "evt_d588db1303ac46d19cb5",
+      "service": "bank",
+      "type": "recovery.executed",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "recoveryRequestId": "rec_7204a1c3d8a042f39545",
+        "txHash": "0xe312dc6015a8f77c285e6531482412c84484a0f35b35f98471b87de5409266a0",
+        "executeAfter": "2026-10-06T06:52:32.000Z",
+        "approvals": "2",
+        "newOwners": ["0xb4e7cDA0DC5b8375dd4A3C396D2c96234ca27193"],
+        "submitter": "sponsored-safe",
+        "signers": [
+          { "kind": "swissquote", "address": "0x01Bbd43cd140a7BfcA7836e577470Af2B1d04dE8" },
+          { "kind": "safety-key", "address": "0xFD992Af8DB22a237971Fecd89A1BbD8094eC7872" }
+        ]
+      },
+      "at": "2026-10-06T06:49:34.850Z"
+    },
+    {
+      "id": "evt_8edab2a1570a44599af7",
+      "service": "bank",
+      "type": "recovery.guardian-confirmed",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "recoveryRequestId": "rec_7204a1c3d8a042f39545",
+        "kind": "safety-key",
+        "mode": "signature",
+        "guardianAddress": "0xFD992Af8DB22a237971Fecd89A1BbD8094eC7872",
+        "nonce": "0"
+      },
+      "at": "2026-10-06T06:49:27.247Z"
+    },
+    {
+      "id": "evt_e2a3e2e5440c48d98a9c",
+      "service": "bank",
+      "type": "recovery.guardian-confirmed",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "recoveryRequestId": "rec_7204a1c3d8a042f39545",
+        "kind": "swissquote",
+        "mode": "signature",
+        "guardianAddress": "0x01Bbd43cd140a7BfcA7836e577470Af2B1d04dE8",
+        "nonce": "0",
+        "executed": false
+      },
+      "at": "2026-10-06T06:49:21.439Z"
+    },
+    {
+      "id": "evt_1d30de70a64c49f0bb24",
+      "service": "bank",
+      "type": "recovery.identity-passed",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "recoveryRequestId": "rec_7204a1c3d8a042f39545",
+        "method": "eid-simulated",
+        "simulated": true
+      },
+      "at": "2026-10-06T06:49:20.965Z"
+    },
+    {
+      "id": "evt_e64e745c3bb148af8d41",
+      "service": "bank",
+      "type": "recovery.verdict-signed",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "recoveryRequestId": "rec_7204a1c3d8a042f39545",
+        "verdict": "pass",
+        "method": "eid-simulated",
+        "signedBy": "0xba9a649F248BCBCF098680d9EA6E952F342BA23b",
+        "issuedAt": 1791269360,
+        "simulated": true
+      },
+      "at": "2026-10-06T06:49:20.965Z"
+    },
+    {
+      "id": "evt_562a9c8356fe49b1b22d",
+      "service": "bank",
+      "type": "recovery.identity-checked",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "recoveryRequestId": "rec_7204a1c3d8a042f39545",
+        "method": "eid-simulated",
+        "issuer": "swiyu-simulated",
+        "verdict": "pass",
+        "signals": ["Name on ID matches the client file", "Liveness passed"],
+        "reasons": [],
+        "simulated": true
+      },
+      "at": "2026-10-06T06:49:20.962Z"
+    },
+    {
+      "id": "evt_f4d3c0eef18f44ebbb80",
+      "service": "bank",
+      "type": "notification.sent",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "channel": "push-simulated",
+        "simulated": true,
+        "kind": "recovery-requested",
+        "title": "Someone started a recovery of your wallet",
+        "body": "A recovery was started from “Lea · new phone”. Nothing changes until the identity check passes and a second recoverer confirms.",
+        "recoveryRequestId": "rec_7204a1c3d8a042f39545",
+        "requestedFrom": {
+          "deviceLabel": "Lea · new phone",
+          "ip": "127.0.0.1",
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36"
+        }
+      },
+      "at": "2026-10-06T06:49:20.377Z"
+    },
+    {
+      "id": "evt_7bb7d298ee334a46bbe1",
+      "service": "bank",
+      "type": "recovery.signer-deployed",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "recoveryRequestId": "rec_7204a1c3d8a042f39545",
+        "signerProxyAddress": "0xb4e7cDA0DC5b8375dd4A3C396D2c96234ca27193",
+        "txHash": "0x166f22fbf4e4f7d7f6af67fbcd9b090cf548cd608a7e5cf7c843d5ac2bbc0e6f",
+        "submitter": "sponsored-safe"
+      },
+      "at": "2026-10-06T06:49:20.376Z"
+    },
+    {
+      "id": "evt_3add7553d5bc4217bc7a",
+      "service": "bank",
+      "type": "recovery.requested",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "recoveryRequestId": "rec_7204a1c3d8a042f39545",
+        "requestedFrom": {
+          "deviceLabel": "Lea · new phone",
+          "ip": "127.0.0.1",
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36"
+        },
+        "newOwnerProxy": "0xb4e7cDA0DC5b8375dd4A3C396D2c96234ca27193",
+        "credentialId": "ZX0B4j4KQpcRXxSmNH6wKh3S1mwv_AMsd-uEYUgxjuo",
+        "recoveryMode": "default",
+        "otpSentTo": "lea.keller@example.ch",
+        "otpChannel": "email-simulated"
+      },
+      "at": "2026-10-06T06:49:20.376Z"
+    },
+    {
+      "id": "evt_3334b92892ec41cd8152",
+      "service": "bank",
+      "type": "attestation.verified",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "clientId": "SQ-48213-LK",
+        "method": "erc1271",
+        "nonce": "0x92a361923b11ef47c4371d203007aa4e46e8c34adf2a8f4172eaf752f82ffc50"
+      },
+      "at": "2026-10-06T06:49:13.385Z"
+    },
+    {
+      "id": "evt_0d71f11e7f1941e0a5ca",
+      "service": "bank",
+      "type": "wallet.deployed",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "txHash": "0xaefe6ef9a1d950f42b9104ddf891199ec3632941052a9288e9a07e4d1dcc6532",
+        "guardians": [
+          { "kind": "safety-key", "address": "0xFD992Af8DB22a237971Fecd89A1BbD8094eC7872" },
+          { "kind": "emergency-card", "address": "0x249d7ee41923cAaa3e2A7cD5C3aBD27bBbF950e6" },
+          { "kind": "swissquote", "address": "0x01Bbd43cd140a7BfcA7836e577470Af2B1d04dE8" }
+        ],
+        "threshold": 2
+      },
+      "at": "2026-10-06T06:49:12.024Z"
+    },
+    {
+      "id": "evt_3aad21f53cf84ff4bf5b",
+      "service": "bank",
+      "type": "userop.included",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "userOpHash": "0xa9754f3442d59dcec1edb05102f0aa3b15bb1e26674b28a0389def35191a92d6",
+        "txHash": "0xaefe6ef9a1d950f42b9104ddf891199ec3632941052a9288e9a07e4d1dcc6532",
+        "blockNumber": 47750531,
+        "decisionId": "dec_595a572b6ebd4a3e9732"
+      },
+      "at": "2026-10-06T06:49:12.024Z"
+    },
+    {
+      "id": "evt_049ca109321c4656a15e",
+      "service": "bank",
+      "type": "userop.sent",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "userOpHash": "0xa9754f3442d59dcec1edb05102f0aa3b15bb1e26674b28a0389def35191a92d6",
+        "decisionId": "dec_595a572b6ebd4a3e9732",
+        "kind": "protect"
+      },
+      "at": "2026-10-06T06:49:06.732Z"
+    },
+    {
+      "id": "evt_64e29e42dfd749188783",
+      "service": "bank",
+      "type": "userop.sponsored",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "decisionId": "dec_595a572b6ebd4a3e9732",
+        "kind": "protect",
+        "paymaster": "0x8b1f6cb5d062aa2ce8d581942bbb960420d875ba",
+        "callsHash": "0xcb0d33ed868d9a9d76c7c37238da344d58cbcf202ff7f5d2437b8fe4b1053914"
+      },
+      "at": "2026-10-06T06:49:06.618Z"
+    },
+    {
+      "id": "evt_7ef7963aecd74ee8ac8d",
+      "service": "bank",
+      "type": "policy.decided",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "decisionId": "dec_595a572b6ebd4a3e9732",
+        "kind": "protect",
+        "verdict": "approve",
+        "tier": 1,
+        "chfValue": 0,
+        "sponsored": true,
+        "screeningHit": false,
+        "simulationProvider": "fallback",
+        "deviceLabel": "Lea · phone"
+      },
+      "at": "2026-10-06T06:49:05.604Z"
+    },
+    {
+      "id": "evt_823358e6adfe4efab2ae",
+      "service": "bank",
+      "type": "guardian.registered",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "kind": "swissquote",
+        "address": "0x01Bbd43cd140a7BfcA7836e577470Af2B1d04dE8",
+        "by": "Lea · phone"
+      },
+      "at": "2026-10-06T06:49:05.591Z"
+    },
+    {
+      "id": "evt_744190f75dbf4f58b355",
+      "service": "bank",
+      "type": "wallet.mode-set",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": { "recoveryMode": "default" },
+      "at": "2026-10-06T06:49:05.462Z"
+    },
+    {
+      "id": "evt_7198d7f2d1aa46979875",
+      "service": "bank",
+      "type": "guardian.registered",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "kind": "emergency-card",
+        "address": "0x249d7ee41923cAaa3e2A7cD5C3aBD27bBbF950e6",
+        "by": "Lea · phone"
+      },
+      "at": "2026-10-06T06:49:05.333Z"
+    },
+    {
+      "id": "evt_bf4c08837b4b44a89bb2",
+      "service": "bank",
+      "type": "guardian.paired",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "kind": "safety-key",
+        "address": "0xFD992Af8DB22a237971Fecd89A1BbD8094eC7872",
+        "code": "934061",
+        "simulated": true
+      },
+      "at": "2026-10-06T06:49:04.143Z"
+    },
+    {
+      "id": "evt_b146c4c616a94b0db404",
+      "service": "bank",
+      "type": "guardian.registered",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "kind": "safety-key",
+        "address": "0xFD992Af8DB22a237971Fecd89A1BbD8094eC7872",
+        "by": "pairing:934061"
+      },
+      "at": "2026-10-06T06:49:04.143Z"
+    },
+    {
+      "id": "evt_b6564cf240bb4dff886b",
+      "service": "bank",
+      "type": "pairing.opened",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": { "expiresAt": "2026-10-06T06:59:02.645Z", "simulated": true },
+      "at": "2026-10-06T06:49:02.646Z"
+    },
+    {
+      "id": "evt_299637ed36524be08ddf",
+      "service": "bank",
+      "type": "wallet.created",
+      "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+      "payload": {
+        "clientId": "SQ-48213-LK",
+        "credentialId": "qgrqEPTMmnlf2JqPUcylPFepf4Nk7xW91L0WmqV59bE",
+        "recoveryMode": "default",
+        "deviceLabel": "Lea · phone",
+        "counterfactual": true
+      },
+      "at": "2026-10-06T06:49:02.629Z"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "code": "934061",
+  "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+  "status": "claimed",
+  "guardian": {
+    "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+    "kind": "safety-key",
+    "address": "0xFD992Af8DB22a237971Fecd89A1BbD8094eC7872"
+  },
+  "createdAt": "2026-10-06T06:49:02.645Z",
+  "expiresAt": "2026-10-06T06:59:02.645Z",
+  "claimedAt": "2026-10-06T06:49:04.143Z",
+  "simulated": true
+}

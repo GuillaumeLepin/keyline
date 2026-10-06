@@ -1,0 +1,10 @@
+{
+  "userOpHash": "0xa9754f3442d59dcec1edb05102f0aa3b15bb1e26674b28a0389def35191a92d6",
+  "status": "included",
+  "txHash": "0xaefe6ef9a1d950f42b9104ddf891199ec3632941052a9288e9a07e4d1dcc6532",
+  "blockNumber": 47750531,
+  "explorerUrl": "https://sepolia.basescan.org/tx/0xaefe6ef9a1d950f42b9104ddf891199ec3632941052a9288e9a07e4d1dcc6532",
+  "walletAddress": "0xD5DaDcB5b18Ed182ef81D405D444eb32CDB05e52",
+  "decisionId": "dec_595a572b6ebd4a3e9732",
+  "walletStatus": "deployed"
+}
