@@ -49,6 +49,8 @@ const pairs: Pair[] = [
   { fg: 'danger', bg: 'bg', min: 4.5, use: 'status danger on paper' },
   { fg: 'danger', bg: 'danger-bg', min: 4.5, use: 'status danger on its tint' },
   { fg: 'on-ink', bg: 'danger-bar', min: 4.5, use: 'Thief device bar label' },
+  { fg: 'on-ink', bg: 'laptop-bar', min: 4.5, use: 'Lea · laptop device bar label' },
+  { fg: 'on-ink', bg: 'newphone-bar', min: 4.5, use: 'Lea · new phone device bar label' },
   { fg: 'on-ink', bg: 'danger', min: 4.5, use: 'danger button label' },
   { fg: 'simulated-text', bg: 'simulated-bg', min: 4.5, use: 'SIMULATED badge' },
   { fg: 'simulated-border', bg: 'simulated-bg', min: 3, use: 'SIMULATED badge dashed border (UI)' },

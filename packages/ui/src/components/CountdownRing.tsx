@@ -38,8 +38,10 @@ export type CountdownRingProps = {
   caption?: string;
   /** Word shown under the remaining time (default "remaining"). */
   subLabel?: string;
-  /** Replaces the centre when the countdown has finished (default "Ready to finish"). */
+  /** Word under the centre once the countdown has finished (default "Ready to finish"); the centre itself reads 00:00. */
   doneLabel?: string;
+  /** Show the "Finishes at HH:MM:SS" line under the ring (default true). Pass false when the screen title already states the time. */
+  showFinish?: boolean;
   onDone?: () => void;
   className?: string;
 };
@@ -55,6 +57,7 @@ export function CountdownRing({
   caption,
   subLabel = 'remaining',
   doneLabel = 'Ready to finish',
+  showFinish = true,
   onDone,
   className,
 }: CountdownRingProps) {
@@ -107,14 +110,16 @@ export function CountdownRing({
         </svg>
         <div className="kl-ring__center">
           <span className="kl-ring__remaining" style={{ fontSize: remainingSize, lineHeight: remainingLine }}>
-            {done ? (size >= 100 ? 'Done' : '00:00') : formatDuration(remaining)}
+            {done ? '00:00' : formatDuration(remaining)}
           </span>
           {size >= 100 ? <span className="kl-ring__sub">{done ? doneLabel : subLabel}</span> : null}
         </div>
       </div>
-      <p className="kl-ring__finish">
-        {done ? `Finished at ${formatClock(end)}` : `Finishes at ${formatClock(end)}`}
-      </p>
+      {showFinish ? (
+        <p className="kl-ring__finish">
+          {done ? `Finished at ${formatClock(end)}` : `Finishes at ${formatClock(end)}`}
+        </p>
+      ) : null}
       {caption ? <p className="kl-ring__caption">{caption}</p> : null}
     </div>
   );

@@ -20,15 +20,18 @@ export type DeviceBarProps = {
   label?: string;
 };
 
-/** 28 px persona label bar so judges always know which browser profile they see. Thief is red. */
+const PERSONA_TONE: Record<Persona, string> = {
+  'lea-phone': '',
+  'lea-laptop': 'kl-devicebar--laptop',
+  'lea-new-phone': 'kl-devicebar--new',
+  thief: 'kl-devicebar--danger',
+  desk: 'kl-devicebar--desk',
+};
+
+/** 28 px persona label bar so judges always know which browser profile they see. Each persona has its own tone; Thief is red. */
 export function DeviceBar({ persona, label }: DeviceBarProps) {
   return (
-    <div
-      className={['kl-devicebar', persona === 'thief' ? 'kl-devicebar--danger' : '']
-        .filter(Boolean)
-        .join(' ')}
-      role="note"
-    >
+    <div className={['kl-devicebar', PERSONA_TONE[persona]].filter(Boolean).join(' ')} role="note">
       {label ?? PERSONA_LABEL[persona]}
     </div>
   );

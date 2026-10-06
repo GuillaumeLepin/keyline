@@ -30,6 +30,8 @@
   --danger: #b42318;
   --danger-bg: #fbe9e7;
   --danger-bar: #b42318; /* Thief device bar */
+  --laptop-bar: #5c5c57; /* Lea · laptop device bar (= ink-2) */
+  --newphone-bar: #1f7a4d; /* Lea · new phone device bar (= ok) */
 
   /* Simulated — honest-mock marking, dashed border */
   --simulated-bg: #fff4e5;

@@ -123,15 +123,15 @@ Dates: `5 Oct 2026, 14:32` (`en-CH`), times inside the countdown `14:32:10`. Rel
 ## 9. Global chrome
 
 ### DeviceBar (top of every client screen; also on the desk)
-Full-width 28 px bar, `text-12` 600, letter-spacing 0.04em, ink background, white text — except Thief (`--danger-bar`). It exists so judges always know which browser profile they are looking at.
+Full-width 28 px bar, `text-12` 600, letter-spacing 0.04em, white text. **Five personas, five tones** (Wave 2 audit): a judge must tell the bars apart from across the room. The persona label is for judges only — it is **never** sent to the bank as the device label (`getDeviceLabel()` returns a device-ish string such as `iPhone · new device`).
 
-| Persona (`?device=`) | String |
-|---|---|
-| `lea-phone` | `Lea · phone` |
-| `lea-laptop` | `Lea · laptop — Safety key` |
-| `lea-new-phone` | `Lea · new phone` |
-| `thief` | `Thief · stolen phone` (red bar) |
-| `desk` | `Swissquote desk (simulated)` |
+| Persona (`?device=`) | String | Bar |
+|---|---|---|
+| `lea-phone` | `Lea · phone` | `--ink` |
+| `lea-laptop` | `Lea · laptop — Safety key` | `--laptop-bar` (= ink-2) |
+| `lea-new-phone` | `Lea · new phone` | `--newphone-bar` (= ok green) |
+| `thief` | `Thief · stolen phone` | `--danger-bar` (red) |
+| `desk` | `Swissquote desk (simulated)` | `--ink` + 2 px `--accent` rule below |
 
 ### TestnetStrip (bottom of Home and Security; top of desk content)
 `Test network · Base Sepolia — nothing here is real money.` 12/16, `--ink-3`, hairline above, link `View on Basescan` (`ArrowSquareOut`).
@@ -141,6 +141,9 @@ Label `SIMULATED`. Tooltip/`title`: `Mocked for the prototype — see README`. P
 
 ### Demo caption (anywhere a waiting period is shown)
 `Waiting period accelerated for the demo: 3 min instead of 72 h.` — `text-12` `--ink-3`, below the ring or the timer.
+
+### CountdownRing rules (Wave 2)
+The exact finish time appears **once** per screen: in the title when there is one (`Access restores at 14:35:12`, then `showFinish={false}`), otherwise in the ring's own `Finishes at` line. Finished state: centre `00:00`, sub-label `doneLabel` — `Ready to finish` on the new phone, `Period over` on the owner's alert; never `Done`/`Finished` (the *period* is over, not the recovery).
 
 ### Loading / empty / error (every route)
 - Loading: `Skeleton` in the exact shape of the content (balance block = `kind="amount"`, lists = 3 × `kind="row"`); never a lone spinner. Buttons that wait show `loading` with their label unchanged.
@@ -445,17 +448,17 @@ Sheets:
 
 ### `/recover` — new phone (also the Thief’s path until identity fails)
 Stepper total 5: `Email · Identity · New key · Recoverers · Waiting period`.
-1. **Email** — title `Let’s get you back in` body `Enter the email on your Swissquote file. We’ll send a code.` TextField `Email`, [P] `Send code`; then TextField `6-digit code` + hint `Check /mock/inbox — email delivery is simulated.` + `SimulatedBadge`, [P] `Continue`. Error `That code doesn’t match.`
-2. **Identity** — title `Confirm it’s you` + `SimulatedBadge` eyebrow `swiyu e-ID check SIMULATED`. Body `Swissquote checks your identity before its recoverer may act. In production this is the Swiss e-ID (swiyu).` Fields `Name on ID`, `Date of birth`, Toggle `Liveness check passed` (prefilled). [P] `Submit identity check`. Status while desk decides: `StatusSequence` `Sent to Swissquote` done → `Being checked` active. Refused → `/refused`.
-3. **New key** — title `Create a key on this phone` body `This phone gets its own key. Nothing from the old phone is reused.` [P] `Create with Face ID / fingerprint`.
+1. **Email** — title `Let’s get you back in` body `Enter the email on your Swissquote file. We’ll send a code.` TextField `Email`, [P] `Send code`; then TextField `6-digit code` + hint `Email delivery is simulated — the code is in the demo inbox.` + `SimulatedBadge` + quiet link `Show inbox`, [P] `Continue`. Error `That code doesn’t match.`
+2. **Identity** — title `Confirm it’s you` + `SimulatedBadge` eyebrow `swiyu e-ID check SIMULATED`. Body `Swissquote checks your identity before its recoverer may act. In production this is the Swiss e-ID (swiyu).` Fields `Name on ID`, `Date of birth` (plain numeric TextField, placeholder `DD.MM.YYYY`, never the browser date picker), `Document number` (mono), Toggle `Liveness check passed` (prefilled). Footer quiet link `Open the e-ID stand-in` (no second badge). [P] `Submit identity check`. Status while desk decides: `StatusSequence` `Sent to Swissquote` done → `Being checked` active. Refused → `/refused`.
+3. **New key** — title `Create a key on this phone` body `This phone gets its own key. Nothing from the old phone is reused.` `KeyCard` preview `Phone key · This phone · Signs every transfer once access is restored` (pending). [P] `Create with Face ID / fingerprint`.
 4. **Recoverers** — title `Waiting for a second recoverer` body `Swissquote has confirmed. Swissquote cannot finish this alone — one more recoverer is needed.`
-   KeyCards: `Swissquote · Confirmed 14:30:12 · View on Basescan` (ok) · `Safety key · Open Keyline on Lea · laptop to confirm` (pending) · `Emergency card · Paste the key from your card` (pending) with TextField mono `Emergency card key` + [secondary] `Use Emergency card`.
+   KeyCards: `Swissquote · Swiss data centre · Confirmed 14:30:12 · View on Basescan` (ok) · `Safety key · Your laptop · Open Keyline on your laptop to confirm` (pending) · `Emergency card · On paper, with you · Paste the key printed on the card below` (pending) with TextField mono `Emergency card key` + [secondary] `Use Emergency card`. `where` and `can` never repeat each other; the persona label never appears in client copy.
    Secondary note: `Either your laptop or your Emergency card will do. You don’t need both.`
-5. **Waiting period** — title `Access restores at 14:35:12` `CountdownRing` size 200, inside `02:41` + `remaining`; below `Finishes at 14:35:12 · read from the chain`; caption `Waiting period accelerated for the demo: 3 min instead of 72 h.`; body `During this period the previous owner can still cancel. If nobody cancels, this phone becomes the only key.` Link `Watch on Basescan`. When done: title `Welcome back, Lea` body `This phone is now your only key. The old phone can no longer sign.` [P] `Go to my wallet`.
+5. **Waiting period** — title `Access restores at 14:35:12` `CountdownRing` size 200 (`showFinish={false}` — the title carries the time), inside `02:41` + `remaining`; caption `Waiting period accelerated for the demo: 3 min instead of 72 h.`; body `During this period the previous owner can still cancel. If nobody cancels, this phone becomes the only key.` Link `Watch on Basescan`. `read from the SocialRecoveryModule` only under `Technical details`. Period over: ring `00:00` + `Ready to finish`. When finalized: stepper label `Restored`, title `You’re back in, Lea` (not "Welcome back" — ban list) body `This phone is now your only key. The old phone can no longer sign.` Panel `Wallet` · `New key`; link `View the restore transaction on Basescan`; [P] `Go to my wallet`.
 - Error (bank unreachable) uses the global offline ErrorState. Error (module refuses): `ErrorState` `The recovery couldn’t start` / `The chain rejected the request. Nothing changed.`
 
 ### `/alerts` — Lea’s existing devices
-- Recovery started (danger Note + ring): title `Recovery started from a new device` body `Recovery started from a new phone in Zürich, 2 minutes ago. If nobody cancels, that device becomes the only key at 14:35:12.` `CountdownRing` size 120. [P danger] `Cancel recovery — it wasn’t me` · ghost `It was me`. After cancel: `Recovery cancelled. Your phone remains the only key.` + `View on Basescan`. Fraudster’s screen (`/recover` step 5) switches to `Recovery cancelled by the owner.` with `ErrorState` tone.
+- Recovery started (danger Note + ring): title `Was this you?` body `Recovery started from a new phone in Zürich, 2 minutes ago. If nobody cancels, that device becomes the only key at 14:35:12.` `CountdownRing` size 120, `doneLabel` `Period over`. [P danger] `Cancel recovery — it wasn’t me` · ghost `It was me`. Period over, not finalized: body `The waiting period ended at 14:35:12. The new phone can finish at any moment; you can still cancel until it does.` Finalized: the started Note disappears; only the finalized Note (`Access moved to a new phone`) remains, no cancel. Home shows a danger Note `Was this you?` + `Open alerts` while a started alert exists, and a `Bell` icon link in the top bar. After cancel: `Recovery cancelled. Your phone remains the only key.` + `View on Basescan`. Fraudster’s screen (`/recover` step 5) switches to `Recovery cancelled by the owner.` with `ErrorState` tone.
 - Recovery refused (info Note): title `Recovery attempt refused` body `Someone tried to recover this wallet from a device labelled “Thief · stolen phone” at 14:28. The identity check failed; Swissquote’s recoverer did not act. Nothing changed.` ghost `See event log`.
 - Empty: `EmptyState` `No alerts` / `Recovery attempts and large transfers appear here.`
 
@@ -466,27 +469,27 @@ Stepper total 5: `Email · Identity · New key · Recoverers · Waiting period`.
 │ The identity check failed. The owner  │
 │ has been notified.                    │
 │ Panel: Email code Passed · Identity check Failed SIMULATED · Swissquote recoverer Did not act
-│ Reasons: ID document name mismatch · liveness check failed
+│ Technical details ▸ (raw reasons, one per line)
 │ ghost: Back to start                  │  no primary
 ```
 
 ### `/desk` — Swissquote recovery desk (desktop, `DeskLayout`)
 Header (ink): `Swissquote · Recovery desk` + `SimulatedBadge` + operator `Operator: M. Keller` + `Sign out`. Footer: `This console cannot move client funds.` Legend (top-right): `Real` (solid ink square) `On-chain and signed` · `Simulated` (dashed square) `Mocked for the prototype`.
 - **Login**: title `Operator sign-in` body `Single sign-on is simulated for the prototype.` + badge; TextField `Operator token`; [P] `Sign in`; error `That token isn’t valid.`
-- **Queue** (left column 4/12): heading `Recovery requests`, filter chips `Open · Refused · Finished`; rows: `Lea Keller · SQ-48213-LK` / `Awaiting recoverers · 2 min ago` status chips: `identity-pending → Identity check` (pending) · `identity-refused → Refused` (danger) · `awaiting-guardians → Waiting for a 2nd recoverer` (pending) · `executed-waiting → Waiting period` (pending) · `finalized → Finished` (ok) · `cancelled → Cancelled by owner` (ink-2). Empty: `No recovery requests` / `New requests appear here within a few seconds.`
+- **Queue** (left column 4/12): heading `Recovery requests`, filter chips `Open · Refused · Finished` (selected chip = solid ink via `aria-selected`; the id `#48A7BE` is mono ink-2, never a status colour; the `Waiting for` fragment is omitted when it equals the status chip); rows: `Lea Keller · SQ-48213-LK` / `Awaiting recoverers · 2 min ago` status chips: `identity-pending → Identity check` (pending) · `identity-refused → Refused` (danger) · `awaiting-guardians → Waiting for a 2nd recoverer` (pending) · `executed-waiting → Waiting period` (pending) · `finalized → Finished` (ok) · `cancelled → Cancelled by owner` (ink-2). Empty: `No recovery requests` / `New requests appear here within a few seconds.`
 - **Request detail** (right 8/12): title `Lea Keller — recovery #R-2041`; eyebrow `Requested from Lea · new phone · Zürich · 5 Oct 2026, 14:28`.
-  Section `Identity signals` + badge: rows `Email code Passed` · `ID document Name matches` / `Name mismatch` · `Liveness Passed` / `Failed` · `Verdict Pass, signed by the bank` / `Fail`.
-  Section `Recoverer confirmations` (Real): rows `Swissquote Confirmed 14:30:12 · tx 0x9c…41 ↗` · `Safety key Pending` · `Emergency card Not used`.
+  Section `Identity signals` + badge: rows `Email code Passed` · `ID document Name matches` / `Name mismatch` · `Liveness Passed` / `Failed` · `Verdict Pass, signed by the bank` / `Fail` / after an override `Overridden by operator (demo)` (pending tone; the original failed rows stay) + row `Operator M. Keller · 14:31`. Raw signal strings only under `Technical details`. `Back to queue` flush-left.
+  Section `Recoverer confirmations` (Real): rows `Swissquote Confirmed 14:30:12 · tx 0x9c…41 ↗` · `Safety key Pending` · `Emergency card Not used`; footnote `2 of 2 confirmations`.
   Section `On-chain timer` (Real): `Waiting period ends 14:35:12` + small `CountdownRing` 64 + `read from the SocialRecoveryModule`. Not started: `No waiting period yet — the request has 1 of 2 confirmations.`
   Actions: [P] `Approve identity` · secondary `Refuse` (requires note) · danger-text ghost `Override (demo: assume the bank was fooled)` with confirm sheet `Override the identity check?` body `This instructs Swissquote’s recoverer to confirm although the check failed. It demonstrates that one recoverer is never enough.` buttons `Override` (danger) · `Keep refused`. After override: `Note` `Swissquote confirmed. Status stays “Waiting for a 2nd recoverer” — Swissquote cannot finish this alone.`
   Finalize appears only when the timer is done: secondary `Finish recovery` (fee paid by Swissquote).
 - **Audit log** (full width, below): heading `Audit log · append-only`; table `Time · Service · Event · Who`; rows mono time; empty `No events yet`.
 
 ### `/mock/inbox` — `SimulatedBadge` in title
-Title `Inbox · lea.keller@example.ch` + badge. Body `Email delivery is simulated. Codes sent by Keyline appear here.` Rows: `Keyline · Your recovery code is 482137 · 14:28`. Empty `No messages`.
+Title `Inbox` + badge, lead `lea.keller@example.ch`. Body `Email delivery is simulated. Codes sent by Keyline appear here.` Rows: `Keyline · Your recovery code is 482137 · 14:28`. Empty `No messages`.
 
 ### `/mock/eid` — `SimulatedBadge` in title
-Title `swiyu e-ID check` + badge. Body `Stand-in for the Swiss e-ID (live 1 Dec 2026). Persona rules: a device labelled “Thief” or a name that doesn’t match the client fails.` Fields `Name on ID`, `Date of birth`, Toggle `Liveness check passed`. [P] `Submit`. Result Note `Verdict: pass` / `Verdict: fail — ID document name mismatch, liveness check failed`.
+Title `swiyu e-ID check` + badge. Body `Stand-in for the Swiss e-ID (live 1 Dec 2026). A name that doesn’t match the client, or a failed liveness check, fails.` (The device label is never an identity signal — the Thief fails because the name on the ID is not the client's.) Fields `Name on ID`, `Date of birth`, Toggle `Liveness check passed`. [P] `Submit`. Result Note `Verdict: pass` / `Verdict: fail — ID document name mismatch, liveness check failed`.
 
 ## 11. Review checklist (design-system audits every screen against this)
 
@@ -822,6 +825,91 @@ export const copy = {
     eidSubmit: 'Submit', eidPass: 'Verdict: pass', eidFail: (reasons: string) => `Verdict: fail — ${reasons}`,
   },
 } as const;
+```
+
+### Appendix A.2 — Wave 2 additions (merge into the objects above; replaces the `copyGaps` block in `copy.ts`)
+
+```ts
+// demo
+demo: { city: 'Zürich' },
+// home
+home: { restoredRow: 'Access restored on this phone' },
+// recover
+recover: {
+  codeHint: 'Email delivery is simulated — the code is in the demo inbox.',
+  idDobPlaceholder: 'DD.MM.YYYY',
+  openEid: 'Open the e-ID stand-in',
+  keyWhere: 'This phone', keyCan: 'Signs every transfer once access is restored',
+  keyDone: 'Key created on this phone.',
+  emailUnknown: 'That email isn’t on a Swissquote file with a Keyline.',
+  docNumber: 'Document number',
+  recSafety: 'Your laptop', recSafetyCan: 'Open Keyline on your laptop to confirm',
+  recCard: 'On paper, with you', recCardCan: 'Paste the key printed on the card below',
+  sqHeld: 'Signature held by Swissquote — relayed with the second one',
+  cardInvalid: 'That doesn’t look like an Emergency card key.',
+  cardNotGuardian: 'This key is not one of the wallet’s recoverers.',
+  noPending: 'No recovery in progress on this phone.', startOver: 'Start over',
+  walletLabel: 'Wallet being restored', newKey: 'New key',
+  ready: 'Ready to finish',
+  restoredLabel: 'Restored',
+  welcome: 'You’re back in, Lea',
+  viewRestoreTx: 'View the restore transaction on Basescan',
+  cancelledBody: 'Your old phone cancelled this recovery. Nothing changed on the wallet.',
+},
+// approve
+approve: {
+  recoveryTitle: 'Restore access on a new phone?',
+  recoveryBody: 'A new phone asked to become the only key of this wallet. Confirm only if this is you.',
+  confirmedTitle: 'Confirmed on this laptop',
+  recoveryConfirmed: 'Confirmed. The waiting period starts once Swissquote’s signature is relayed with yours.',
+  waitingBody: (t: string) => `The waiting period has started. It ends at ${t}.`,
+  recoveryRefused: 'Not confirmed. Nothing changed; the new phone stays locked out.',
+  noSafetyKey: 'This laptop holds no Safety key. Pair it first.', pairLink: 'Pair this laptop',
+  requested: 'Requested', signingTitle: 'What you sign',
+},
+// alerts
+alerts: {
+  startedTitle: 'Was this you?',
+  open: 'Open alerts',
+  periodOver: 'Period over',
+  periodOverBody: (t: string) => `The waiting period ended at ${t}. The new phone can finish at any moment; you can still cancel until it does.`,
+  cancelSequence: ['Signed', 'Sent', 'In block', 'Cancelled'],
+  cancelledTitle: 'Recovery cancelled',
+  finalizedTitle: 'Access moved to a new phone',
+  noWallet: 'No wallet on this device.',
+},
+// desk
+desk: {
+  navQueue: 'Queue', navAudit: 'Audit log', operatorName: 'M. Keller',
+  client: 'Client', device: 'Device', status: 'Status', waitingFor: 'Waiting for', age: 'Age',
+  waitingForValues: { identity: 'Identity check', operator: 'Operator decision', 'second-recoverer': 'Second recoverer', 'grace-period': 'Waiting period' },
+  kinds: { 'safety-key': 'Safety key', 'emergency-card': 'Emergency card', swissquote: 'Swissquote', partner: 'Partner' },
+  sigValues: { verdictOverridden: 'Overridden by operator (demo)' }, operatorRow: 'Operator',
+  confOf: (have: number, need: number) => `${have} of ${need} confirmations`,
+  newOwner: 'New key (signer)', wallet: 'Wallet', reasons: 'Reasons', refusals: 'Recoverer refusals',
+  heldSignature: 'Signature held by Swissquote', relayedTx: 'Relayed', noteField: 'Note', actionDone: 'Recorded.',
+  back: 'Back to queue', sources: 'Feeds', unreachable: 'unreachable', openDetail: 'Open', signedOut: 'Signed out.',
+  notFound: 'This request is not in the queue.',
+},
+// mock
+mock: {
+  inboxShort: 'Inbox', inboxEmail: 'Email', inboxShow: 'Show inbox',
+  eidBody: 'Stand-in for the Swiss e-ID (live 1 Dec 2026). A name that doesn’t match the client, or a failed liveness check, fails.',
+  eidIssued: (issuer: string) => `Issued by ${issuer} — forward it from the recovery screen.`,
+  eidBack: 'Back to recovery',
+  eidNote: 'The verdict is computed by Swissquote when the recovery screen submits this form; this page only shows what the simulated issuer returns.',
+},
+// security
+security: {
+  protectedLine: 'Protected · 2 of 3 recoverers',
+  pendingWallet: 'Wallet not deployed yet — finish onboarding.',
+  attestationNone: 'No proof yet. Finish onboarding step 6 to sign one.',
+  proofCopied: 'Proof copied', verifiedAt: 'Verified', method: 'Method',
+  proof: { methodValue: 'Signed by your wallet' },
+  limitsNewAddress: 'First transfer to a new address, or above CHF 10’000',
+  exportLater: 'Available in the next step of the prototype',
+  eventFallback: (type: string) => type.replace(/[.-]/g, ' '),
+},
 ```
 
 ## Appendix B — Implementation notes for engineers

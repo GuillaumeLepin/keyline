@@ -72,7 +72,9 @@
   border-radius: var(--radius-control);
   padding: var(--space-3);
   overflow-x: auto;
-  white-space: pre;
+  /* Hashes, proofs and raw error bodies wrap instead of being clipped at 390 px (audit W2). */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--ink);
 }
 
@@ -704,6 +706,15 @@
 .kl-panel__value--em {
   font-weight: 600;
 }
+/* A row whose value is an <Address> stacks label over value, flush-left, so the actions never wrap into a ragged right column. */
+.kl-panel__row:has(.kl-addr) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+.kl-panel__row:has(.kl-addr) .kl-panel__value {
+  text-align: left;
+}
 .kl-panel__value--danger {
   color: var(--danger);
   font-weight: 600;
@@ -1161,6 +1172,16 @@
 }
 .kl-devicebar--danger {
   background: var(--danger-bar);
+}
+/* Five personas, five bars: phone = ink, laptop = ink-2, new phone = ok green, thief = red, desk = ink + accent rule. */
+.kl-devicebar--laptop {
+  background: var(--laptop-bar);
+}
+.kl-devicebar--new {
+  background: var(--newphone-bar);
+}
+.kl-devicebar--desk {
+  border-bottom: 2px solid var(--accent);
 }
 
 /* ---------- PhoneFrame ---------- */
@@ -1705,6 +1726,12 @@
 }
 .kl-chip--neutral {
   color: var(--ink-2);
+}
+/* Filter chips: the selected one is solid ink, the others outlined (desk queue). */
+.kl-chip[aria-selected="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--on-ink);
 }
 
 .kl-sheet__backdrop {
