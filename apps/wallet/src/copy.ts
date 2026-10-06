@@ -33,6 +33,13 @@ export const copy = {
       'Your keys and your money are unaffected. The bank service answers policy checks and pays network fees; try again in a moment.',
     cantUndo: 'This can’t be undone.',
     networkFeePaid: 'Paid by Swissquote',
+    errorBody: 'Nothing was changed. Try again in a moment.',
+    notAvailableTitle: 'Not available yet',
+    notAvailableBody: 'Swissquote is still switching this on. Nothing was changed — try again in a moment.',
+    comingSoonTitle: 'Coming in the next step',
+    comingSoonBody: 'This screen is built in the next wave of the prototype.',
+    policyRefused: 'Swissquote’s policy check didn’t approve this. Nothing was sent.',
+    pending: 'Pending',
   },
   onboarding: {
     stepLabel: (n: number, total: number, title: string) => `Step ${n} of ${total} · ${title}`,
@@ -129,6 +136,8 @@ export const copy = {
       doneTitle: 'Ownership proven — Travel Rule check done.',
       doneBody: 'Deposits from your Swissquote account are accepted instantly.',
       goHome: 'Go to my wallet',
+      skip: 'Skip for now',
+      retry: 'Sign again',
     },
   },
   pair: {
@@ -142,6 +151,7 @@ export const copy = {
     note: 'Prototype: a software key in this browser. In production this is a hardware key.',
     success: 'Paired. This laptop now holds Lea’s Safety key.',
     wrongCode: 'That code doesn’t match. Check the phone and try again.',
+    pairedHere: 'Paired on this laptop',
   },
   home: {
     balance: 'Balance',
@@ -164,6 +174,13 @@ export const copy = {
       'Sending is not possible from here. If this is your phone and you lost access, start a recovery.',
     lostPhone: 'I lost my phone',
     status: { confirmed: 'Confirmed', sent: 'Sent', failed: 'Failed' },
+    receiveTitle: 'Receive',
+    noWalletTitle: 'No Keyline on this device yet',
+    noWalletBody: 'Create a wallet or sign in with the phone key that owns it.',
+    createWallet: 'Create a Keyline',
+    signIn: 'Sign in',
+    signInTitle: 'Sign in with your phone key',
+    signInBody: 'Your Face ID or fingerprint unlocks the key that stays on this phone.',
   },
   send: {
     title: 'Send',
@@ -180,6 +197,9 @@ export const copy = {
     errAmount: 'Enter an amount',
     errFunds: (usdc: string) => `Not enough USDC. You have ${usdc}.`,
     errAddress: 'This doesn’t look like a Base address.',
+    recipient: 'Recipient',
+    pasteAddress: 'Paste an address',
+    indicativeRate: 'indicative rate',
   },
   review: {
     title: 'Review',
@@ -216,6 +236,8 @@ export const copy = {
     expiredBody: 'Policy approvals last 5 minutes. Review the transfer again.',
     reviewAgain: 'Review again',
     passkeyCancelled: 'Face ID was cancelled. Nothing was sent.',
+    missingTitle: 'Nothing to review',
+    missingBody: 'Choose a recipient and an amount first.',
   },
   approve: {
     title: (chf: string, name: string) => `Approve ${chf} to ${name}?`,
@@ -236,6 +258,8 @@ export const copy = {
     networkName: 'Base Sepolia',
     failedStep: 'Not accepted by the network',
     failedBody: 'Nothing was sent. Your balance is unchanged.',
+    notFoundTitle: 'Transfer not found',
+    notFoundBody: 'This device has no record of that transfer.',
   },
   dapps: {
     title: 'Apps',
@@ -366,6 +390,7 @@ export const copy = {
     laptopRefuse: 'Not me — refuse',
   },
   alerts: {
+    title: 'Alerts',
     startedTitle: 'Recovery started from a new device',
     startedBody: (where: string, ago: string, t: string) =>
       `Recovery started from a new phone in ${where}, ${ago}. If nobody cancels, that device becomes the only key at ${t}.`,
@@ -467,33 +492,95 @@ export const copy = {
 } as const;
 
 /**
- * Strings the Wave-1 screens need that DESIGN.md Appendix A does not yet contain. They were requested by the
- * orchestrator (ErrorState "Not available yet", stub routes) or are unavoidable UI labels. Listed in the
- * wallet-client report so the design-system agent can add them to DESIGN.md; this block is deleted once they land.
+ * Wave-2 strings the recovery / desk / mock screens need that DESIGN.md Appendix A does not yet contain.
+ * Listed in the wallet-client report so design-system can add them to DESIGN.md; the block is deleted once they land.
  */
 export const copyGaps = {
-  notAvailableTitle: 'Not available yet',
-  notAvailableBody: 'Swissquote is still switching this on. Nothing was changed — try again in a moment.',
-  comingSoonTitle: 'Coming in the next step',
-  comingSoonBody: 'This screen is built in the next wave of the prototype.',
-  signIn: 'Sign in',
-  signInTitle: 'Sign in with your phone key',
-  signInBody: 'Your Face ID or fingerprint unlocks the key that stays on this phone.',
-  noWalletTitle: 'No Keyline on this device yet',
-  noWalletBody: 'Create a wallet or sign in with the phone key that owns it.',
-  createWallet: 'Create a Keyline',
-  pairedOnLaptop: 'Paired on this laptop',
-  receiveTitle: 'Receive',
-  recipientLabel: 'Recipient',
-  pasteAddress: 'Paste an address',
-  reviewMissingTitle: 'Nothing to review',
-  reviewMissingBody: 'Choose a recipient and an amount first.',
-  simulatedRate: 'indicative rate',
-  statusInBlock: 'In block',
-  activityNotFoundTitle: 'Transfer not found',
-  activityNotFoundBody: 'This device has no record of that transfer.',
-  guardianPending: 'Pending',
-  skipProof: 'Skip for now',
-  keyPhone: 'Phone key',
-  retryAttestation: 'Sign again',
+  recover: {
+    /** The bank issues the email code when the recovery is created, so the new key must exist first. */
+    emailUnknown: 'That email isn’t on a Swissquote file with a Keyline.',
+    docNumber: 'Document number',
+    keyDone: 'Key created on this phone.',
+    sqHeld: 'Signature held by Swissquote — relayed with the second one',
+    cardInvalid: 'That doesn’t look like an Emergency card key.',
+    cardNotGuardian: 'This key is not one of the wallet’s recoverers.',
+    laptopOption: 'Confirm on your laptop',
+    cardOption: 'Paste your Emergency card',
+    noPending: 'No recovery in progress on this phone.',
+    startOver: 'Start over',
+    walletLabel: 'Wallet being restored',
+    cancelledBody: 'Your old phone cancelled this recovery. Nothing changed on the wallet.',
+  },
+  approve: {
+    recoveryTitle: 'Restore access on a new phone?',
+    recoveryBody: 'A new phone asked to become the only key of this wallet. Confirm only if this is you.',
+    recoveryConfirmed:
+      'Confirmed. The waiting period starts once Swissquote’s signature is relayed with yours.',
+    recoveryRefused: 'Not confirmed. Nothing changed; the new phone stays locked out.',
+    noSafetyKey: 'This laptop holds no Safety key. Pair it first.',
+    pairLink: 'Pair this laptop',
+    newKey: 'New key',
+    requested: 'Requested',
+    signingTitle: 'What you sign',
+  },
+  alerts: {
+    cancelSequence: ['Signed', 'Sent', 'In block', 'Cancelled'],
+    finalizedTitle: 'Recovery finished',
+    cancelledTitle: 'Recovery cancelled',
+    noWallet: 'No wallet on this device.',
+  },
+  desk: {
+    navQueue: 'Queue',
+    navAudit: 'Audit log',
+    operatorName: 'M. Keller',
+    client: 'Client',
+    device: 'Device',
+    status: 'Status',
+    waitingFor: 'Waiting for',
+    age: 'Age',
+    waitingForValues: {
+      identity: 'Identity check',
+      operator: 'Operator decision',
+      'second-recoverer': 'Second recoverer',
+      'grace-period': 'Waiting period',
+    },
+    kinds: {
+      'safety-key': 'Safety key',
+      'emergency-card': 'Emergency card',
+      swissquote: 'Swissquote',
+      partner: 'Partner',
+    },
+    newOwner: 'New key (signer)',
+    wallet: 'Wallet',
+    reasons: 'Reasons',
+    refusals: 'Recoverer refusals',
+    heldSignature: 'Signature held by Swissquote',
+    relayedTx: 'Relayed',
+    noteField: 'Note',
+    actionDone: 'Recorded.',
+    back: 'Back to queue',
+    sources: 'Feeds',
+    unreachable: 'unreachable',
+    openDetail: 'Open',
+    signedOut: 'Signed out.',
+    notFound: 'This request is not in the queue.',
+  },
+  mock: {
+    inboxEmail: 'Email',
+    inboxShow: 'Show inbox',
+    eidIssued: (issuer: string) => `Issued by ${issuer} — forward it from the recovery screen.`,
+    eidBack: 'Back to recovery',
+    eidNote:
+      'The verdict is computed by Swissquote when the recovery screen submits this form; this page only shows what the simulated issuer returns.',
+  },
+  security: {
+    protectedLine: 'Protected · 2 of 3 recoverers',
+    pendingWallet: 'Wallet not deployed yet — finish onboarding.',
+    attestationNone: 'No proof yet. Finish onboarding step 6 to sign one.',
+    proofCopied: 'Proof copied',
+    verifiedAt: 'Verified',
+    method: 'Method',
+    exportLater: 'Available in the next step of the prototype',
+    eventFallback: (type: string) => type.replace(/[.-]/g, ' '),
+  },
 } as const;

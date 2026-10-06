@@ -3,6 +3,7 @@
 // can show "Not available yet" instead of crashing (SPEC §4, services/bank/README.md).
 import {
   type AddGuardianBody,
+  AlertsResponseSchema,
   ApiErrorSchema,
   type AttestationBody,
   AttestationChallengeResponseSchema,
@@ -10,21 +11,31 @@ import {
   AttestationSchema,
   type ClaimPairingBody,
   ContactSchema,
+  type CreateRecoveryBody,
   type CreateWalletBody,
   CreateWalletResponseSchema,
   DappSchema,
+  DeskQueueResponseSchema,
+  EidResponseSchema,
   EventsResponseSchema,
   GuardianSchema,
   GuardiansResponseSchema,
   HealthSchema,
+  InboxResponseSchema,
   type LoginVerifyBody,
   LoginVerifyResponseSchema,
   MeResponseSchema,
+  type MockEidBody,
   NotImplementedSchema,
+  type OperatorActionBody,
   PairingSchema,
   PasskeySchema,
   PolicyDecisionSchema,
   type PolicyRequest,
+  type RecoveryConfirmBody,
+  type RecoveryIdentityBody,
+  RecoveryRequestSchema,
+  RecoveryTypedDataResponseSchema,
   type RegisterVerifyBody,
   RegisterVerifyResponseSchema,
   type SendUserOpBody,
@@ -89,10 +100,12 @@ async function request<T>(
   path: string,
   schema: z.ZodType<T>,
   body?: unknown,
+  extraHeaders: Record<string, string> = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'X-Device-Label': headerSafe(getDeviceLabel()),
+    ...extraHeaders,
   };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   let response: Response;
@@ -217,5 +230,38 @@ export const api = {
 
   topups: {
     create: (body: TopupBody) => request('POST', '/topups', TopupResponseSchema, body),
+  },
+
+  // ---- F3 / F4 recovery (bank orchestrates; the client only signs with its own recoverers) ----
+  recoveries: {
+    create: (body: CreateRecoveryBody) => request('POST', '/recoveries', RecoveryRequestSchema, body),
+    get: (id: string) => request('GET', `/recoveries/${id}`, RecoveryRequestSchema),
+    identity: (id: string, body: RecoveryIdentityBody) =>
+      request('POST', `/recoveries/${id}/identity`, RecoveryRequestSchema, body),
+    confirm: (id: string, body: RecoveryConfirmBody) =>
+      request('POST', `/recoveries/${id}/confirm`, RecoveryRequestSchema, body),
+    typedData: (id: string) =>
+      request('GET', `/recoveries/${id}/typed-data`, RecoveryTypedDataResponseSchema),
+  },
+
+  alerts: async (address: string) =>
+    (await request('GET', `/wallets/${address}/alerts`, AlertsResponseSchema)).alerts,
+
+  mock: {
+    inbox: async (email: string) =>
+      (await request('GET', `/mock/inbox/${encodeURIComponent(email)}`, InboxResponseSchema)).messages,
+    eid: (body: MockEidBody) => request('POST', '/mock/eid', EidResponseSchema, body),
+  },
+
+  /** Operator console. The token lives in sessionStorage on the desk profile and is sent as `X-Operator-Token`. */
+  desk: {
+    queue: (token: string) =>
+      request('GET', '/desk/queue', DeskQueueResponseSchema, undefined, { 'X-Operator-Token': token }),
+    events: (token: string) =>
+      request('GET', '/desk/events', EventsResponseSchema, undefined, { 'X-Operator-Token': token }),
+    operator: (token: string, id: string, body: OperatorActionBody) =>
+      request('POST', `/recoveries/${id}/operator`, RecoveryRequestSchema, body, {
+        'X-Operator-Token': token,
+      }),
   },
 } as const;

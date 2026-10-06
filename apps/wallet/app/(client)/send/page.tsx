@@ -2,6 +2,7 @@
 
 import type { Contact } from '@keyline/shared';
 import {
+  Address,
   AmountField,
   Button,
   formatCHF,
@@ -19,8 +20,9 @@ import { useMemo, useState } from 'react';
 import { getAddress, isAddress } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { env } from '@/src/env';
+import { addressUrl } from '@/src/lib/chain';
 import { useContacts, useLocalWallet, useUsdcBalance } from '@/src/lib/hooks';
 import { pendingSendStore } from '@/src/lib/storage';
 
@@ -92,9 +94,11 @@ export default function SendPage() {
           suffix={picked ? <CheckCircle size={20} aria-hidden="true" /> : undefined}
         />
         {picked ? (
-          <p className="text-12 text-ink-3">
-            {copyGaps.recipientLabel}: {shortAddress(picked.address)}
-          </p>
+          <Address
+            value={picked.address}
+            label={copy.send.recipient}
+            explorerUrl={addressUrl(picked.address)}
+          />
         ) : null}
         {!picked ? (
           <>
@@ -106,7 +110,7 @@ export default function SendPage() {
             ) : contacts.isError ? (
               <ApiErrorState
                 error={contacts.error}
-                body={copy.common.offlineBody}
+                body={copy.common.errorBody}
                 onRetry={() => contacts.refetch()}
               />
             ) : (
@@ -119,9 +123,18 @@ export default function SendPage() {
                         {c.label} {c.simulated ? <SimulatedBadge /> : null}
                       </>
                     }
-                    meta={shortAddress(c.address)}
-                    amount={c.verifiedOwnership ? copy.send.known : copy.send.newContact}
+                    meta={
+                      c.verifiedOwnership ? (
+                        <span className="kl-mono">{shortAddress(c.address)}</span>
+                      ) : (
+                        <>
+                          <span className="kl-mono">{shortAddress(c.address)}</span>
+                          <span> · {copy.send.newContact}</span>
+                        </>
+                      )
+                    }
                     status={c.verifiedOwnership ? 'ok' : undefined}
+                    statusWord={c.verifiedOwnership ? copy.send.known : undefined}
                     onClick={() => {
                       setPicked(c);
                       setQuery('');

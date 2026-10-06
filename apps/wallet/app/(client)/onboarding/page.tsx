@@ -28,7 +28,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Address as Addr, getAddress, type Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { env } from '@/src/env';
 import { api, isApiError } from '@/src/lib/api';
 import {
@@ -42,7 +42,7 @@ import {
   txUrl,
 } from '@/src/lib/chain';
 import { getDeviceLabel } from '@/src/lib/device';
-import { useLocalWallet } from '@/src/lib/hooks';
+import { useLocalWallet, useNow } from '@/src/lib/hooks';
 import {
   localWalletFromLogin,
   loginWithPasskey,
@@ -56,7 +56,12 @@ const TOTAL = 6;
 export default function OnboardingPage() {
   const router = useRouter();
   const { wallet, save, patch } = useLocalWallet();
-  if (wallet === undefined) {
+  const finished = wallet !== undefined && wallet !== null && wallet.onboardingStep > TOTAL;
+  // Navigating during render trips React's setState-in-render check (audit #5); redirect from an effect instead.
+  useEffect(() => {
+    if (finished) router.replace('/');
+  }, [finished, router]);
+  if (wallet === undefined || finished) {
     return (
       <>
         <Skeleton kind="line" count={2} />
@@ -65,10 +70,6 @@ export default function OnboardingPage() {
     );
   }
   const step = wallet ? Math.min(wallet.onboardingStep, TOTAL) : 1;
-  if (wallet && wallet.onboardingStep > TOTAL) {
-    router.replace('/');
-    return null;
-  }
   const go = (next: number, extra: Partial<LocalWallet> = {}) => patch({ ...extra, onboardingStep: next });
 
   switch (step) {
@@ -164,7 +165,7 @@ function Step1({ onCreated }: { onCreated: (wallet: LocalWallet) => void }) {
       {cancelled ? <Note tone="warn">{s.cancelled}</Note> : null}
       {unsupported ? <ErrorState title={s.unsupportedTitle} body={s.unsupportedBody} /> : null}
       {error && !cancelled && !unsupported ? (
-        <ApiErrorState error={error} body={copy.onboarding.s5.errorBody} onRetry={() => create.mutate()} />
+        <ApiErrorState error={error} body={copy.common.errorBody} onRetry={() => create.mutate()} />
       ) : null}
       <div className="kl-actions">
         <Button variant="primary" full loading={create.isPending} onClick={() => create.mutate()}>
@@ -184,6 +185,11 @@ function Step1({ onCreated }: { onCreated: (wallet: LocalWallet) => void }) {
 
 function Step2({ wallet, onNext }: { wallet: LocalWallet; onNext: (safetyKey?: Addr) => void }) {
   const s = copy.onboarding.s2;
+  // The laptop opens the same origin as the phone (qa-demo runs the stack on other ports); never hard-code it.
+  const [pairUrl, setPairUrl] = useState<string>(env.pairUrl);
+  useEffect(() => {
+    setPairUrl(`${window.location.host}/pair`);
+  }, []);
   const [attempt, setAttempt] = useState(0);
   const pairing = useQuery({
     queryKey: ['pairing', wallet.address, attempt],
@@ -211,7 +217,7 @@ function Step2({ wallet, onNext }: { wallet: LocalWallet; onNext: (safetyKey?: A
       <Stepper current={2} total={TOTAL} label={s.step} />
       <div className="kl-stack">
         <h1 className="kl-title">{s.title}</h1>
-        <p className="kl-lead">{s.body(env.pairUrl)}</p>
+        <p className="kl-lead">{s.body(pairUrl)}</p>
       </div>
 
       {pairing.isPending ? (
@@ -219,33 +225,34 @@ function Step2({ wallet, onNext }: { wallet: LocalWallet; onNext: (safetyKey?: A
       ) : pairing.isError ? (
         <ApiErrorState
           error={pairing.error}
-          body={copy.common.offlineBody}
+          body={copy.common.errorBody}
           onRetry={() => setAttempt((a) => a + 1)}
         />
-      ) : (
+      ) : claimed ? null : (
         <div className="kl-stack kl-stack--tight items-center text-center">
           <p className="kl-pairing-code">
             {pairing.data.code.slice(0, 3)} {pairing.data.code.slice(3)}
           </p>
           {expired ? (
             <>
-              <p className="text-12 text-ink-3">{s.expired}</p>
+              <p className="text-12 text-ink-3">
+                {s.expired} <SimulatedBadge />
+              </p>
               <Button variant="secondary" size="sm" onClick={() => setAttempt((a) => a + 1)}>
                 {s.newCode}
               </Button>
             </>
           ) : (
-            <p className="text-12 text-ink-3">{s.expiresIn(formatDuration(remaining))}</p>
+            <p className="text-12 text-ink-3">
+              {s.expiresIn(formatDuration(remaining))} <SimulatedBadge />
+            </p>
           )}
-          <p className="text-12 text-ink-3">
-            <SimulatedBadge />
-          </p>
         </div>
       )}
 
       <KeyCard
         name={s.keyName}
-        where={claimed ? s.keyWhere : s.waiting}
+        where={s.keyWhere}
         can={s.keyCan}
         cannot={s.keyCannot}
         icon={<Key size={20} aria-hidden="true" />}
@@ -282,16 +289,6 @@ function Step2({ wallet, onNext }: { wallet: LocalWallet; onNext: (safetyKey?: A
       </div>
     </>
   );
-}
-
-function useNow(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [active]);
-  return now;
 }
 
 /* ------------------------------------------------------------------------------------------------------------ */
@@ -340,7 +337,7 @@ function Step3({ wallet, onNext }: { wallet: LocalWallet; onNext: (address: Addr
       {register.isError ? (
         <ApiErrorState
           error={register.error}
-          body={copy.common.offlineBody}
+          body={copy.common.errorBody}
           onRetry={() => card && register.mutate(card.address)}
         />
       ) : null}
@@ -352,7 +349,7 @@ function Step3({ wallet, onNext }: { wallet: LocalWallet; onNext: (address: Addr
           setCardKey((k) => k + 1);
         }}
       >
-        <div className="kl-stack" style={{ gap: 'var(--space-4)' }}>
+        <div className="kl-stack gap-4">
           <p className="kl-lead">{s.confirmBody}</p>
           <Button
             variant="primary"
@@ -412,7 +409,9 @@ function Step4({ wallet, onNext }: { wallet: LocalWallet; onNext: () => void }) 
           body={s.assistedBody}
           meta={
             <>
-              {s.assistedWait} <SimulatedBadge label={s.assistedPartner} /> · {s.assistedUnavailable}
+              <span>{s.assistedWait}</span>
+              <span>{s.assistedUnavailable}</span>
+              <SimulatedBadge label={s.assistedPartner} />
             </>
           }
           disabled
@@ -421,7 +420,7 @@ function Step4({ wallet, onNext }: { wallet: LocalWallet; onNext: () => void }) 
       {setRemote.isError ? (
         <ApiErrorState
           error={setRemote.error}
-          body={copy.common.offlineBody}
+          body={copy.common.errorBody}
           onRetry={() => setRemote.mutate()}
         />
       ) : null}
@@ -537,7 +536,7 @@ function Step5({
           <ul className="kl-stack kl-stack--tight list-none p-0 m-0">
             {s.protectedLines.map((line) => (
               <li key={line} className="flex items-start gap-2 text-16">
-                <span className="text-ok" style={{ flexShrink: 0, paddingTop: 2 }}>
+                <span className="text-ok shrink-0 pt-0.5">
                   <CheckCircle size={20} aria-hidden="true" />
                 </span>
                 {line}
@@ -593,8 +592,13 @@ function Step5({
                     ? 'cooling'
                     : 'step-up'
               }
-              reason={phase.decision.reasons.join(' · ')}
+              reason={copy.common.policyRefused}
             />
+          ) : null}
+          {phase.kind === 'refused' ? (
+            <Disclosure summary={copy.common.technicalDetails}>
+              <pre className="kl-code">{phase.decision.reasons.join('\n')}</pre>
+            </Disclosure>
           ) : null}
           {phase.kind === 'error' && phase.cancelled ? (
             <Note tone="warn">{copy.review.passkeyCancelled}</Note>
@@ -679,7 +683,14 @@ function Step6({ wallet, onDone }: { wallet: LocalWallet; onDone: (attested: boo
               label: s.rows.wallet,
               value: <Address value={wallet.address} explorerUrl={addressUrl(wallet.address)} />,
             },
-            { label: s.rows.client, value: sign.data.attestation.clientId },
+            {
+              label: s.rows.client,
+              value: (
+                <>
+                  {sign.data.attestation.clientId} <SimulatedBadge />
+                </>
+              ),
+            },
             { label: s.rows.validFor, value: copy.security.swissquote.name },
           ]}
         />
@@ -705,13 +716,20 @@ function Step6({ wallet, onDone }: { wallet: LocalWallet; onDone: (attested: boo
             label: s.rows.wallet,
             value: <Address value={wallet.address} explorerUrl={addressUrl(wallet.address)} />,
           },
-          { label: s.rows.client, value: env.clientId },
+          {
+            label: s.rows.client,
+            value: (
+              <>
+                {env.clientId} <SimulatedBadge />
+              </>
+            ),
+          },
           { label: s.rows.validFor, value: copy.security.swissquote.name },
         ]}
       />
       {cancelled ? <Note tone="warn">{copy.review.passkeyCancelled}</Note> : null}
       {sign.isError && !cancelled ? (
-        <ApiErrorState error={sign.error} body={copy.common.offlineBody} onRetry={() => sign.mutate()} />
+        <ApiErrorState error={sign.error} body={copy.common.errorBody} onRetry={() => sign.mutate()} />
       ) : null}
       <div className="kl-actions">
         <Button variant="primary" full loading={sign.isPending} onClick={() => sign.mutate()}>
@@ -719,7 +737,7 @@ function Step6({ wallet, onDone }: { wallet: LocalWallet; onDone: (attested: boo
         </Button>
         {sign.isError && isApiError(sign.error) && sign.error.notImplemented ? (
           <Button variant="ghost" full onClick={() => onDone(false)}>
-            {copyGaps.skipProof}
+            {copy.onboarding.s6.skip}
           </Button>
         ) : null}
       </div>

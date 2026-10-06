@@ -21,7 +21,7 @@ export const env = {
   demoFastMode: process.env.NEXT_PUBLIC_DEMO_FAST_MODE === 'true',
   /** SIMULATED static rate (SPEC §0): CHF per 1 USDC. */
   chfPerUsdc: 0.8,
-  /** Where the laptop pairs (DESIGN.md step 2 copy takes the URL as a parameter). */
+  /** Server-render fallback for the pairing sentence; the client replaces it with `window.location.host`. */
   pairUrl: 'localhost:3000/pair',
   clientId: 'SQ-48213-LK',
 } as const;

@@ -24,7 +24,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { env } from '@/src/env';
 import { api } from '@/src/lib/api';
 import { addressUrl, PasskeyCancelledError } from '@/src/lib/chain';
@@ -102,14 +102,14 @@ function NoWalletHome({ onLoggedIn }: { onLoggedIn: (wallet: LocalWallet) => voi
       <header className="kl-topbar">
         <h1 className="kl-topbar__title">{copy.brand}</h1>
       </header>
-      <EmptyState title={copyGaps.noWalletTitle} body={copyGaps.noWalletBody} />
+      <EmptyState title={copy.home.noWalletTitle} body={copy.home.noWalletBody} />
       {cancelled ? <Note tone="warn">{copy.onboarding.s1.cancelled}</Note> : null}
       {login.isError && !cancelled ? (
-        <ApiErrorState error={login.error} body={copy.common.offlineBody} onRetry={() => login.mutate()} />
+        <ApiErrorState error={login.error} body={copy.common.errorBody} onRetry={() => login.mutate()} />
       ) : null}
       <div className="kl-actions">
         <Button variant="primary" full href="/onboarding">
-          {copyGaps.createWallet}
+          {copy.home.createWallet}
         </Button>
         <Button variant="ghost" full loading={login.isPending} onClick={() => login.mutate()}>
           {copy.onboarding.s1.signIn}
@@ -164,15 +164,16 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
         ) : balance.isError ? (
           <ApiErrorState
             error={balance.error}
-            body={copy.common.offlineBody}
+            body={copy.common.errorBody}
             onRetry={() => balance.refetch()}
           />
         ) : (
           <>
-            <p className="kl-balance__amount">
-              {formatCHF(usdc * env.chfPerUsdc)} <SimulatedBadge />
-            </p>
+            <p className="kl-balance__amount">{formatCHF(usdc * env.chfPerUsdc)}</p>
             <p className="kl-balance__secondary">{formatUSDC(usdc)}</p>
+            <p className="text-12 text-ink-3">
+              {copy.send.rate(formatCHF(env.chfPerUsdc))} <SimulatedBadge />
+            </p>
           </>
         )}
         {wallet.status === 'deployed' ? (
@@ -182,7 +183,7 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
         ) : null}
       </section>
 
-      <div className="kl-actions kl-actions--row" style={{ marginTop: 0 }}>
+      <div className="kl-actions kl-actions--row mt-0">
         <Button variant="primary" href="/send" disabled={wallet.status !== 'deployed'}>
           {copy.home.send}
         </Button>
@@ -197,9 +198,6 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
       <section className="kl-stack" aria-label={copy.home.statement}>
         <div className="kl-section">
           <h2 className="kl-section__title">{copy.home.statement}</h2>
-          <Link href="/security" className="kl-link kl-link--quiet text-14">
-            {copy.home.all}
-          </Link>
         </div>
         {events.isPending && rows.length === 0 ? (
           <Skeleton kind="row" count={3} />
@@ -231,17 +229,13 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
           </div>
         )}
         {events.isError ? (
-          <ApiErrorState
-            error={events.error}
-            body={copy.common.offlineBody}
-            onRetry={() => events.refetch()}
-          />
+          <ApiErrorState error={events.error} body={copy.common.errorBody} onRetry={() => events.refetch()} />
         ) : null}
       </section>
 
       <TestnetStrip explorerUrl={addressUrl(wallet.address)} />
 
-      <Sheet open={sheet === 'receive'} title={copyGaps.receiveTitle} onClose={() => setSheet('none')}>
+      <Sheet open={sheet === 'receive'} title={copy.home.receiveTitle} onClose={() => setSheet('none')}>
         <div className="kl-stack">
           <Address value={wallet.address} expanded explorerUrl={addressUrl(wallet.address)} />
           <p className="text-14 text-ink-2">{copy.home.receiveNote}</p>
@@ -292,7 +286,7 @@ function TopUpForm({ wallet, onDone }: { wallet: LocalWallet; onDone: () => void
   }
 
   return (
-    <div className="kl-stack" style={{ gap: 'var(--space-4)' }}>
+    <div className="kl-stack gap-4">
       <AmountField value={chf} onChange={setChf} rate={env.chfPerUsdc} error={fieldError} />
       <Note tone="info">{copy.home.topUpNote}</Note>
       <p className="text-14 text-ink-2">
@@ -302,7 +296,7 @@ function TopUpForm({ wallet, onDone }: { wallet: LocalWallet; onDone: () => void
         <SimulatedBadge />
       </p>
       {topup.isError ? (
-        <ApiErrorState error={topup.error} body={copy.common.offlineBody} onRetry={submit} />
+        <ApiErrorState error={topup.error} body={copy.common.errorBody} onRetry={submit} />
       ) : null}
       <Button variant="primary" full loading={topup.isPending} onClick={submit}>
         {copy.home.topUp}

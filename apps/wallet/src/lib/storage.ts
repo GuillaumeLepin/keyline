@@ -195,3 +195,72 @@ export const safetyKeyStore = {
     }
   },
 };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Recovery in progress on this device (new phone / thief): the recovery id plus the NEW passkey's public material.
+// The wallet address comes from the bank's RecoveryRequest, never re-derived (DECISIONS #16).
+// ---------------------------------------------------------------------------------------------------------------
+
+export const PendingRecoverySchema = z.object({
+  recoveryId: z.string().min(1).optional(),
+  walletAddress: AddressSchema.optional(),
+  email: z.string().optional(),
+  newPasskey: z
+    .object({ credentialId: z.string().min(1), pubKeyX: HexSchema, pubKeyY: HexSchema })
+    .optional(),
+  /** Last status seen from the bank; the screens re-fetch, this only picks the step to resume at. */
+  status: z.string().optional(),
+  reasons: z.array(z.string()).default([]),
+  startedAt: z.string(),
+});
+export type PendingRecovery = z.infer<typeof PendingRecoverySchema>;
+
+const RECOVERY_KEY = 'keyline.recovery';
+
+export const recoveryStore = {
+  get: (): PendingRecovery | null => read(RECOVERY_KEY, PendingRecoverySchema),
+  set: (value: PendingRecovery): void => write(RECOVERY_KEY, value),
+  update: (patch: Partial<PendingRecovery>): PendingRecovery => {
+    const current = read(RECOVERY_KEY, PendingRecoverySchema) ?? {
+      reasons: [],
+      startedAt: new Date().toISOString(),
+    };
+    const next = { ...current, ...patch };
+    write(RECOVERY_KEY, next);
+    return next;
+  },
+  clear: (): void => {
+    if (typeof window !== 'undefined') window.localStorage.removeItem(RECOVERY_KEY);
+  },
+};
+
+// ---------------------------------------------------------------------------------------------------------------
+// Desk operator token — sessionStorage only (gone when the desk tab closes). Simulated SSO.
+// ---------------------------------------------------------------------------------------------------------------
+
+const DESK_TOKEN_KEY = 'keyline.desk.token';
+
+export const deskTokenStore = {
+  get: (): string | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return window.sessionStorage.getItem(DESK_TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  },
+  set: (token: string): void => {
+    try {
+      window.sessionStorage.setItem(DESK_TOKEN_KEY, token);
+    } catch {
+      // sessionStorage unavailable: the operator signs in again on the next page
+    }
+  },
+  clear: (): void => {
+    try {
+      window.sessionStorage.removeItem(DESK_TOKEN_KEY);
+    } catch {
+      // nothing to clear
+    }
+  },
+};

@@ -1,13 +1,13 @@
 'use client';
 
-import { Address, Button, KeyCard, Note, SimulatedBadge, Skeleton, TextField } from '@keyline/ui';
+import { Address, Button, KeyCard, Note, Skeleton, TextField } from '@keyline/ui';
 import { Key } from '@phosphor-icons/react/dist/ssr';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { getAddress } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { api, isApiError } from '@/src/lib/api';
 import { addressUrl } from '@/src/lib/chain';
 import { type SafetyKeyRecord, safetyKeyStore } from '@/src/lib/storage';
@@ -85,7 +85,7 @@ export default function PairPage() {
           {pair.isError && !wrongCode ? (
             <ApiErrorState
               error={pair.error}
-              body={copy.common.offlineBody}
+              body={copy.common.errorBody}
               onRetry={() => pair.mutate(code)}
             />
           ) : null}
@@ -112,10 +112,7 @@ export default function PairPage() {
           cannot={copy.pair.keyCannot}
           icon={<Key size={20} aria-hidden="true" />}
           status={existing ? 'active' : 'pending'}
-          statusWord={existing ? copyGaps.pairedOnLaptop : undefined}
-          nameTrailing={
-            <SimulatedBadge label={existing?.label ?? 'prototype: software key'} tooltip={copy.pair.note} />
-          }
+          statusWord={existing ? copy.pair.pairedHere : undefined}
           action={
             existing ? (
               <Address value={existing.address} explorerUrl={addressUrl(existing.address)} />

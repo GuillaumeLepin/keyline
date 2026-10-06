@@ -1,6 +1,6 @@
 import { ErrorState } from '@keyline/ui';
 import type { ReactNode } from 'react';
-import { copy, copyGaps } from '../copy';
+import { copy } from '../copy';
 import { errorDetail, isApiError } from '../lib/api';
 
 /**
@@ -25,8 +25,8 @@ export function ApiErrorState({
   if (isApiError(error) && error.notImplemented) {
     return (
       <ErrorState
-        title={copyGaps.notAvailableTitle}
-        body={copyGaps.notAvailableBody}
+        title={copy.common.notAvailableTitle}
+        body={copy.common.notAvailableBody}
         detail={detail}
         onRetry={onRetry}
         retryLabel={copy.common.tryAgain}

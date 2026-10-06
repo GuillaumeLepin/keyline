@@ -4,6 +4,7 @@
 import {
   attestationChallenge,
   attestationSignatureFromPasskey,
+  buildCancelRecoveryUserOp,
   buildCreateAndProtectUserOp,
   buildTransferUserOp,
   buildUserOp,
@@ -15,6 +16,11 @@ import {
   type MetaTransaction,
   type PasskeyAccount,
   type PasskeyPublicKey,
+  passkeySignerAddress,
+  type RecoveryStatus,
+  recovery,
+  recoveryNonce,
+  recoveryTypedData,
   safeOpHash,
   signUserOpWithPasskey,
   transferTransaction,
@@ -34,13 +40,15 @@ import {
   formatUnits,
   getAddress,
   type Hex,
+  hashTypedData,
   hexToBytes,
   http,
   parseUnits,
 } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import { env } from '../env';
-import { api } from './api';
+import { api, isApiError } from './api';
 import type { LocalWallet } from './storage';
 
 export const endpoints: ChainEndpoints = {
@@ -293,4 +301,92 @@ export async function signAttestation(
   });
   const assertion = await assertWithPasskey(challenge, wallet.credentialId);
   return attestationSignatureFromPasskey(assertion, ownerOf(wallet));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Recovery (SPEC F3/F4b): client recoverers sign the module's EIP-712 ExecuteRecovery hash with viem; the owner
+// cancels with a sponsored userOp from the Safe itself. Reads go straight to the SocialRecoveryModule.
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface RecoverySignature {
+  readonly guardianAddress: Address;
+  readonly signature: Hex;
+  readonly nonce: string;
+}
+
+/**
+ * Sign `ExecuteRecovery(wallet, [newOwnerProxy], 1, nonce)` with a secp256k1 key the client holds (Safety key from
+ * IndexedDB, or the Emergency card key pasted and dropped). The bank publishes the exact typed data it will relay
+ * (`GET /recoveries/:id/typed-data`); we recompute it with `@keyline/chain.recoveryTypedData` and refuse to sign if
+ * the two hashes differ — the recoverer only ever signs a request for THIS wallet and THIS new key. Without the bank
+ * endpoint (501) the module nonce is read from chain and the local typed data is signed.
+ */
+export async function signRecoveryConfirmation(input: {
+  privateKey: Hex;
+  recoveryId: string;
+  wallet: Address;
+  newOwnerProxy: Address;
+}): Promise<RecoverySignature> {
+  const account = privateKeyToAccount(input.privateKey);
+  let nonce: bigint;
+  let bankHash: Hex | undefined;
+  try {
+    const published = await api.recoveries.typedData(input.recoveryId);
+    nonce = BigInt(published.nonce);
+    bankHash = hashTypedData({
+      domain: {
+        ...published.typedData.domain,
+        verifyingContract: getAddress(published.typedData.domain.verifyingContract),
+      },
+      types: published.typedData.types,
+      primaryType: published.typedData.primaryType,
+      message: {
+        wallet: getAddress(published.typedData.message.wallet),
+        newOwners: published.typedData.message.newOwners.map((o) => getAddress(o)),
+        newThreshold: BigInt(published.typedData.message.newThreshold),
+        nonce: BigInt(published.typedData.message.nonce),
+      },
+    });
+  } catch (error) {
+    if (!(isApiError(error) && (error.notImplemented || error.status === 404))) throw error;
+    nonce = await recoveryNonce(publicClient, env.recoveryModule, getAddress(input.wallet));
+  }
+  const typedData = recoveryTypedData({
+    wallet: getAddress(input.wallet),
+    newOwners: [getAddress(input.newOwnerProxy)],
+    threshold: 1n,
+    nonce,
+    chainId: env.chainId,
+    module: env.recoveryModule,
+  });
+  const localHash = hashTypedData(typedData);
+  if (bankHash !== undefined && bankHash !== localHash) throw new RecoveryMismatchError(bankHash, localHash);
+  const signature = await account.signTypedData(typedData);
+  return { guardianAddress: account.address, signature, nonce: nonce.toString() };
+}
+
+/** The bank asked the recoverer to sign something other than a recovery of this wallet to this new key. */
+export class RecoveryMismatchError extends Error {
+  constructor(
+    readonly bankHash: Hex,
+    readonly localHash: Hex,
+  ) {
+    super('Recovery typed data from the bank does not match the local request');
+    this.name = 'RecoveryMismatchError';
+  }
+}
+
+/** Live module state for a wallet: pending request, `executeAfter`, approvals, guardian set. */
+export function readRecoveryStatus(wallet: Address): Promise<RecoveryStatus> {
+  return recovery.status(publicClient, env.recoveryModule, getAddress(wallet));
+}
+
+/** `cancelRecovery()` called by the Safe (owner veto during the waiting period); sponsored like every other op. */
+export function buildCancelOp(wallet: LocalWallet): Promise<ChainUserOp> {
+  return buildCancelRecoveryUserOp(accountFor(wallet), env.recoveryModule, endpoints);
+}
+
+/** The signer-proxy address a passkey would own the Safe through (cross-check against the bank's answer only). */
+export function signerProxyFor(pubKeyX: Hex, pubKeyY: Hex): Address {
+  return passkeySignerAddress({ x: BigInt(pubKeyX), y: BigInt(pubKeyY) });
 }

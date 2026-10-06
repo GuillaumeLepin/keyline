@@ -79,3 +79,38 @@ export function useWalletEvents(address: string | undefined) {
 export function useMe(enabled = true) {
   return useQuery({ queryKey: ['me'], queryFn: api.me, enabled, retry: false });
 }
+
+/** A ticking clock (1 s) for countdowns and "expires in" lines; `active=false` freezes it. */
+export function useNow(active = true): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [active]);
+  return now;
+}
+
+/** Polls one recovery request from the bank (3 s) until it reaches a terminal state. */
+export function useRecovery(id: string | undefined, pollMs = 3_000) {
+  return useQuery({
+    queryKey: ['recovery', id],
+    queryFn: () => api.recoveries.get(id as string),
+    enabled: Boolean(id),
+    retry: false,
+    refetchInterval: (q) => {
+      const s = q.state.data?.status;
+      return s === 'finalized' || s === 'cancelled' || s === 'identity-refused' ? false : pollMs;
+    },
+  });
+}
+
+export function useAlerts(address: string | undefined) {
+  return useQuery({
+    queryKey: ['alerts', address],
+    queryFn: () => api.alerts(address as string),
+    enabled: Boolean(address),
+    retry: false,
+    refetchInterval: 5_000,
+  });
+}

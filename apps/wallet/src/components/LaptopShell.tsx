@@ -15,9 +15,7 @@ export function LaptopShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh bg-bg">
       <DeviceBar persona={effective} label={personaLabel(effective)} />
       <main className="mx-auto w-full max-w-[1200px] px-6 py-12">
-        <div className="kl-stack max-w-[480px]" style={{ gap: 'var(--space-6)' }}>
-          {children}
-        </div>
+        <div className="kl-stack max-w-[480px] gap-6">{children}</div>
       </main>
     </div>
   );

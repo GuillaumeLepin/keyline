@@ -9,6 +9,7 @@ import {
   EmptyState,
   ErrorState,
   formatCHF,
+  formatDuration,
   formatInteger,
   formatUSDC,
   Note,
@@ -26,7 +27,7 @@ import { useEffect, useState } from 'react';
 import { formatUnits, getAddress } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { env } from '@/src/env';
 import { api } from '@/src/lib/api';
 import {
@@ -38,7 +39,7 @@ import {
   transferCall,
 } from '@/src/lib/chain';
 import { getDeviceLabel } from '@/src/lib/device';
-import { useLocalWallet, useUsdcBalance } from '@/src/lib/hooks';
+import { useLocalWallet, useNow, useUsdcBalance } from '@/src/lib/hooks';
 import { type PendingSend, pendingSendStore, transferStore } from '@/src/lib/storage';
 
 export default function ReviewPage() {
@@ -57,8 +58,8 @@ export default function ReviewPage() {
       <>
         <ScreenHeader title={copy.review.title} backHref="/send" />
         <EmptyState
-          title={copyGaps.reviewMissingTitle}
-          body={copyGaps.reviewMissingBody}
+          title={copy.review.missingTitle}
+          body={copy.review.missingBody}
           action={
             <Button variant="secondary" href="/send">
               {copy.common.back}
@@ -139,8 +140,12 @@ function Review({
   const rows = whatWillHappen(d, draft, balance.data);
   const verdict = d?.verdict;
   const cancelled = confirm.error instanceof PasskeyCancelledError;
+  const insufficient = balance.data !== undefined && draft.amountUsdc > balance.data;
   const canConfirm =
-    d !== undefined && !expired && (verdict === 'approve' || (verdict === 'cooling' && coolingDone));
+    d !== undefined &&
+    !expired &&
+    !insufficient &&
+    (verdict === 'approve' || (verdict === 'cooling' && coolingDone));
 
   return (
     <>
@@ -154,14 +159,8 @@ function Review({
       </section>
 
       {decision.isPending ? <Skeleton kind="line" count={2} /> : null}
-      {decision.isError ? (
-        <ApiErrorState
-          error={decision.error}
-          body={copy.activity.failedBody}
-          onRetry={() => decision.refetch()}
-        />
-      ) : null}
       {d ? <Verdict decision={d} onCoolingDone={() => setCoolingDone(true)} /> : null}
+      {insufficient ? <Note tone="danger">{copy.send.errFunds(formatUSDC(balance.data ?? 0))}</Note> : null}
 
       {expired ? (
         <ErrorState
@@ -182,6 +181,13 @@ function Review({
         tone={verdict === 'block' ? 'danger' : 'default'}
       />
       {verdict === 'block' ? <p className="text-14 text-ink-2">{copy.review.blockBody}</p> : null}
+      {decision.isError ? (
+        <ApiErrorState
+          error={decision.error}
+          body={copy.common.errorBody}
+          onRetry={() => decision.refetch()}
+        />
+      ) : null}
 
       {d ? (
         <Disclosure summary={copy.common.technicalDetails}>
@@ -269,35 +275,47 @@ function Verdict({ decision, onCoolingDone }: { decision: PolicyDecision; onCool
       );
     }
     case 'cooling': {
-      const endsAt = decision.coolingUntil ? new Date(decision.coolingUntil).getTime() : Date.now() + 60_000;
-      const remaining = Math.max(0, Math.round((endsAt - Date.now()) / 1000));
-      return (
-        <div className="kl-stack items-center">
-          <PolicyLine
-            verdict="cooling"
-            word={p.cooling.word}
-            reason={p.cooling.reason(`0:${String(remaining).padStart(2, '0')}`)}
-          />
-          <CountdownRing
-            endsAt={endsAt}
-            durationMs={60_000}
-            size={96}
-            caption={copy.demo.cooling}
-            onDone={onCoolingDone}
-          />
-        </div>
-      );
+      return <CoolingVerdict decision={decision} onCoolingDone={onCoolingDone} />;
     }
     case 'block':
       return (
         <PolicyLine
           verdict="block"
           word={p.block.word}
-          reason={decision.screening.hit ? p.block.reason : decision.reasons.join(' · ')}
+          reason={decision.screening.hit ? p.block.reason : copy.common.policyRefused}
           trailing={decision.screening.simulatedHit ? <SimulatedBadge /> : undefined}
         />
       );
   }
+}
+
+/** The "you can cancel for m:ss" sentence ticks with the ring (audit #22). */
+function CoolingVerdict({
+  decision,
+  onCoolingDone,
+}: {
+  decision: PolicyDecision;
+  onCoolingDone: () => void;
+}) {
+  const p = copy.review.policy;
+  const now = useNow();
+  const endsAt = decision.coolingUntil ? new Date(decision.coolingUntil).getTime() : Date.now() + 60_000;
+  return (
+    <div className="kl-stack items-center">
+      <PolicyLine
+        verdict="cooling"
+        word={p.cooling.word}
+        reason={p.cooling.reason(formatDuration(Math.max(0, endsAt - now)))}
+      />
+      <CountdownRing
+        endsAt={endsAt}
+        durationMs={60_000}
+        size={96}
+        caption={copy.demo.cooling}
+        onDone={onCoolingDone}
+      />
+    </div>
+  );
 }
 
 function whatWillHappen(

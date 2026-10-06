@@ -21,7 +21,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { api } from '@/src/lib/api';
 import { addressUrl, txUrl } from '@/src/lib/chain';
 import { type LocalTransfer, transferStore } from '@/src/lib/storage';
@@ -90,13 +90,13 @@ export default function ActivityPage() {
           </p>
         </section>
       ) : (
-        <EmptyState title={copyGaps.activityNotFoundTitle} body={copyGaps.activityNotFoundBody} />
+        <EmptyState title={copy.activity.notFoundTitle} body={copy.activity.notFoundBody} />
       )}
 
       <StatusSequence steps={steps} />
       {failed ? <ErrorState title={copy.activity.failedStep} body={copy.activity.failedBody} /> : null}
       {status.isError ? (
-        <ApiErrorState error={status.error} body={copy.common.offlineBody} onRetry={() => status.refetch()} />
+        <ApiErrorState error={status.error} body={copy.common.errorBody} onRetry={() => status.refetch()} />
       ) : null}
 
       <Panel
