@@ -230,3 +230,15 @@ the live ERC-1271 tests); `scripts` typecheck clean for every file owned by acco
 `demo-reset.ts` (qa-demo) fail `biome check` formatting; `biome check packages/chain scripts/src scripts/keyline-cli.ts
 scripts/spike-*.ts` is clean.
 
+
+## 15. Gate 2 from the UI (recorded by the orchestrator, 6 Oct 2026 08:40 CEST)
+
+Driven by Playwright CDP virtual authenticators against a private bank (:4200) + sq-guardian, public Candide endpoint, every EOA at 0 ETH (sponsored relayer Safe).
+
+| Step | Value | How |
+|---|---|---|
+| Safe | `0xeF2c271d40d72bc5Dc4fef277846CA66886E2cce` | bank DB `recovery_requests` (status `finalized`) |
+| Execute (`multiConfirmRecovery`, Swissquote signature + Safety-key signature, relayer-submitted) | https://sepolia.basescan.org/tx/0xe56ca70dadcf94b0ff840ebfb80be0f3a2d69764a029b5c1fac56d3b2652d7f5 | bank DB `onchain.executedTxHash` |
+| Finalize (after the 180 s grace period, sq-guardian via its sponsored Safe) | https://sepolia.basescan.org/tx/0xad898b42a5b7696fef18c4680ba96b70d397e1482ad26bc8b01e5f8db0213e53 | `cast receipt … status` → 1 (success) |
+| New sole owner | `0x07dDC4D0DfF95022806Ec4931EBB8cfF89fd016A` (new phone's SafeWebAuthnSignerProxy) | `cast call <safe> "getOwners()(address[])"` |
+| Thief persona | `identity-refused` → after operator override `awaiting-guardians`, `waitingFor: second-recoverer`; nothing executed on-chain | bank DB + desk screenshot `docs/screens/w2-desk-override.png` |
