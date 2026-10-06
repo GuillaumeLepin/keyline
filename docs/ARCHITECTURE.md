@@ -1,6 +1,6 @@
 # Architecture
 
-Owner: `docs-submission`. State of the code: 6 Oct 2026, 10:30 CEST (commit `08748e9` and the Wave 3 work in flight before the 10:45 freeze). Every box below is a process, package or contract that exists in the repository. Dashed boxes carry the word SIMULATED and are listed in `docs/MOCKS.md`. Anything the strategy promised that the code lacks is marked "not built".
+Owner: `docs-submission`. State of the code: the freeze of 6 Oct 2026, 09:15 CEST (commit `ae4f253`). Every box below is a process, package or contract that exists in the repository. Dashed boxes carry the word SIMULATED and are listed in `docs/MOCKS.md`. Anything the strategy promised that the code lacks is marked "not built".
 
 ## 1. Components
 
@@ -190,7 +190,7 @@ sequenceDiagram
   P->>B: GET /userops/:hash → included, txHash
 ```
 
-Enforcement note. Tier 2 and Tier 3 are policy-layer verdicts: they decide whether the bank sponsors and relays. A userOp paid with the Safe's own ETH through any bundler bypasses them. The on-chain production path (Safe AllowanceModule, threshold 2 above the allowance, delay module) is not built. The laptop screen that signs the Tier-2 step-up is part of the Wave 3 wallet work; the bank route exists and is tested.
+Enforcement note. Tier 2 and Tier 3 are policy-layer verdicts: they decide whether the bank sponsors and relays. A userOp paid with the Safe's own ETH through any bundler bypasses them. The on-chain production path (Safe AllowanceModule, threshold 2 above the allowance, delay module) is not built. The laptop screen that signs the Tier-2 step-up (`apps/wallet/app/(laptop)/approve/page.tsx`), the phone's step-up and cooling states (`send/review/page.tsx`) and the bank routes are all built; Gate 3 confirmed a Tier-2 operation on-chain (wallet `0x3cfC079f1fFA8C66DC40B2B115fAcc8963F0D7E2`, DECISIONS #22).
 
 ### F3 Lose the phone and recover (Option A, DECISIONS #15)
 

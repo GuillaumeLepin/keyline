@@ -4,9 +4,16 @@ A self-custody wallet for Swissquote clients: the phone passkey alone moves fund
 
 Demo video (3 min): `TODO-FINAL: video link`
 
-Screenshots: `TODO-FINAL: screenshot strip from docs/screens/README.md`
+Screenshots, in story order (all captures in `docs/screens/`, taken by Playwright with virtual authenticators; the desk and laptop are desktop views, the client is a 390×844 phone frame):
 
-Built in 24 hours for the Swissquote track of the EPFL BSA hackathon, 5–6 Oct 2026, on Base Sepolia. Everything below describes the code in this repository as it is, not the plan. Simulated parts are marked SIMULATED in the UI, dashed in the diagrams and listed in section 3.
+| | | | |
+|---|---|---|---|
+| ![Onboarding: Protected](docs/screens/story-05-onboarding-protected.png) | ![Review: transfer blocked by sanctions screening](docs/screens/w3-review-block.png) | ![Review: dApp asks for an unlimited approval, capped](docs/screens/w3-review-dapp-danger.png) | ![Laptop: Tier-2 approval with the Safety key](docs/screens/w3-approve-pending.png) |
+| Onboarding step 5, "Protected": the Safe is deployed with three recoverers | Review, "What will happen": the counterparty is on the sanctions list, blocked (seeded test address, SIMULATED badge) | Review: DemoSwap asks for `approve(∞)`, decoded as danger, "Approve 100.00 USDC instead" | Laptop: a transfer above the daily limit waits for the Safety key's EIP-712 signature |
+| ![Recovery countdown](docs/screens/w2-recover-waiting.png) | ![Attacker refused](docs/screens/w2-refused.png) | ![Desk: request detail](docs/screens/w2-desk-request.png) | ![Security centre: exit hatch](docs/screens/w3-security-exit.png) |
+| New phone: recovery executed on-chain, waiting period with the exact finish time | Thief with the phone and the e-mail: identity check failed, request refused | Swissquote desk: the request, its signals and the audit log; "override (demo)" leaves it waiting for a second recoverer | Security centre, "If Swissquote disappears": the recoverers read live from the module and the CLI command |
+
+Built in 24 hours for the Swissquote track of the EPFL BSA hackathon, 5–6 Oct 2026, on Base Sepolia. Application code was frozen at 09:15 CEST on 6 Oct (commit `ae4f253`); everything below describes the code in this repository as it is, not the plan. Simulated parts are marked SIMULATED in the UI, dashed in the diagrams and listed in section 3.
 
 Contents: 1 Identity · 2 Custody decision and threat model · 3 Architecture · 4 Wallet creation · 5 Authentication · 6 Recovery · 7 Custody and Travel Rule · 8 Business case · 9 Bonus topics · 10 Bitcoin, limitations, verify · 11 Run it · 12 Tests and verification · 13 AI tools · 14 Sources
 
@@ -63,7 +70,7 @@ Threat model (from `docs/STRATEGY.md` §3; the row-by-row account of what the co
 | Compromised or malicious app release (XSS, rogue deploy) | In principle yes: the app generates the Emergency card and holds the Safety key, so malicious code plus Swissquote's guardian key reaches 3 of 3; it could also ask the passkey to sign an opaque hash | — | This is vendor trust, the same as for every non-custodial wallet (MetaMask, Zengo); legally still software, not custody. Mitigations: open-source reproducible builds on an escrowed domain, Safety key gated by user verification (PRF-encrypted) or on a hardware wallet, Emergency card generated on an independent offline page, step-ups shown on the laptop before signing. Said out loud: the honest claim is "Swissquote's recovery key cannot act alone", not "the app can never misbehave" | Explained |
 | Bug in our code | — | — | We wrote no cryptography; all signing is library code; contracts are audited | Explained |
 
-Corrections to the "Demoed?" column for the code as it stands: the "Swissquote gone" path is proven from the CLI (`pnpm keyline recover --without-bank`), not from a screen; the "Pay my own fee" UI path is not built (the CLI and `packages/chain` accept any bundler URL); the fraud variant's owner cancel is proven on-chain from the CLI, and the in-app Cancel button's on-chain run is not recorded.
+Corrections to the "Demoed?" column for the code as it stands: the "Swissquote gone" path is proven on-chain from the CLI (`pnpm keyline recover --without-bank`), and the Security centre's exit hatch screen shows the on-chain recoverer list and that command; the "Pay my own fee" toggle is not built (the CLI and `packages/chain` accept any bundler URL); the fraud variant's owner cancel is proven on-chain from the CLI, and the in-app Cancel button is driven by `e2e/fraud-cancel.spec.ts`, whose on-chain run was not recorded in `docs/VERIFIED.md` at the freeze.
 
 ## 3. Architecture
 
@@ -143,14 +150,18 @@ Real, simulated, out of scope. Built from `docs/MOCKS.md` and a grep for `Simula
 | Push notifications | SIMULATED, in-app alerts feed |
 | Operator SSO for the desk | SIMULATED, one shared `DESK_OPERATOR_TOKEN` |
 | Safety-key pairing channel (6-digit code via the bank) | SIMULATED pairing protocol; the key itself is real and client-held |
-| Tier 2 step-up and Tier 3 cooling (60 s instead of 24 h) | Policy-layer enforcement only, labelled as such; production path (AllowanceModule, delay module) not built |
+| Tier 2 step-up (laptop Safety-key EIP-712 signature) and Tier 3 cooling (60 s instead of 24 h, cancellable) | Built end to end, phone review screen, laptop approval screen and bank routes; policy-layer enforcement only, labelled as such on screen; the on-chain production path (AllowanceModule, delay module) is not built |
 | Daily spend and sponsorship counters (20 sponsored ops per client per day) | Bank bookkeeping, not on-chain |
 | DemoSwap and Unknown dApp in the allowlist | SIMULATED dApps (placeholder router address); Uniswap, Aave, Circle entries carry real Base Sepolia addresses not re-verified on-chain |
 | Partner guardian, assisted mode, organisational independence | Not built. Process skeleton only; greyed out at onboarding |
 | `X-Device-Label` header instead of the passkey session | Demo auth, enabled only with `DEMO_FAST_MODE=true` |
 | Safety key as a passkey-signer contract or hardware key | Prototype simplification: software EOA in the laptop profile |
-| Safety-key export | Plain JSON labelled prototype (no keystore library installed; homemade encryption is banned). The wallet's export button is not built; the CLI reads the file format |
+| Safety-key export (Security centre, laptop persona) | Built; writes plain JSON `{ address, privateKey }` labelled prototype with a SIMULATED badge on the "not encrypted" note (no keystore library installed; homemade encryption is banned). The CLI reads the same file |
+| Exit hatch (Security centre, "If Swissquote disappears") | Built; recoverers and threshold read from the module on-chain, plus the `keyline recover --without-bank` command. The "Pay my own network fee" toggle is copy only, not built |
+| `/dapps` screen | Built; reviewed and not-reviewed apps from `GET /dapps`; a mock app's request goes through the same review screen, where the bank's decode, not the app's description, is what the client reads |
 | Bitcoin | Out of scope (section 10) |
+
+The same, as the one-paragraph answer for a judge who asks "what is real and what is mocked". Real: the passkeys, the Safe on Base Sepolia, the sponsored userOps, the recovery module's execute, 180 s delay, cancel and finalize, `eth_simulateV1`, the OFAC SDN list (fetched live, vendored snapshot as fallback), the EIP-712 guardian, verdict and step-up signatures, the ERC-1271 attestation, and the Swissquote guardian as a separate process with its own key and database. Simulated, and badged on screen: the identity check (e-ID and KYC), the recovery e-mail inbox, push notifications, the Swissquote account balance and the CHF rate, the operator login, the pairing channel, and the one sanctioned address the demo blocks (a seeded test contact, not a real SDN entry). The thief persona fails identity because the persona rules say so. Prototype simplifications: the Safety key is a software key on the laptop (production: hardware or passkey-bound), Tier 2 and Tier 3 are enforced by the policy layer (production: on-chain), gas comes from Candide's public testnet sponsor. Not built: assisted mode with a partner guardian, "Pay my own network fee", Bitcoin.
 
 Per-process powers (details in `docs/ARCHITECTURE.md` §2):
 
@@ -184,7 +195,7 @@ Identity linkage. The client is already a KYC'd Swissquote client (seeded file, 
 | 2 | Above the daily limit | Phone passkey + Safety key on the laptop | Policy layer: the laptop signs EIP-712 `KeylinePolicyStepUp(decisionId, wallet, callsHash, chfValueCents)`, the bank verifies it against the registered Safety key (`POST /policy/:id/step-up`) and the decision becomes approve. Labelled "policy-layer enforcement in the prototype" | Safe threshold 2 above the allowance |
 | 3 | First transfer to a new address, or > CHF 10'000 | Tier 2 plus a waiting period with cancel | Policy layer: `cooling`, 60 s instead of 24 h, `POST /policy/:id/cancel` | Safe delay module |
 
-Said plainly: in self-custody the client can bypass the policy layer by paying their own gas through any bundler. In the prototype nothing on-chain stops a thief with an unlocked phone. The policy layer is a protection the client opts into by using sponsored transactions, not a custody control. The on-chain production path is what would make the limits binding. The laptop screen that signs the Tier-2 step-up belongs to the Wave 3 wallet work; the bank route and the engine are built and tested.
+Said plainly: in self-custody the client can bypass the policy layer by paying their own gas through any bundler. In the prototype nothing on-chain stops a thief with an unlocked phone. The policy layer is a protection the client opts into by using sponsored transactions, not a custody control. The on-chain production path is what would make the limits binding. Tier 2 was run end to end at Gate 3: the laptop (`apps/wallet/app/(laptop)/approve/page.tsx`) showed the decision, signed it with the Safety key, the bank verified the signature and the operation was confirmed on Base Sepolia (wallet `0x3cfC079f1fFA8C66DC40B2B115fAcc8963F0D7E2`, `docs/DECISIONS.md` #22). The Tier-3 cooling countdown and its cancel are built and HTTP-tested but were not shown on-chain because no Safe held USDC at the freeze (the simulation reverts first).
 
 Login to the wallet is a WebAuthn discoverable-credential assertion (`@simplewebauthn/server` v13, user verification required, ES256 only) that yields a 15-minute httpOnly session cookie. Every high-value action is also a passkey signature over a specific hash, never a session alone.
 
@@ -198,14 +209,14 @@ Mechanism: Candide `SocialRecoveryModule`, 3-minute testing instance `0x949d01d4
 | Lost phone and laptop | Same, with the Emergency card typed into the new phone instead of the laptop | 180 s | Bank relayer | Confirm route accepts the card's signature; not run from the UI |
 | Swissquote gone | Safety key file + Emergency card, no Keyline server at all: `pnpm keyline recover --without-bank` | 180 s | The client, from any funded account. The CLI used the public testnet sponsor because the test EOAs held 0 ETH | Yes, from the CLI (Safe `0x17049195C25b075c224AA05368287832F6d678c6`) |
 | Attacker with phone and e-mail (bonus) | OTP passes, identity fails, request refused; desk override still leaves 1 of 2 | Never completes | Nobody; no transaction is sent | Yes, from the UI |
-| Fraud while the owner has her phone | Executed with a forged pass and the card; the owner's phone shows an alert and cancels with a sponsored `cancelRecovery()` userOp | Cancelled inside the 180 s | Bank sponsors the cancel | Cancel proven on-chain from the CLI; alert and button exist in the app |
+| Fraud while the owner has her phone | Executed with a forged pass and the card; the owner's phone shows an alert and cancels with a sponsored `cancelRecovery()` userOp | Cancelled inside the 180 s | Bank sponsors the cancel | Cancel proven on-chain from the CLI; alert and button exist in the app and are driven by `e2e/fraud-cancel.spec.ts` |
 | Lost phone, laptop and card | No path in default mode (true self-custody). Assisted mode would add Swissquote + partner after 14 days | — | — | Assisted mode not built |
 
 What stops an attacker. E-mail is never enough. The identity check and the guardian key are separate processes with separate keys; the guardian validates the bank's EIP-712 verdict (signature, `pass`, bound to this request, wallet and new owner), checks on-chain that it is a guardian of that wallet, refuses a second executed recovery within 24 h, and then signs exactly one approval. Threshold 2 means Swissquote never decides alone; the second guardian is client-held. The delay is on-chain and public. The owner's veto is on-chain. Every step is an append-only event shown in the desk, which has no function that moves funds.
 
 The scripted thief. The attacker persona in the demo fails the identity step because the persona rules say so: a device label containing "Thief", or an e-ID name different from the client file, yields a signed `fail` verdict with reasons "ID document name mismatch" and "liveness check failed". The identity check is SIMULATED and the demo says so on screen. What the prototype proves is the second layer: with the desk's "override (demo)" button, the bank is deliberately fooled, Swissquote signs, and the request still stops at "waiting for a second recoverer" because the module needs two approvals.
 
-Swissquote gone, with the passkey caveat. The recovery above never touches Swissquote. The passkey, however, is bound to the app's web domain (rpId). If the domain disappears, the phone key cannot sign through another origin; funds remain recoverable with the two client guardians, and day-to-day signing needs the open-source client self-hosted on a domain held in escrow. The "Exit hatch" screen that explains this and the wallet's "Export Safety key" button are not built at the time of writing; the CLI reads the exported file format.
+Swissquote gone, with the passkey caveat. The recovery above never touches Swissquote. The passkey, however, is bound to the app's web domain (rpId). If the domain disappears, the phone key cannot sign through another origin; funds remain recoverable with the two client guardians, and day-to-day signing needs the open-source client self-hosted on a domain held in escrow. The Security centre's "If Swissquote disappears" sheet says this on screen, lists the recoverers and threshold read live from the module, and prints the `pnpm keyline recover --without-bank` command for the wallet; the laptop's "Export Safety key" button writes the plain-JSON file the CLI reads (`docs/screens/w3-security-exit.png`, `w3-security-export.png`).
 
 ## 7. Custody and Travel Rule
 
@@ -237,7 +248,7 @@ Swissquote earned CHF 85.7 m from crypto in 2025 (about 12 % of CHF 723 m net re
 
 Gasless. Who pays: Swissquote, through the Candide paymaster; on the testnet the public endpoint's sponsor pays. Abuse prevention: the paymaster URL and any API key live only in the bank service; sponsorship is granted only for a `PolicyDecision` the engine approved, and only for a userOp whose `callData` hashes to the evaluated calls (`POST /userops/sponsor` recomputes `encodeCallData`); decisions expire after 10 minutes and are single-use once sent; 20 sponsored ops per client per day; screening and simulation must pass. The client can always pay their own gas through any bundler, so self-custody is preserved. The review screen shows "Network fee: paid by Swissquote" and the security centre shows the sponsored counter.
 
-Compliant dApp interaction. Before signing, the bank returns: (1) `eth_simulateV1` asset changes in words ("You will send 2.50 USDC to Lukas Meier"), with a revert blocking the transaction; (2) decoded calls with risk words for `approve(∞)`, `permit`, `setApprovalForAll` and `enableModule` of an unknown module, plus a suggested cap that re-encodes an unlimited approve as 100 USDC; (3) OFAC SDN screening of the counterparty, blocking on a hit (one seeded test address, SIMULATED); (4) a dApp allowlist (`services/bank/policy/allowlist.json`): DemoSwap is allowlisted and its `approve(∞)` request is returned as step-up with a suggested cap, an unknown dApp is blocked with "request a review"; (5) tiers 2 and 3 as in section 5. The `/dapps` screen in the wallet is a placeholder at the time of writing; the bank route `GET /dapps` and `POST /policy/evaluate {kind: dapp}` are built and tested. Screenshots: `TODO-FINAL: review screen with "What will happen" and the blocked-screening screen, from docs/screens/README.md`.
+Compliant dApp interaction. Before signing, the bank returns: (1) `eth_simulateV1` asset changes in words ("You will send 2.50 USDC to Lukas Meier"), with a revert blocking the transaction; (2) decoded calls with risk words for `approve(∞)`, `permit`, `setApprovalForAll` and `enableModule` of an unknown module, plus a suggested cap that re-encodes an unlimited approve as 100 USDC; (3) OFAC SDN screening of the counterparty, blocking on a hit (one seeded test address, SIMULATED); (4) a dApp allowlist (`services/bank/policy/allowlist.json`): DemoSwap is allowlisted and its `approve(∞)` request is returned as step-up with a suggested cap, an unknown dApp is blocked with "request a review"; (5) tiers 2 and 3 as in section 5. The `/dapps` screen lists the reviewed apps and the not-reviewed ones; a mock app's request is submitted as `POST /policy/evaluate {kind: dapp}` and shown through the same review screen as a transfer. Gate 3 ran these from the UI with the OFAC list loaded live (`docs/DECISIONS.md` #22). Screens: `docs/screens/w3-review-block.png` (screening block), `w3-review-dapp-danger.png` and `w3-review-dapp-capped.png` (unlimited approve, suggested cap), `w3-review-dapp-unknown.png` (unknown dApp blocked), `w3-review-stepup.png` (Tier 2), `w3-dapps.png`.
 
 ## 10. Bitcoin, known limitations, verify our claims
 
@@ -249,7 +260,7 @@ Known limitations.
 |---|---|
 | Policy-layer step-up | Tiers 2 and 3 are verdicts that gate sponsorship, not on-chain rules; a thief with an unlocked phone who pays gas bypasses them |
 | Software Safety key | An EOA key in the laptop profile's IndexedDB; production: hardware wallet key or PRF-encrypted key |
-| Plain-JSON Safety-key export | No keystore library installed and homemade encryption is banned; production: EIP-2335 / Web3 keystore v3. The wallet's export button is not built |
+| Plain-JSON Safety-key export | The export button writes `{ address, privateKey }` unencrypted. No keystore library installed and homemade encryption is banned; production: EIP-2335 / Web3 keystore v3 |
 | Simulated identity | Persona rules decide pass or fail; production: swiyu e-ID (live 1 Dec 2026) or KYC re-verification |
 | Public Candide endpoint | No SLA, per-IP rate limit; an authenticated URL replaces it with an env change |
 | Partner guardian and assisted mode | Not built; process skeleton only |
@@ -257,7 +268,7 @@ Known limitations.
 | Veto griefing | Any holder of the owner key can cancel any recovery; inherent to an owner veto |
 | 24 h guardian rule | Armed only when the bank reports the execution (Option A); the guardian verifies against the chain before trusting it |
 | Passkey domain binding | A lost domain strands the phone key for signing, not for recovery |
-| Not built from the strategy | Exit hatch screen, "Pay my own fee" UI, laptop Tier-2 approval screen, `/dapps` screen, ERC-7730 descriptors, real OFAC list refresh schedule |
+| Not built from the strategy | Assisted mode and partner guardian, "Pay my own network fee" toggle, hardware or passkey-contract Safety key, encrypted keystore export, ERC-7730 descriptors, OFAC list refresh schedule (one fetch at startup), receipt sharing for third-party VASPs, Bitcoin |
 
 Verify our claims. Foundry `cast` against the public RPC. Module `M`, Safe `S` created from the UI with a virtual authenticator (protect tx `0xa40c042a5774cd1fec93c9832d00311611fd6bd34896ef0b3a21be7e1850d425`).
 
@@ -319,18 +330,19 @@ The bank's `GET /health` reports `paymasterEnabled`; the guardian's reports `cha
 
 ## 12. Tests and verification
 
-`TODO-FINAL: test counts per package from pnpm test (commit messages: chain 46, bank 115, guardian-core 26; e2e 6 passed, 5 skipped while the funder held no USDC)`
+`pnpm test` at the freeze (6 Oct 2026, 09:20 CEST): 289 unit tests, all passing: `services/bank` 115 · `packages/shared` 89 · `packages/chain` 46 · `services/guardian-core` 26 · `packages/ui` 11 · `scripts` 2. `pnpm lint` (biome and typecheck) clean.
 
-Unit tests (vitest): policy engine tables, screening (seeded and real OFAC hits), guardian rules, verdict verification, recovery hash parity with the module (`hashTypedData == getRecoveryHash`), `encodeCallData` parity with abstractionkit, live `eth_simulateV1`, live ERC-1271 attestation with two negative cases. E2E (Playwright, `e2e/story.spec.ts`): F1.1 to F1.7 and F2 run against Base Sepolia with every "it worked" checked on-chain, not on UI copy; F3, F4 and F4b are `test.fixme` and run manually from the UI. CI (`.github/workflows/ci.yml`) runs lint and unit tests on push; the story needs a funded stack and runs locally.
+Unit tests (vitest): policy engine tables for every tier and precedence, screening (seeded and real OFAC hits, snapshot fallback), guardian rules, verdict verification, recovery hash parity with the module (`hashTypedData == getRecoveryHash`), `encodeCallData` parity with abstractionkit, live `eth_simulateV1`, live ERC-1271 attestation with two negative cases. E2E (Playwright with CDP virtual authenticators, against a running stack and Base Sepolia, every "it worked" checked on-chain, not on UI copy): `e2e/story.spec.ts` F1.1 to F1.7, F2, F3.1 to F3.4 (12 tests; the USDC legs skip themselves while the funder holds no USDC), `e2e/attacker.spec.ts` F4.0 to F4.5 (6 tests), `e2e/fraud-cancel.spec.ts` F4b.0 to F4b.3 (4 tests). Latest pass counts: `TODO-FINAL: e2e pass/skip counts from the final run`. CI (`.github/workflows/ci.yml`) runs lint and unit tests on push; the story needs a funded stack and runs locally.
 
 Recorded transactions on Base Sepolia (Basescan: `https://sepolia.basescan.org/tx/<hash>`):
 
 | What | Safe | Transaction |
 |---|---|---|
 | Create + protect from the UI, passkey-signed, sponsored (Gate 1) | `0x291A6d162dc3bfa2c7a5B623d676cFeF4CEc4482` | `0xa40c042a5774cd1fec93c9832d00311611fd6bd34896ef0b3a21be7e1850d425` |
-| USDC transfer from the UI (Gate 1, second leg) | | `TODO-FINAL: USDC transfer hash once the funder holds USDC` |
+| USDC transfer from the UI (Gate 1, second leg) | | Pending at submission time: no Safe and no funder EOA held USDC (Circle faucet top-up outstanding, `docs/VERIFIED.md` §14), so no transfer hash exists and none is claimed. The transfer uses the same sponsor → sign → send pipeline as the protect op and the recovery cancel; `e2e/story.spec.ts` F2 runs it as soon as the funder holds USDC |
+| Tier-2 step-up approved from the laptop with a Safety-key EIP-712 signature, confirmed on-chain (Gate 3) | `0x3cfC079f1fFA8C66DC40B2B115fAcc8963F0D7E2` | Recorded in `docs/DECISIONS.md` #22 by wallet address; the transaction hash was not copied into `docs/VERIFIED.md` |
 | ERC-1271 attestation Safe | `0x2eac8081f2c00f526369AabB7492abE2ec280dea` | create `0xf317b51d0f9b3932eb2ddcc1f113ae0e3e3e90de6ea3309cdee7a5d9637785c3`; verification is an `eth_call` |
-| Recovery from the UI: execute, then finalize (Gate 2) | `0xeF2c271d40d72bc5Dc4fef277846CA66886E2cce` | execute `0xe56ca70dadcf94b0ff840ebfb80be0f3a2d69764a029b5c1fac56d3b2652d7f5` · finalize `0xad898b42a5b7696fef18c4680ba96b70d397e1482ad26bc8b01e5f8db0213e53` |
+| Recovery from the UI: execute, then finalize (Gate 2) | `0xeF2c271d40d72bc5Dc4fef277846CA66886E2cce` | execute `0xe56ca70dadcf94b0ff840ebfb80be0f3a2d69764a029b5c1fac56d3b2652d7f5` · finalize `0xad898b42a5b7696fef18c4680ba96b70d397e1482ad26bc8b01e5f8db0213e53` · new sole owner `0x07dDC4D0DfF95022806Ec4931EBB8cfF89fd016A` |
 | Recovery execute, then finalize, 0 ETH on every EOA (chain spike) | `0x10b6b8542f734863C6b90703e522B22DF19f1628` | execute `0xb53f58a60c2202e499d9ed130b2fe56a328f2a6b885ee15f9190a5c0a2ef26e5` · finalize `0xcad741a3c66c039b28b41696492026839921ff5d13d7358207126cbecd51b874` |
 | Recovery execute, then owner cancels | `0x10b6b8542f734863C6b90703e522B22DF19f1628` | execute `0xc612a175a1e03f0cfee7de3a028a3e4c2112cddb8486c0a9fc89f618ff78ebc1` · cancel `0x5ba3e0db186f726f04c14c46211a52d37eec486d79418a1880ab3ceef0a931f9` |
 | Recovery without Swissquote (`keyline recover --without-bank`) | `0x17049195C25b075c224AA05368287832F6d678c6` | execute `0x7f7254b7ca8b5ced992d042052aeadb0d9302b9616bc588e7be1570dc3ae75cd` · finalize `0xfad34f525dd19f01862aa581c0227c9ee7673288b9ae8d81e490c90cb28a16c8` |
