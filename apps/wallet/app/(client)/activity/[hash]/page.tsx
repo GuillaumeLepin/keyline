@@ -84,9 +84,13 @@ export default function ActivityPage() {
       <ScreenHeader title={copy.activity.title} backHref="/" />
       {local ? (
         <section className="kl-balance">
-          <p className="kl-balance__amount">{formatSignedUSDC(-local.amountUsdc)}</p>
+          <p className="kl-balance__amount">
+            {local.amountUsdc === 0 && local.summary ? local.toLabel : formatSignedUSDC(-local.amountUsdc)}
+          </p>
           <p className="kl-balance__secondary">
-            {copy.review.toLine(formatCHF(local.amountChf), local.toLabel)}
+            {local.amountUsdc === 0 && local.summary
+              ? local.summary
+              : copy.review.toLine(formatCHF(local.amountChf), local.toLabel)}
           </p>
         </section>
       ) : (

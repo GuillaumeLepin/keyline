@@ -15,7 +15,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { api } from '@/src/lib/api';
 
 const DEFAULT_EMAIL = 'lea.keller@example.ch';
@@ -50,7 +50,7 @@ function Inbox() {
       <div className="flex items-end gap-2">
         <div className="grow">
           <TextField
-            label={copyGaps.mock.inboxEmail}
+            label={copy.mock.inboxEmail}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -60,7 +60,7 @@ function Inbox() {
           />
         </div>
         <Button variant="secondary" onClick={() => setActive(email)}>
-          {copyGaps.mock.inboxShow}
+          {copy.mock.inboxShow}
         </Button>
       </div>
       {inbox.isPending ? (

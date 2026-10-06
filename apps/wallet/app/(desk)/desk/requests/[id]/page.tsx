@@ -23,7 +23,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { useDeskToken } from '@/src/components/DeskShell';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { api } from '@/src/lib/api';
 import { addressUrl, txUrl } from '@/src/lib/chain';
 import { shortId, statusLabel, useDeskQueue } from '@/src/lib/desk';
@@ -42,11 +42,11 @@ export default function DeskRequestPage() {
   if (!item) {
     return (
       <EmptyState
-        title={copyGaps.desk.notFound}
+        title={copy.desk.notFound}
         body={copy.desk.queueEmptyBody}
         action={
           <Button variant="secondary" href="/desk/queue">
-            {copyGaps.desk.back}
+            {copy.desk.back}
           </Button>
         }
       />
@@ -76,8 +76,14 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
   const identity = r.identity;
   const verdict = identity.verdict;
   const pending = verdict === 'pending';
-  const idCheck = identity.idCheckPassed;
-  const liveness = identity.livenessPassed;
+  // Override (demo): the bank re-signs a pass, but the operator's screen must keep the failed checks visible
+  // (CLAUDE.md §2). The original signals tell which check failed; the verdict row says who overrode it.
+  const overridden = !pending && (identity.operatorNote ?? '').toLowerCase().startsWith('override');
+  const signalText = item.signals.join(' ').toLowerCase();
+  const livenessFailedOriginally = /liveness/.test(signalText);
+  const nameFailedOriginally = /name|mismatch|document/.test(signalText) || !livenessFailedOriginally;
+  const idCheck = overridden ? !nameFailedOriginally : identity.idCheckPassed;
+  const liveness = overridden ? !livenessFailedOriginally : identity.livenessPassed;
   const signalRows: PanelRow[] = [
     {
       label: s.sig.email,
@@ -108,16 +114,25 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
       label: s.sig.verdict,
       value: pending
         ? copy.common.pending
-        : verdict === 'pass'
-          ? s.sigValues.verdictPass
-          : s.sigValues.verdictFail,
-      tone: pending ? 'default' : verdict === 'pass' ? 'ok' : 'danger',
+        : overridden
+          ? s.sigValues.verdictOverridden
+          : verdict === 'pass'
+            ? s.sigValues.verdictPass
+            : s.sigValues.verdictFail,
+      tone: pending ? 'default' : overridden ? 'default' : verdict === 'pass' ? 'ok' : 'danger',
     },
   ];
+  if (overridden) {
+    const at = 'issuedAt' in identity ? new Date(identity.issuedAt * 1000) : undefined;
+    signalRows.push({
+      label: s.operatorRow,
+      value: `${s.operatorName}${at ? ` · ${formatClock(at)}` : ''}${identity.operatorNote ? ` · ${identity.operatorNote}` : ''}`,
+    });
+  }
 
   const confirmationRows: PanelRow[] = CLIENT_KINDS.map((kind) => {
     const c = r.guardianConfirmations.find((x) => x.kind === kind && !x.void);
-    return { label: copyGaps.desk.kinds[kind], value: confirmationValue(kind, c, r.status) };
+    return { label: copy.desk.kinds[kind], value: confirmationValue(kind, c, r.status) };
   });
 
   const timer = item.timer;
@@ -131,7 +146,7 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
       <div className="kl-stack kl-stack--tight">
         <div className="self-start">
           <Button variant="ghost" size="sm" href="/desk/queue">
-            {copyGaps.desk.back}
+            {copy.desk.back}
           </Button>
         </div>
         <h1 className="kl-title">{s.detailTitle(item.client.name, shortId(r.id))}</h1>
@@ -153,7 +168,7 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
             footnote={item.signals.length > 0 ? item.signals.join(' · ') : undefined}
           />
           {r.reasons.length > 0 ? (
-            <Note tone="danger" title={copyGaps.desk.reasons}>
+            <Note tone="danger" title={copy.desk.reasons}>
               {r.reasons.join(' · ')}
             </Note>
           ) : null}
@@ -168,9 +183,9 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
             footnote={`${item.confirmations.have} / ${item.confirmations.need}`}
           />
           {r.guardianRefusals.length > 0 ? (
-            <Note tone="warn" title={copyGaps.desk.refusals}>
+            <Note tone="warn" title={copy.desk.refusals}>
               {r.guardianRefusals
-                .map((g) => `${copyGaps.desk.kinds[g.kind]}: ${g.reasons.join(', ')}`)
+                .map((g) => `${copy.desk.kinds[g.kind]}: ${g.reasons.join(', ')}`)
                 .join(' · ')}
             </Note>
           ) : null}
@@ -206,16 +221,16 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
 
         <section className="kl-stack col-span-12 lg:col-span-6">
           <div className="kl-section">
-            <h2 className="kl-section__title">{copyGaps.desk.wallet}</h2>
+            <h2 className="kl-section__title">{copy.desk.wallet}</h2>
           </div>
           <Panel
             rows={[
               {
-                label: copyGaps.desk.wallet,
+                label: copy.desk.wallet,
                 value: <Address value={r.walletAddress} explorerUrl={addressUrl(r.walletAddress)} />,
               },
               {
-                label: copyGaps.desk.newOwner,
+                label: copy.desk.newOwner,
                 value: (
                   <Address
                     value={r.newOwner.signerProxyAddress}
@@ -223,14 +238,14 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
                   />
                 ),
               },
-              { label: copyGaps.desk.client, value: `${item.client.name} · ${item.client.id}` },
+              { label: copy.desk.client, value: `${item.client.name} · ${item.client.id}` },
             ]}
           />
         </section>
       </div>
 
       {overrideStuck ? <Note tone="warn">{s.overrideResult}</Note> : null}
-      {lastAction && !overrideStuck ? <Note tone="ok">{copyGaps.desk.actionDone}</Note> : null}
+      {lastAction && !overrideStuck ? <Note tone="ok">{copy.desk.actionDone}</Note> : null}
       {act.isError ? (
         <ApiErrorState
           error={act.error}
@@ -272,7 +287,7 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
       <Sheet open={overriding} title={s.overrideTitle} onClose={() => setOverriding(false)}>
         <div className="kl-stack">
           <p className="kl-lead">{s.overrideBody}</p>
-          <TextField label={copyGaps.desk.noteField} value={note} onChange={(e) => setNote(e.target.value)} />
+          <TextField label={copy.desk.noteField} value={note} onChange={(e) => setNote(e.target.value)} />
           <Button variant="danger" full loading={act.isPending} onClick={() => act.mutate('override')}>
             {s.overrideYes}
           </Button>
@@ -312,7 +327,7 @@ function confirmationValue(
       {c.txHash ? (
         <TxLink hash={c.txHash} />
       ) : c.mode === 'signature' ? (
-        <span className="text-12 text-ink-3">{copyGaps.desk.heldSignature}</span>
+        <span className="text-12 text-ink-3">{copy.desk.heldSignature}</span>
       ) : null}
     </span>
   );

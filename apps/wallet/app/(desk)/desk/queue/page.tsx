@@ -5,7 +5,7 @@ import { EmptyState, formatRelative, Skeleton, StatementRow } from '@keyline/ui'
 import { useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { useDeskToken } from '@/src/components/DeskShell';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { shortId, statusLabel, statusTone, useDeskQueue, waitingForLabel } from '@/src/lib/desk';
 import { useNow } from '@/src/lib/hooks';
 
@@ -76,7 +76,7 @@ export default function DeskQueuePage() {
                     {waiting ? (
                       <span>
                         {' '}
-                        · {copyGaps.desk.waitingFor}: {waiting}
+                        · {copy.desk.waitingFor}: {waiting}
                       </span>
                     ) : null}
                   </>

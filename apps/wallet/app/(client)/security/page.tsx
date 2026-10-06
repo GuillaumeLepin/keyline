@@ -1,6 +1,6 @@
 'use client';
 
-import type { Event } from '@keyline/shared';
+import type { Event, Guardian } from '@keyline/shared';
 import {
   Address,
   Button,
@@ -11,24 +11,34 @@ import {
   KeyCard,
   Note,
   Panel,
+  type PanelRow,
   Sheet,
   SimulatedBadge,
   Skeleton,
   StatementRow,
   TestnetStrip,
 } from '@keyline/ui';
-import { Bank, DeviceMobile, IdentificationCard, Key, ShieldCheck } from '@phosphor-icons/react/dist/ssr';
+import {
+  Bank,
+  DeviceMobile,
+  DownloadSimple,
+  IdentificationCard,
+  Key,
+  ShieldCheck,
+  SignOut,
+} from '@phosphor-icons/react/dist/ssr';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { copy, copyGaps } from '@/src/copy';
+import { env } from '@/src/env';
 import { api, isApiError } from '@/src/lib/api';
-import { addressUrl } from '@/src/lib/chain';
+import { addressUrl, readRecoveryStatus } from '@/src/lib/chain';
 import { useLocalTransfers, useLocalWallet, useMe, useWalletEvents } from '@/src/lib/hooks';
-import type { LocalWallet } from '@/src/lib/storage';
+import { type LocalWallet, type SafetyKeyRecord, safetyKeyStore } from '@/src/lib/storage';
 
-/** Security centre, first cut: keys, limits, sponsored counter, recovery mode, proof, event log (export/exit: Wave 3). */
+/** Security centre (SPEC F6): keys, limits, sponsored counter, recovery mode, proof, Safety-key export, exit hatch, event log. */
 export default function SecurityPage() {
   const { wallet } = useLocalWallet();
   return (
@@ -59,6 +69,18 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
   const events = useWalletEvents(wallet.address);
   const { transfers } = useLocalTransfers();
   const [proving, setProving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  // The laptop persona holds the Safety key in IndexedDB; the phone does not — the export row adapts.
+  const [safetyKey, setSafetyKey] = useState<SafetyKeyRecord | null | undefined>(undefined);
+  useEffect(() => {
+    safetyKeyStore
+      .get()
+      .then((k) =>
+        setSafetyKey(k && k.walletAddress.toLowerCase() === wallet.address.toLowerCase() ? k : null),
+      )
+      .catch(() => setSafetyKey(null));
+  }, [wallet.address]);
   const guardians = useQuery({
     queryKey: ['guardians', wallet.address],
     queryFn: () => api.wallets.guardians(wallet.address),
@@ -76,7 +98,7 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
     <>
       <p className="flex items-center gap-2 text-14 text-ok">
         <ShieldCheck size={18} aria-hidden="true" />
-        {deployed ? copyGaps.security.protectedLine : copyGaps.security.pendingWallet}
+        {deployed ? copy.security.protectedLine : copy.security.pendingWallet}
       </p>
 
       <section className="kl-stack">
@@ -188,10 +210,26 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
           onClick={() => setProving(true)}
           icon={<ShieldCheck size={20} aria-hidden="true" />}
         />
+        {safetyKey ? (
+          <StatementRow
+            label={s.exportKey}
+            meta={copyGaps.security.exportPlainNote}
+            onClick={() => setExporting(true)}
+            icon={<DownloadSimple size={20} aria-hidden="true" />}
+          />
+        ) : (
+          <StatementRow
+            label={s.exportKey}
+            meta={s.exportOnLaptop}
+            chevron={false}
+            icon={<DownloadSimple size={20} aria-hidden="true" />}
+          />
+        )}
         <StatementRow
-          label={s.exportKey}
-          meta={`${s.exportOnLaptop} · ${copyGaps.security.exportLater}`}
-          chevron={false}
+          label={s.exit}
+          meta={s.exitEyebrow}
+          onClick={() => setExiting(true)}
+          icon={<SignOut size={20} aria-hidden="true" />}
         />
       </ul>
 
@@ -222,7 +260,165 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
       <TestnetStrip explorerUrl={addressUrl(wallet.address)} />
 
       <ProveSheet wallet={wallet} open={proving} onClose={() => setProving(false)} />
+      {safetyKey ? (
+        <ExportSheet safetyKey={safetyKey} open={exporting} onClose={() => setExporting(false)} />
+      ) : null}
+      <ExitSheet
+        wallet={wallet}
+        bankGuardians={guardians.data}
+        open={exiting}
+        onClose={() => setExiting(false)}
+      />
     </>
+  );
+}
+
+/** Exit hatch (SPEC F6): everything a client needs if Swissquote disappears, with the recoverer set read live on-chain. */
+function ExitSheet({
+  wallet,
+  bankGuardians,
+  open,
+  onClose,
+}: {
+  wallet: LocalWallet;
+  bankGuardians: Guardian[] | undefined;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const s = copy.security;
+  const g = copyGaps.security;
+  const [copied, setCopied] = useState(false);
+  const onChain = useQuery({
+    queryKey: ['recovery-status', wallet.address],
+    queryFn: () => readRecoveryStatus(wallet.address as `0x${string}`),
+    enabled: open,
+    retry: 1,
+  });
+  const kindOf = (address: string): string => {
+    const match = bankGuardians?.find((b) => b.address.toLowerCase() === address.toLowerCase());
+    return match ? copy.desk.kinds[match.kind] : g.exitUnknownGuardian;
+  };
+  const cli = g.exitCli(wallet.address);
+  const guardianRows: PanelRow[] = onChain.data
+    ? onChain.data.guardians.map((address) => ({
+        label: kindOf(address),
+        value: <Address value={address} explorerUrl={addressUrl(address)} />,
+      }))
+    : [];
+  return (
+    <Sheet open={open} title={s.exit} onClose={onClose}>
+      <div className="kl-stack">
+        <p className="kl-lead">{s.exitEyebrow}</p>
+        <Panel
+          rows={[
+            {
+              label: s.exitWallet,
+              value: <Address value={wallet.address} explorerUrl={addressUrl(wallet.address)} />,
+            },
+            {
+              label: s.exitVerify,
+              value: (
+                <a className="kl-link" href={addressUrl(wallet.address)} target="_blank" rel="noreferrer">
+                  {copy.common.viewOnBasescan} ↗
+                </a>
+              ),
+            },
+          ]}
+        />
+        <div className="kl-section">
+          <h3 className="kl-section__title">{s.exitRecoverers}</h3>
+        </div>
+        {onChain.isPending ? (
+          <div className="kl-stack kl-stack--tight">
+            <Skeleton kind="row" count={3} />
+            <p className="text-12 text-ink-3">{g.exitLoadingGuardians}</p>
+          </div>
+        ) : onChain.isError ? (
+          <ApiErrorState
+            error={onChain.error}
+            body={g.guardiansUnavailable}
+            onRetry={() => onChain.refetch()}
+          />
+        ) : onChain.data.guardians.length === 0 ? (
+          <EmptyState title={copy.security.pendingWallet} />
+        ) : (
+          <Panel
+            rows={guardianRows}
+            footnote={g.exitThreshold(Number(onChain.data.guardianThreshold), onChain.data.guardians.length)}
+          />
+        )}
+        <p className="text-14 text-ink-2">{g.exitSigning4337}</p>
+        <p className="text-14 text-ink-2">{s.exitRestore}</p>
+        <pre className="kl-code">{cli}</pre>
+        <Button
+          variant="secondary"
+          full
+          onClick={() => {
+            navigator.clipboard
+              .writeText(cli)
+              .then(() => setCopied(true))
+              .catch(() => setCopied(false));
+          }}
+        >
+          {copied ? g.exitCliCopied : copy.common.copy}
+        </Button>
+        <Note tone="info">{s.exitCaveat}</Note>
+        <p className="text-12 text-ink-3">
+          {copy.security.recoveryMode}: {env.recoveryModule}
+        </p>
+      </div>
+    </Sheet>
+  );
+}
+
+/** Laptop only: downloads the Safety key. Prototype = plain JSON; production = encrypted keystore (DESIGN.md). */
+function ExportSheet({
+  safetyKey,
+  open,
+  onClose,
+}: {
+  safetyKey: SafetyKeyRecord;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const s = copy.security;
+  const g = copyGaps.security;
+  const [done, setDone] = useState(false);
+  const download = () => {
+    const blob = new Blob(
+      [JSON.stringify({ address: safetyKey.address, privateKey: safetyKey.privateKey }, null, 2)],
+      { type: 'application/json' },
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = s.exportFilename;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDone(true);
+  };
+  return (
+    <Sheet open={open} title={s.exportKey} onClose={onClose}>
+      <div className="kl-stack">
+        <p className="kl-lead">{s.exportBody}</p>
+        <Note tone="warn">
+          {g.exportPlainNote} <SimulatedBadge />
+        </Note>
+        <Panel
+          rows={[
+            {
+              label: copy.onboarding.s2.keyName,
+              value: <Address value={safetyKey.address} explorerUrl={addressUrl(safetyKey.address)} />,
+            },
+            { label: s.exportFilename, value: 'JSON' },
+          ]}
+        />
+        {done ? <Note tone="ok">{g.exportDone}</Note> : null}
+        <Button variant="primary" full onClick={download}>
+          {g.exportPlainPrimary}
+        </Button>
+      </div>
+    </Sheet>
   );
 }
 
@@ -251,10 +447,10 @@ function eventLabel(e: Event): string {
       const amount = e.payload.amountUsdc;
       return typeof amount === 'number'
         ? ev.transfer(formatUSDC(amount))
-        : copyGaps.security.eventFallback(e.type);
+        : copy.security.eventFallback(e.type);
     }
     default:
-      return copyGaps.security.eventFallback(e.type);
+      return copy.security.eventFallback(e.type);
   }
 }
 
@@ -288,7 +484,7 @@ function ProveSheet({ wallet, open, onClose }: { wallet: LocalWallet; open: bool
         {attestation.isPending ? (
           <Skeleton kind="block" height={80} />
         ) : missing ? (
-          <Note tone="info">{copyGaps.security.attestationNone}</Note>
+          <Note tone="info">{copy.security.attestationNone}</Note>
         ) : attestation.isError ? (
           <ApiErrorState
             error={attestation.error}
@@ -301,10 +497,10 @@ function ProveSheet({ wallet, open, onClose }: { wallet: LocalWallet; open: bool
             <Panel
               rows={[
                 {
-                  label: copyGaps.security.verifiedAt,
+                  label: copy.security.verifiedAt,
                   value: formatShortDateTime(new Date(attestation.data.verifiedAt)),
                 },
-                { label: copyGaps.security.method, value: attestation.data.method.toUpperCase() },
+                { label: copy.security.method, value: attestation.data.method.toUpperCase() },
                 {
                   label: copy.onboarding.s6.rows.client,
                   value: (
@@ -313,9 +509,24 @@ function ProveSheet({ wallet, open, onClose }: { wallet: LocalWallet; open: bool
                     </>
                   ),
                 },
+                {
+                  label: copyGaps.security.proveWallet,
+                  value: (
+                    <Address
+                      value={attestation.data.walletAddress}
+                      explorerUrl={addressUrl(attestation.data.walletAddress)}
+                    />
+                  ),
+                },
+                { label: copyGaps.security.proveChain, value: String(attestation.data.chainId) },
+                {
+                  label: copyGaps.security.proveNonce,
+                  value: <span className="kl-mono text-12">{attestation.data.nonce}</span>,
+                },
               ]}
             />
             <p className="text-12 text-ink-3">{s.proveMeta}</p>
+            <p className="text-12 text-ink-3">{copyGaps.security.proveFinma}</p>
             <Button
               variant="secondary"
               full
@@ -326,7 +537,7 @@ function ProveSheet({ wallet, open, onClose }: { wallet: LocalWallet; open: bool
                   .catch(() => setCopied(false));
               }}
             >
-              {copied ? copyGaps.security.proofCopied : s.proveCopy}
+              {copied ? copy.security.proofCopied : s.proveCopy}
             </Button>
           </>
         )}

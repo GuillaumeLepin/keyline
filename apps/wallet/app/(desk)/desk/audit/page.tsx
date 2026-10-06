@@ -4,7 +4,7 @@ import type { Event } from '@keyline/shared';
 import { EmptyState, formatClock, Skeleton } from '@keyline/ui';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { useDeskToken } from '@/src/components/DeskShell';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { useDeskEvents } from '@/src/lib/desk';
 
 /** Append-only feed merged from the bank and the guardian processes (`GET /desk/events`). */
@@ -34,9 +34,9 @@ export default function DeskAuditPage() {
         <h1 className="kl-section__title">{s.audit}</h1>
         {sources ? (
           <p className="text-12 text-ink-3">
-            {copyGaps.desk.sources}:{' '}
+            {copy.desk.sources}:{' '}
             {Object.entries(sources)
-              .map(([name, state]) => `${name} ${state === 'ok' ? '✓' : copyGaps.desk.unreachable}`)
+              .map(([name, state]) => `${name} ${state === 'ok' ? '✓' : copy.desk.unreachable}`)
               .join(' · ')}
           </p>
         ) : null}

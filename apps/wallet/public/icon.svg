@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Keyline">
+  <!-- Keyline mark: a key-line in ink on paper. Hairline grid, one accent dot. No logo, no gradient. -->
+  <rect width="512" height="512" rx="96" fill="#F7F6F3"/>
+  <!-- key bow: a ring, hairline weight scaled for the icon -->
+  <circle cx="176" cy="256" r="72" fill="none" stroke="#141414" stroke-width="28"/>
+  <!-- key line (the shaft): one straight rule, flush to the right gutter -->
+  <line x1="248" y1="256" x2="432" y2="256" stroke="#141414" stroke-width="28" stroke-linecap="square"/>
+  <!-- two bits: the "2 of 3" idea reduced to a rhythm -->
+  <line x1="352" y1="256" x2="352" y2="316" stroke="#141414" stroke-width="28" stroke-linecap="square"/>
+  <line x1="418" y1="256" x2="418" y2="316" stroke="#141414" stroke-width="28" stroke-linecap="square"/>
+  <!-- the single accent: the active step dot inside the bow -->
+  <circle cx="176" cy="256" r="18" fill="#FA5B35"/>
+</svg>

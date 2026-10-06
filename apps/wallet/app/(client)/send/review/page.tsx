@@ -1,6 +1,6 @@
 'use client';
 
-import type { PolicyDecision } from '@keyline/shared';
+import type { DecodedCall, PolicyDecision } from '@keyline/shared';
 import {
   Address,
   Button,
@@ -21,13 +21,14 @@ import {
   StatusSequence,
   type StatusStep,
 } from '@keyline/ui';
+import { CheckCircle, Prohibit, Warning } from '@phosphor-icons/react/dist/ssr';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatUnits, getAddress } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy } from '@/src/copy';
+import { copy, copyGaps } from '@/src/copy';
 import { env } from '@/src/env';
 import { api } from '@/src/lib/api';
 import {
@@ -72,34 +73,70 @@ export default function ReviewPage() {
   return <Review wallet={wallet} draft={draft} />;
 }
 
-function Review({
-  wallet,
-  draft,
-}: {
-  wallet: NonNullable<ReturnType<typeof useLocalWallet>['wallet']>;
-  draft: PendingSend;
-}) {
+type Wallet = NonNullable<ReturnType<typeof useLocalWallet>['wallet']>;
+
+type DraftCall = { to: string; value: string; data: string };
+
+function evaluateDraft(wallet: Wallet, draft: PendingSend, calls?: readonly DraftCall[]) {
+  if (draft.dapp) {
+    return api.policy.evaluate({
+      kind: 'dapp',
+      walletAddress: wallet.address,
+      dappId: draft.dapp.id,
+      chfValue: 0,
+      calls: (calls ?? draft.dapp.calls).map((c) => ({
+        to: getAddress(c.to),
+        value: c.value,
+        data: c.data as `0x${string}`,
+      })),
+      deviceLabel: getDeviceLabel(),
+    });
+  }
+  return api.policy.evaluate({
+    kind: 'transfer',
+    walletAddress: wallet.address,
+    calls: [transferCall(getAddress(draft.to), draft.amountUsdc)],
+    chfValue: draft.amountChf,
+    recipientAddress: draft.to,
+    deviceLabel: getDeviceLabel(),
+  });
+}
+
+/** True once the bank lets the client proceed (step-up signed on the laptop, or the cooling period elapsed). */
+function cleared(d: PolicyDecision): boolean {
+  return d.status !== 'cancelled' && (d.verdict === 'approve' || d.stepUp?.satisfiedBy === 'safety-key');
+}
+
+function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
   const router = useRouter();
+  const backHref = draft.dapp ? '/dapps' : '/send';
   const balance = useUsdcBalance(wallet.address);
-  const decision = useQuery({
-    queryKey: ['decision', wallet.address, draft.to, draft.amountUsdc],
-    queryFn: async () => {
-      return api.policy.evaluate({
-        kind: 'transfer',
-        walletAddress: wallet.address,
-        calls: [transferCall(getAddress(draft.to), draft.amountUsdc)],
-        chfValue: draft.amountChf,
-        recipientAddress: draft.to,
-        deviceLabel: getDeviceLabel(),
-      });
-    },
+  const evaluated = useQuery({
+    queryKey: ['decision', wallet.address, draft.to, draft.amountUsdc, draft.dapp?.id],
+    queryFn: () => evaluateDraft(wallet, draft),
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
   });
+  // "Approve 100 USDC instead" replaces the decision under review with the capped one.
+  const [capped, setCapped] = useState<PolicyDecision | null>(null);
+  const [capAmount, setCapAmount] = useState<string | null>(null);
+  const base = capped ?? evaluated.data;
+  const waiting =
+    base !== undefined && !cleared(base) && (base.verdict === 'step-up' || base.verdict === 'cooling');
+  // Step-up and cooling are resolved by the bank (laptop signature / clock): poll until it clears.
+  const polled = useQuery({
+    queryKey: ['policy', base?.decisionId],
+    queryFn: () => api.policy.get(base?.decisionId as string),
+    enabled: Boolean(base) && waiting,
+    refetchInterval: 2_000,
+    retry: false,
+  });
+  const d: PolicyDecision | undefined = polled.data ?? base;
+  // Only the decision that was actually waiting (step-up / cooling) may auto-continue once it clears.
+  const waitingId = useRef<string | null>(null);
   const [stage, setStage] = useState<SubmitStage | null>(null);
-  const [coolingDone, setCoolingDone] = useState(false);
   const [expired, setExpired] = useState(false);
-  const d = decision.data;
+  const [userOpHash, setUserOpHash] = useState<string | null>(null);
 
   useEffect(() => {
     if (!d) return;
@@ -118,6 +155,7 @@ function Review({
         decision: dec,
         onStage: setStage,
       });
+      setUserOpHash(result.userOpHash);
       const now = new Date().toISOString();
       transferStore.upsert({
         userOpHash: result.userOpHash,
@@ -129,6 +167,7 @@ function Review({
         status: 'sent',
         timeline: { signedAt: now, sentAt: now },
         decisionId: dec.decisionId,
+        summary: draft.dapp ? dec.simulation.decodedCalls[0]?.humanText : undefined,
       });
       pendingSendStore.clear();
       return result.userOpHash;
@@ -137,38 +176,97 @@ function Review({
     onError: () => setStage(null),
   });
 
-  const rows = whatWillHappen(d, draft, balance.data);
+  // Auto-continue: the moment a step-up / cooling decision clears, run the usual sponsor → sign → send.
+  const confirmMutate = confirm.mutate;
+  useEffect(() => {
+    if (!d) return;
+    if (!cleared(d)) {
+      if (d.verdict === 'step-up' || d.verdict === 'cooling') waitingId.current = d.decisionId;
+      return;
+    }
+    if (waitingId.current === d.decisionId && !confirm.isPending && !confirm.isSuccess && !confirm.isError) {
+      waitingId.current = null;
+      confirmMutate(d);
+    }
+  }, [d, confirm.isPending, confirm.isSuccess, confirm.isError, confirmMutate]);
+
+  const cancelDecision = useMutation({
+    mutationFn: (id: string) => api.policy.cancel(id),
+    onSuccess: () => {
+      pendingSendStore.clear();
+      router.push(backHref);
+    },
+  });
+
+  const applyCap = useMutation({
+    mutationFn: (dec: PolicyDecision) => {
+      const call = dec.suggestedCap?.call;
+      if (!call) throw new Error('no cap');
+      return evaluateDraft(wallet, draft, [call]);
+    },
+    onSuccess: (dec, source) => {
+      waitingId.current = null;
+      setCapAmount(source.suggestedCap?.amount ?? null);
+      setCapped(dec);
+    },
+  });
+
   const verdict = d?.verdict;
+  const isCleared = d !== undefined && cleared(d);
   const cancelled = confirm.error instanceof PasskeyCancelledError;
-  const insufficient = balance.data !== undefined && draft.amountUsdc > balance.data;
-  const canConfirm =
-    d !== undefined &&
-    !expired &&
-    !insufficient &&
-    (verdict === 'approve' || (verdict === 'cooling' && coolingDone));
+  const insufficient = !draft.dapp && balance.data !== undefined && draft.amountUsdc > balance.data;
+  const danger = d?.simulation.decodedCalls.find((c) => c.risk === 'danger');
+  const cap = d?.suggestedCap;
+  const unknownDapp = verdict === 'block' && Boolean(draft.dapp) && !d?.screening.hit;
+  const canConfirm = d !== undefined && !expired && !insufficient && isCleared && !(danger && cap);
+  const rows = whatWillHappen(d, draft, balance.data);
 
   return (
     <>
-      <ScreenHeader title={copy.review.title} backHref="/send" />
+      <ScreenHeader title={copy.review.title} backHref={backHref} />
       <section className="kl-balance">
-        <p className="kl-balance__amount">{formatCHF(draft.amountChf)}</p>
-        <p className="kl-balance__secondary">
-          {copy.review.toLine(formatUSDC(draft.amountUsdc), draft.toLabel)}
-        </p>
+        {draft.dapp ? (
+          <>
+            <p className="kl-balance__amount text-28">{copyGaps.review.dappTitle(draft.dapp.name)}</p>
+            <p className="kl-balance__secondary">{draft.dapp.description}</p>
+          </>
+        ) : (
+          <>
+            <p className="kl-balance__amount">{formatCHF(draft.amountChf)}</p>
+            <p className="kl-balance__secondary">
+              {copy.review.toLine(formatUSDC(draft.amountUsdc), draft.toLabel)}
+            </p>
+          </>
+        )}
         <Address value={draft.to} explorerUrl={addressUrl(draft.to)} />
       </section>
 
-      {decision.isPending ? <Skeleton kind="line" count={2} /> : null}
-      {d ? <Verdict decision={d} onCoolingDone={() => setCoolingDone(true)} /> : null}
-      {insufficient ? <Note tone="danger">{copy.send.errFunds(formatUSDC(balance.data ?? 0))}</Note> : null}
+      {evaluated.isPending || applyCap.isPending ? (
+        <div className="kl-stack kl-stack--tight">
+          <Skeleton kind="line" count={2} />
+          {applyCap.isPending ? <p className="text-12 text-ink-3">{copyGaps.review.dappEvaluating}</p> : null}
+        </div>
+      ) : null}
+      {d ? (
+        <Verdict
+          decision={d}
+          unknownDapp={unknownDapp}
+          capAmount={capAmount}
+          continuing={confirm.isPending}
+        />
+      ) : null}
+      {insufficient && verdict !== 'block' ? (
+        <Note tone="danger">{copy.send.errFunds(formatUSDC(balance.data ?? 0))}</Note>
+      ) : null}
 
-      {expired ? (
+      {expired && !confirm.isPending ? (
         <ErrorState
           title={copy.review.expiredTitle}
           body={copy.review.expiredBody}
           onRetry={() => {
             setExpired(false);
-            decision.refetch();
+            setCapped(null);
+            evaluated.refetch();
           }}
           retryLabel={copy.review.reviewAgain}
         />
@@ -178,39 +276,37 @@ function Review({
         title={copy.review.panelTitle}
         rows={rows}
         footnote={copy.common.cantUndo}
-        tone={verdict === 'block' ? 'danger' : 'default'}
+        tone={verdict === 'block' || danger ? 'danger' : 'default'}
       />
-      {verdict === 'block' ? <p className="text-14 text-ink-2">{copy.review.blockBody}</p> : null}
-      {decision.isError ? (
+      {danger && d ? (
+        <Note tone="danger">
+          {cap ? copy.review.dappDangerNote(draft.dapp?.name ?? draft.toLabel) : danger.humanText}
+        </Note>
+      ) : null}
+      {verdict === 'block' ? (
+        <p className="text-14 text-ink-2">
+          {unknownDapp ? copyGaps.review.dappUnknownBody : copy.review.blockBody}
+        </p>
+      ) : null}
+      {evaluated.isError ? (
         <ApiErrorState
-          error={decision.error}
+          error={evaluated.error}
           body={copy.common.errorBody}
-          onRetry={() => decision.refetch()}
+          onRetry={() => evaluated.refetch()}
         />
       ) : null}
-
-      {d ? (
-        <Disclosure summary={copy.common.technicalDetails}>
-          <div className="kl-stack kl-stack--tight">
-            {d.simulation.decodedCalls.map((c) => (
-              <pre key={`${c.to}${c.fn}`} className="kl-code">
-                {c.to}
-                {'\n'}
-                {c.fn}({c.args.join(', ')}){'\n'}
-                {c.humanText}
-              </pre>
-            ))}
-            <pre className="kl-code">
-              decisionId {d.decisionId}
-              {'\n'}callsHash {d.callsHash}
-              {'\n'}expires {d.expiresAt}
-              {'\n'}simulation {d.simulation.provider}
-              {d.simulation.simulated ? ' (simulated)' : ''}
-              {'\n'}sponsored {String(d.sponsorship.sponsored)} · {d.sponsorship.remainingToday} left today
-            </pre>
-          </div>
-        </Disclosure>
+      {applyCap.isError ? (
+        <ApiErrorState
+          error={applyCap.error}
+          body={copy.common.errorBody}
+          onRetry={() => d && applyCap.mutate(d)}
+        />
       ) : null}
+      {polled.isError ? (
+        <ApiErrorState error={polled.error} body={copy.common.errorBody} onRetry={() => polled.refetch()} />
+      ) : null}
+
+      {d ? <TechnicalDetails decision={d} userOpHash={userOpHash} /> : null}
 
       {cancelled ? <Note tone="warn">{copy.review.passkeyCancelled}</Note> : null}
       {confirm.isError && !cancelled ? (
@@ -220,16 +316,49 @@ function Review({
           onRetry={() => d && confirm.mutate(d)}
         />
       ) : null}
+      {cancelDecision.isError ? (
+        <ApiErrorState
+          error={cancelDecision.error}
+          body={copy.common.errorBody}
+          onRetry={() => d && cancelDecision.mutate(d.decisionId)}
+        />
+      ) : null}
       {stage ? <StatusSequence steps={sendingSequence(stage)} /> : null}
 
       <div className="kl-actions">
         {verdict === 'block' ? (
-          <Button variant="ghost" full href="/send">
-            {copy.common.back}
-          </Button>
-        ) : verdict === 'cooling' && !coolingDone ? (
-          <Button variant="secondary" full href="/send" onClick={() => pendingSendStore.clear()}>
-            {copy.review.coolingCancel}
+          <>
+            {unknownDapp ? (
+              <Button variant="secondary" full disabled>
+                {copy.dapps.requestReview}
+              </Button>
+            ) : null}
+            <Button variant="ghost" full href={backHref} onClick={() => pendingSendStore.clear()}>
+              {copy.common.back}
+            </Button>
+          </>
+        ) : danger && cap && d ? (
+          <>
+            <Button variant="primary" full loading={applyCap.isPending} onClick={() => applyCap.mutate(d)}>
+              {copy.review.dappCap(`${formatUSDC(Number(cap.amount))}`)}
+            </Button>
+            <Button
+              variant="ghost"
+              full
+              loading={cancelDecision.isPending}
+              onClick={() => cancelDecision.mutate(d.decisionId)}
+            >
+              {copy.review.dappReject}
+            </Button>
+          </>
+        ) : d && !isCleared && (verdict === 'cooling' || verdict === 'step-up') ? (
+          <Button
+            variant="secondary"
+            full
+            loading={cancelDecision.isPending}
+            onClick={() => cancelDecision.mutate(d.decisionId)}
+          >
+            {verdict === 'cooling' ? copy.review.coolingCancel : copy.common.cancel}
           </Button>
         ) : (
           <>
@@ -242,9 +371,9 @@ function Review({
             >
               {copy.review.confirm}
             </Button>
-            {verdict === 'step-up' ? (
-              <Button variant="secondary" full href="/send" onClick={() => pendingSendStore.clear()}>
-                {copy.common.cancel}
+            {draft.dapp && !confirm.isPending ? (
+              <Button variant="ghost" full href={backHref} onClick={() => pendingSendStore.clear()}>
+                {copy.review.dappReject}
               </Button>
             ) : null}
           </>
@@ -254,52 +383,113 @@ function Review({
   );
 }
 
-/** One PolicyLine per verdict, with the step-up / cooling / block sub-states (DESIGN.md §10 /send/review). */
-function Verdict({ decision, onCoolingDone }: { decision: PolicyDecision; onCoolingDone: () => void }) {
+/** One PolicyLine per verdict with the bank's `reasons[]`, plus the step-up / cooling sub-states (DESIGN.md §10). */
+function Verdict({
+  decision,
+  unknownDapp,
+  capAmount,
+  continuing,
+}: {
+  decision: PolicyDecision;
+  unknownDapp: boolean;
+  capAmount: string | null;
+  continuing: boolean;
+}) {
   const p = copy.review.policy;
+  const first = decision.reasons[0];
+  const reasons = <Reasons reasons={decision.reasons} except={first ? [first] : []} />;
+  if (cleared(decision)) {
+    const viaLaptop = decision.stepUp?.satisfiedBy === 'safety-key';
+    const reason = capAmount
+      ? copyGaps.review.dappCapApplied(`${formatUSDC(Number(capAmount))}`)
+      : viaLaptop
+        ? copyGaps.review.stepUpDone
+        : (decision.reasons[0] ?? p.ok.reason);
+    return (
+      <div className="kl-stack kl-stack--tight">
+        <PolicyLine verdict="ok" word={p.ok.word} reason={continuing ? copyGaps.review.continuing : reason} />
+        {viaLaptop ? (
+          <StatusSequence
+            steps={copy.review.stepUpSequence.map((label) => ({ label, state: 'done' as const }))}
+          />
+        ) : null}
+      </div>
+    );
+  }
   switch (decision.verdict) {
     case 'approve':
-      return <PolicyLine verdict="ok" word={p.ok.word} reason={p.ok.reason} />;
+      return <PolicyLine verdict="ok" word={p.ok.word} reason={decision.reasons[0] ?? p.ok.reason} />;
     case 'step-up': {
-      const satisfied = decision.stepUp?.satisfiedBy === 'safety-key';
       const steps: StatusStep[] = [
         { label: copy.review.stepUpSequence[0], state: 'done' },
-        { label: copy.review.stepUpSequence[1], state: satisfied ? 'done' : 'active' },
-        { label: copy.review.stepUpSequence[2], state: satisfied ? 'done' : 'todo' },
+        { label: copy.review.stepUpSequence[1], state: 'active' },
+        { label: copy.review.stepUpSequence[2], state: 'todo' },
       ];
       return (
         <div className="kl-stack">
-          <PolicyLine verdict="step-up" word={p.stepUp.word} reason={p.stepUp.reason} />
+          <PolicyLine
+            verdict="step-up"
+            word={p.stepUp.word}
+            reason={decision.reasons[0] ?? p.stepUp.reason}
+          />
+          {reasons}
           <StatusSequence steps={steps} />
+          <Note tone="info">
+            {copyGaps.review.stepUpWaiting}. {copyGaps.review.stepUpWaitingNote}
+          </Note>
         </div>
       );
     }
-    case 'cooling': {
-      return <CoolingVerdict decision={decision} onCoolingDone={onCoolingDone} />;
-    }
+    case 'cooling':
+      return <CoolingVerdict decision={decision} />;
     case 'block':
       return (
-        <PolicyLine
-          verdict="block"
-          word={p.block.word}
-          reason={decision.screening.hit ? p.block.reason : copy.common.policyRefused}
-          trailing={decision.screening.simulatedHit ? <SimulatedBadge /> : undefined}
-        />
+        <div className="kl-stack kl-stack--tight">
+          <PolicyLine
+            verdict="block"
+            word={p.block.word}
+            reason={
+              unknownDapp
+                ? copyGaps.review.dappUnknownBlock
+                : decision.screening.hit
+                  ? p.block.reason
+                  : (decision.reasons[0] ?? copy.common.policyRefused)
+            }
+            trailing={decision.screening.simulatedHit ? <SimulatedBadge /> : undefined}
+          />
+          <Reasons
+            reasons={decision.reasons}
+            except={[first ?? '', ...decision.reasons.filter((r) => r.startsWith('Swissquote won'))]}
+          />
+        </div>
       );
   }
 }
 
-/** The "you can cancel for m:ss" sentence ticks with the ring (audit #22). */
-function CoolingVerdict({
-  decision,
-  onCoolingDone,
-}: {
-  decision: PolicyDecision;
-  onCoolingDone: () => void;
-}) {
+function Reasons({ reasons, except = [] }: { reasons: readonly string[]; except?: readonly string[] }) {
+  const shown = reasons.filter((r) => !except.includes(r));
+  if (shown.length === 0) return null;
+  return (
+    <ul className="kl-stack kl-stack--tight pl-4 text-12 text-ink-3" aria-label={copyGaps.review.reasons}>
+      {shown.map((r) => (
+        <li key={r} className="list-disc">
+          {r}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Countdown from the bank's `coolingUntil`; the "you can cancel for m:ss" sentence ticks with the ring. */
+function CoolingVerdict({ decision }: { decision: PolicyDecision }) {
   const p = copy.review.policy;
   const now = useNow();
   const endsAt = decision.coolingUntil ? new Date(decision.coolingUntil).getTime() : Date.now() + 60_000;
+  const finishes = new Date(endsAt).toLocaleTimeString('de-CH', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
   return (
     <div className="kl-stack items-center">
       <PolicyLine
@@ -307,14 +497,29 @@ function CoolingVerdict({
         word={p.cooling.word}
         reason={p.cooling.reason(formatDuration(Math.max(0, endsAt - now)))}
       />
+      <Reasons reasons={decision.reasons} except={decision.reasons[0] ? [decision.reasons[0]] : []} />
       <CountdownRing
         endsAt={endsAt}
         durationMs={60_000}
         size={96}
-        caption={copy.demo.cooling}
-        onDone={onCoolingDone}
+        caption={`${copyGaps.review.coolingFinishes(finishes)} · ${copy.demo.cooling}`}
       />
     </div>
+  );
+}
+
+const riskIcon: Record<DecodedCall['risk'], React.ReactNode> = {
+  none: <CheckCircle size={14} aria-hidden="true" />,
+  warn: <Warning size={14} aria-hidden="true" />,
+  danger: <Prohibit size={14} aria-hidden="true" />,
+};
+
+function RiskWord({ risk }: { risk: DecodedCall['risk'] }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {riskIcon[risk]}
+      {copyGaps.review.riskWord[risk] ?? risk}
+    </span>
   );
 }
 
@@ -323,7 +528,7 @@ function whatWillHappen(
   draft: PendingSend,
   balance: number | undefined,
 ): PanelRow[] {
-  const usdc = formatUSDC(draft.amountUsdc);
+  const rows: PanelRow[] = [];
   const change = d?.simulation.assetChanges.find(
     (a) => a.token.toLowerCase() === env.usdcAddress.toLowerCase(),
   );
@@ -333,40 +538,94 @@ function whatWillHappen(
     : before !== undefined
       ? before - draft.amountUsdc
       : undefined;
-  const rows: PanelRow[] = [
-    { label: copy.review.youSend, value: usdc, tone: 'em' },
-    { label: copy.review.receives(draft.toLabel), value: usdc },
-    {
-      label: copy.review.yourBalance,
-      value:
-        before !== undefined && after !== undefined && after >= 0
-          ? `${formatUSDC(before)} → ${formatUSDC(after)}`
-          : before !== undefined
-            ? formatUSDC(before)
-            : '—',
-    },
-    { label: copy.review.networkFee, value: copy.common.networkFeePaid },
-  ];
+  if (!draft.dapp) {
+    const usdc = formatUSDC(draft.amountUsdc);
+    rows.push({ label: copy.review.youSend, value: usdc, tone: 'em' });
+    rows.push({ label: copy.review.receives(draft.toLabel), value: usdc });
+  }
+  rows.push({
+    label: copy.review.yourBalance,
+    value:
+      before !== undefined && after !== undefined && after >= 0 && after !== before
+        ? `${formatUSDC(before)} → ${formatUSDC(after)}`
+        : before !== undefined
+          ? formatUSDC(before)
+          : '—',
+  });
+  if (d) {
+    for (const c of d.simulation.decodedCalls) {
+      rows.push({
+        label: <RiskWord risk={c.risk} />,
+        value: c.humanText,
+        tone: c.risk === 'danger' ? 'danger' : undefined,
+      });
+    }
+  }
+  rows.push({
+    label: copy.review.networkFee,
+    value:
+      d && !d.sponsorship.sponsored
+        ? d.verdict !== 'block' && d.sponsorship.remainingToday === 0
+          ? copyGaps.review.feeCapExhausted
+          : copyGaps.review.feeNotSponsored
+        : copy.common.networkFeePaid,
+  });
   if (d) {
     rows.push({
-      label: copy.review.sanctions,
+      label: copyGaps.review.screened,
       value: d.screening.hit ? (
         <>
-          {copy.review.policy.block.word} {d.screening.simulatedHit ? <SimulatedBadge /> : null}
+          {copyGaps.review.screenedHit} {d.screening.simulatedHit ? <SimulatedBadge /> : null}
         </>
       ) : (
         <>
-          {copy.review.sanctionsClear} <SimulatedBadge />
+          {copyGaps.review.screenedLists} <SimulatedBadge />
         </>
       ),
       tone: d.screening.hit ? 'danger' : 'ok',
     });
-    for (const c of d.simulation.decodedCalls) {
-      if (c.risk === 'danger')
-        rows.push({ label: copy.review.permission, value: c.humanText, tone: 'danger' });
-    }
   }
   return rows;
+}
+
+function TechnicalDetails({
+  decision: d,
+  userOpHash,
+}: {
+  decision: PolicyDecision;
+  userOpHash: string | null;
+}) {
+  const fallback = d.simulation.provider === 'fallback';
+  return (
+    <Disclosure summary={copy.common.technicalDetails}>
+      <div className="kl-stack kl-stack--tight">
+        <p className="text-12 text-ink-3">
+          {copyGaps.review.simulationProvider}:{' '}
+          {fallback ? copyGaps.review.providerFallback : copyGaps.review.providerLive}{' '}
+          {fallback ? <SimulatedBadge /> : null}
+        </p>
+        {d.simulation.decodedCalls.map((c) => (
+          <pre key={`${c.to}${c.fn}${c.args.join()}`} className="kl-code">
+            {c.to}
+            {'\n'}
+            {c.fn}({c.args.join(', ')}){'\n'}
+            {c.humanText}
+          </pre>
+        ))}
+        <pre className="kl-code">
+          decisionId {d.decisionId}
+          {'\n'}tier {d.tier} · verdict {d.verdict}
+          {d.status ? ` · ${d.status}` : ''}
+          {'\n'}callsHash {d.callsHash}
+          {'\n'}expires {d.expiresAt}
+          {d.coolingUntil ? `\ncoolingUntil ${d.coolingUntil}` : ''}
+          {d.stepUp?.guardianAddress ? `\nstepUp ${d.stepUp.guardianAddress}` : ''}
+          {'\n'}sponsored {String(d.sponsorship.sponsored)} · {d.sponsorship.remainingToday} left today
+          {userOpHash ? `\n${copyGaps.review.userOpHash} ${userOpHash}` : ''}
+        </pre>
+      </div>
+    </Disclosure>
+  );
 }
 
 function sendingSequence(stage: SubmitStage): StatusStep[] {

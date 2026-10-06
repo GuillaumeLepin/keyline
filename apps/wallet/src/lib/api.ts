@@ -30,6 +30,7 @@ import {
   type OperatorActionBody,
   PairingSchema,
   PasskeySchema,
+  PendingApprovalsResponseSchema,
   PolicyDecisionSchema,
   type PolicyRequest,
   type RecoveryConfirmBody,
@@ -43,6 +44,7 @@ import {
   type SetModeBody,
   type SponsorBody,
   SponsorResponseSchema,
+  type StepUpBody,
   type TopupBody,
   TopupResponseSchema,
   UserOpStatusSchema,
@@ -213,6 +215,14 @@ export const api = {
 
   policy: {
     evaluate: (body: PolicyRequest) => request('POST', '/policy/evaluate', PolicyDecisionSchema, body),
+    /** Re-read a decision: `cooling` auto-promotes to `approve` once `coolingUntil` passed; step-up shows `stepUp`. */
+    get: (id: string) => request('GET', `/policy/${id}`, PolicyDecisionSchema),
+    stepUp: (id: string, body: StepUpBody) =>
+      request('POST', `/policy/${id}/step-up`, PolicyDecisionSchema, body),
+    cancel: (id: string) => request('POST', `/policy/${id}/cancel`, PolicyDecisionSchema, {}),
+    pendingApprovals: async (wallet: string) =>
+      (await request('GET', `/wallets/${wallet}/pending-approvals`, PendingApprovalsResponseSchema))
+        .decisions,
   },
 
   userops: {

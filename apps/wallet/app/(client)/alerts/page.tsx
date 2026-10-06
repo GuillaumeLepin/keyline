@@ -19,7 +19,7 @@ import { useCallback, useState } from 'react';
 import type { Hex } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { api } from '@/src/lib/api';
 import {
   buildOpFromDecision,
@@ -46,16 +46,29 @@ export default function AlertsPage() {
       {wallet === undefined || (wallet && alerts.isPending) ? (
         <Skeleton kind="row" count={2} />
       ) : wallet === null ? (
-        <EmptyState title={copy.alerts.emptyTitle} body={copyGaps.alerts.noWallet} />
+        <EmptyState title={copy.alerts.emptyTitle} body={copy.alerts.noWallet} />
       ) : alerts.isError || !alerts.data ? (
         <ApiErrorState error={alerts.error} body={copy.common.errorBody} onRetry={() => alerts.refetch()} />
       ) : alerts.data.length === 0 ? (
         <EmptyState title={copy.alerts.emptyTitle} body={copy.alerts.emptyBody} />
       ) : (
         <div className="kl-stack">
-          {alerts.data.map((alert) => (
-            <AlertCard key={alert.id} alert={alert} wallet={wallet} />
-          ))}
+          {alerts.data
+            .filter(
+              (alert) =>
+                // Once a recovery finalized, its "started" card (with Cancel) is replaced by the finalized note.
+                !(
+                  alert.kind === 'recovery-started' &&
+                  alerts.data.some(
+                    (o) =>
+                      o.recoveryRequestId === alert.recoveryRequestId &&
+                      (o.kind === 'recovery-finalized' || o.kind === 'recovery-cancelled'),
+                  )
+                ),
+            )
+            .map((alert) => (
+              <AlertCard key={alert.id} alert={alert} wallet={wallet} />
+            ))}
         </div>
       )}
     </>
@@ -67,7 +80,7 @@ function AlertCard({ alert, wallet }: { alert: Alert; wallet: LocalWallet }) {
   const ago = formatRelative(new Date(alert.at), now);
   switch (alert.kind) {
     case 'recovery-started':
-      return <StartedAlert alert={alert} wallet={wallet} ago={ago} />;
+      return <StartedAlert alert={alert} wallet={wallet} ago={ago} now={now} />;
     case 'recovery-refused':
       return (
         <Note tone="info" title={copy.alerts.refusedTitle}>
@@ -81,14 +94,14 @@ function AlertCard({ alert, wallet }: { alert: Alert; wallet: LocalWallet }) {
       );
     case 'recovery-cancelled':
       return (
-        <Note tone="ok" title={copyGaps.alerts.cancelledTitle}>
+        <Note tone="ok" title={copy.alerts.cancelledTitle}>
           {copy.alerts.cancelled}
           {alert.txHash ? <TxLink hash={alert.txHash} /> : null}
         </Note>
       );
     case 'recovery-finalized':
       return (
-        <Note tone="warn" title={copyGaps.alerts.finalizedTitle}>
+        <Note tone="warn" title={copy.alerts.finalizedTitle}>
           {alert.body}
           {alert.txHash ? <TxLink hash={alert.txHash} /> : null}
         </Note>
@@ -108,7 +121,17 @@ type CancelPhase =
   | { kind: 'error'; error: unknown; cancelled: boolean };
 
 /** Cancel = the Safe calls `cancelRecovery()` itself: policy (`cancel-recovery`) → sponsor → passkey → send. */
-function StartedAlert({ alert, wallet, ago }: { alert: Alert; wallet: LocalWallet; ago: string }) {
+function StartedAlert({
+  alert,
+  wallet,
+  ago,
+  now,
+}: {
+  alert: Alert;
+  wallet: LocalWallet;
+  ago: string;
+  now: number;
+}) {
   const s = copy.alerts;
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<CancelPhase>({ kind: 'idle' });
@@ -163,7 +186,7 @@ function StartedAlert({ alert, wallet, ago }: { alert: Alert; wallet: LocalWalle
 
   if (phase.kind === 'cancelled') {
     return (
-      <Note tone="ok" title={copyGaps.alerts.cancelledTitle}>
+      <Note tone="ok" title={copy.alerts.cancelledTitle}>
         <p>{s.cancelled}</p>
         <StatusSequence steps={cancelSequence(phase)} />
         <TxLink hash={phase.txHash} />
@@ -174,15 +197,14 @@ function StartedAlert({ alert, wallet, ago }: { alert: Alert; wallet: LocalWalle
   const busy = phase.kind === 'running' || phase.kind === 'sent' || phase.kind === 'included';
   return (
     <Note tone="danger" title={s.startedTitle}>
-      <p>{s.startedBody('Zürich', ago, executeAfter ? formatClock(executeAfter) : '—')}</p>
+      <p>
+        {executeAfter && executeAfter.getTime() <= now
+          ? s.periodOverBody(formatClock(executeAfter))
+          : s.startedBody(copy.demo.city, ago, executeAfter ? formatClock(executeAfter) : '—')}
+      </p>
       {executeAfter ? (
         <div className="flex justify-center">
-          <CountdownRing
-            endsAt={executeAfter}
-            durationMs={GRACE_MS}
-            size={120}
-            doneLabel={copy.desk.status.finalized}
-          />
+          <CountdownRing endsAt={executeAfter} durationMs={GRACE_MS} size={120} doneLabel={s.periodOver} />
         </div>
       ) : null}
       {phase.kind === 'refused' ? <p>{copy.common.policyRefused}</p> : null}
@@ -205,7 +227,7 @@ function StartedAlert({ alert, wallet, ago }: { alert: Alert; wallet: LocalWalle
 }
 
 function cancelSequence(phase: CancelPhase): StatusStep[] {
-  const labels = copyGaps.alerts.cancelSequence;
+  const labels = copy.alerts.cancelSequence;
   const idx =
     phase.kind === 'running'
       ? phase.stage === 'sending' || phase.stage === 'sent'

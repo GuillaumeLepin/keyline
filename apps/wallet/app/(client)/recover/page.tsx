@@ -141,7 +141,7 @@ export default function RecoverPage() {
           onRetry={() => recovery.refetch()}
           actions={
             <Button variant="ghost" onClick={startOver}>
-              {copyGaps.recover.startOver}
+              {copy.recover.startOver}
             </Button>
           }
         />
@@ -195,11 +195,11 @@ export default function RecoverPage() {
           <Stepper current={5} total={TOTAL} label={STEP_LABELS[4]} />
           <ErrorState
             title={copy.recover.cancelledByOwner}
-            body={copyGaps.recover.cancelledBody}
+            body={copy.recover.cancelledBody}
             detail={r.onchain.cancelledTxHash ? `cancel tx ${r.onchain.cancelledTxHash}` : undefined}
             actions={
               <Button variant="secondary" onClick={startOver}>
-                {copyGaps.recover.startOver}
+                {copy.recover.startOver}
               </Button>
             }
           />
@@ -314,7 +314,7 @@ function StepEmail({
         <h1 className="kl-title">{s.emailTitle}</h1>
         <p className="kl-lead">{s.emailBody}</p>
       </div>
-      <Note tone="ok">{copyGaps.recover.keyDone}</Note>
+      <Note tone="ok">{copy.recover.keyDone}</Note>
       {created ? (
         <>
           <TextField label={s.emailField} type="email" value={inboxEmail} readOnly />
@@ -333,7 +333,7 @@ function StepEmail({
                   className="kl-link kl-link--quiet"
                   href={`/mock/inbox?email=${encodeURIComponent(inboxEmail)}`}
                 >
-                  {copyGaps.mock.inboxShow}
+                  {copy.mock.inboxShow}
                 </Link>
               </>
             }
@@ -358,7 +358,7 @@ function StepEmail({
               setEmail(e.target.value);
               setUnknown(false);
             }}
-            error={unknown ? copyGaps.recover.emailUnknown : undefined}
+            error={unknown ? copy.recover.emailUnknown : undefined}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && validEmail) send.mutate(email);
             }}
@@ -475,7 +475,7 @@ function StepIdentity({
           />
           <TextField label={s.idDob} type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
           <TextField
-            label={copyGaps.recover.docNumber}
+            label={copy.recover.docNumber}
             mono
             value={doc}
             onChange={(e) => setDoc(e.target.value)}
@@ -523,7 +523,7 @@ function StepRecoverers({ recovery }: { recovery: RecoveryRequest }) {
   const useCard = useMutation({
     mutationFn: async (hex: string) => {
       const trimmed = hex.trim();
-      if (!isHex(trimmed) || trimmed.length !== 66) throw new Error(copyGaps.recover.cardInvalid);
+      if (!isHex(trimmed) || trimmed.length !== 66) throw new Error(copy.recover.cardInvalid);
       const signed = await signRecoveryConfirmation({
         privateKey: trimmed as Hex,
         recoveryId: recovery.id,
@@ -532,7 +532,7 @@ function StepRecoverers({ recovery }: { recovery: RecoveryRequest }) {
       });
       const status = await readRecoveryStatus(getAddress(recovery.walletAddress));
       if (!status.guardians.some((g) => g.toLowerCase() === signed.guardianAddress.toLowerCase()))
-        throw new Error(copyGaps.recover.cardNotGuardian);
+        throw new Error(copy.recover.cardNotGuardian);
       return api.recoveries.confirm(recovery.id, {
         kind: 'emergency-card',
         guardianAddress: signed.guardianAddress,
@@ -569,7 +569,7 @@ function StepRecoverers({ recovery }: { recovery: RecoveryRequest }) {
             sq?.txHash ? (
               <ExplorerLink hash={sq.txHash} />
             ) : sq ? (
-              <p className="text-12 text-ink-3">{copyGaps.recover.sqHeld}</p>
+              <p className="text-12 text-ink-3">{copy.recover.sqHeld}</p>
             ) : undefined
           }
         />
@@ -628,9 +628,9 @@ function StepRecoverers({ recovery }: { recovery: RecoveryRequest }) {
       <Note tone="info">{s.recEither}</Note>
       <Disclosure summary={copy.common.technicalDetails}>
         <div className="kl-stack kl-stack--tight">
-          <p className="text-12 text-ink-3">{copyGaps.recover.walletLabel}</p>
+          <p className="text-12 text-ink-3">{copy.recover.walletLabel}</p>
           <Address value={recovery.walletAddress} explorerUrl={addressUrl(recovery.walletAddress)} />
-          <p className="text-12 text-ink-3">{copyGaps.approve.newKey}</p>
+          <p className="text-12 text-ink-3">{copy.recover.newKey}</p>
           <Address
             value={recovery.newOwner.signerProxyAddress}
             explorerUrl={addressUrl(recovery.newOwner.signerProxyAddress)}
@@ -675,13 +675,13 @@ function StepWaiting({ recovery, onWelcomeHome }: { recovery: RecoveryRequest; o
         <Panel
           rows={[
             {
-              label: copyGaps.recover.walletLabel,
+              label: copy.recover.walletLabel,
               value: (
                 <Address value={recovery.walletAddress} explorerUrl={addressUrl(recovery.walletAddress)} />
               ),
             },
             {
-              label: copyGaps.approve.newKey,
+              label: copy.recover.newKey,
               value: (
                 <Address
                   value={recovery.newOwner.signerProxyAddress}
@@ -733,7 +733,7 @@ function StepWaiting({ recovery, onWelcomeHome }: { recovery: RecoveryRequest; o
       ) : null}
       <Disclosure summary={copy.common.technicalDetails}>
         <div className="kl-stack kl-stack--tight">
-          <p className="text-12 text-ink-3">{copyGaps.recover.walletLabel}</p>
+          <p className="text-12 text-ink-3">{copy.recover.walletLabel}</p>
           <Address value={recovery.walletAddress} explorerUrl={addressUrl(recovery.walletAddress)} />
           <p className="text-12 text-ink-3">{copy.desk.timerSource}</p>
           <Address value={env.recoveryModule} explorerUrl={addressUrl(env.recoveryModule)} />

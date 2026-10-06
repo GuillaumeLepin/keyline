@@ -5,7 +5,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps } from '@/src/copy';
+import { copy } from '@/src/copy';
 import { api } from '@/src/lib/api';
 
 /**
@@ -34,20 +34,20 @@ export default function MockEidPage() {
       <Toggle checked={liveness} onChange={setLiveness} label={copy.recover.idLiveness} />
       {issue.isSuccess ? (
         <Note tone="info">
-          {copyGaps.mock.eidIssued(issue.data.issuer)} <SimulatedBadge />
+          {copy.mock.eidIssued(issue.data.issuer)} <SimulatedBadge />
           <pre className="kl-code">{JSON.stringify(issue.data.eidPayload, null, 2)}</pre>
         </Note>
       ) : null}
       {issue.isError ? (
         <ApiErrorState error={issue.error} body={copy.common.errorBody} onRetry={() => issue.mutate()} />
       ) : null}
-      <Note tone="info">{copyGaps.mock.eidNote}</Note>
+      <Note tone="info">{copy.mock.eidNote}</Note>
       <div className="kl-actions">
         <Button variant="primary" full loading={issue.isPending} onClick={() => issue.mutate()}>
           {s.eidSubmit}
         </Button>
         <Button variant="ghost" full href="/recover">
-          {copyGaps.mock.eidBack}
+          {copy.mock.eidBack}
         </Button>
       </div>
     </>

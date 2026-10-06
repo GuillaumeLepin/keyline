@@ -3,7 +3,7 @@
 import type { DeskQueueItem, RecoveryRequest } from '@keyline/shared';
 import type { StatementRowStatus } from '@keyline/ui';
 import { useQuery } from '@tanstack/react-query';
-import { copy, copyGaps } from '../copy';
+import { copy } from '../copy';
 import { api } from './api';
 
 export function useDeskQueue(token: string | null, pollMs = 3_000) {
@@ -41,7 +41,7 @@ export function statusTone(status: RecoveryRequest['status']): StatementRowStatu
 
 export function waitingForLabel(item: DeskQueueItem): string | undefined {
   const w = item.recovery.waitingFor;
-  return w ? copyGaps.desk.waitingForValues[w] : undefined;
+  return w ? copy.desk.waitingForValues[w] : undefined;
 }
 
 export function statusLabel(status: RecoveryRequest['status']): string {

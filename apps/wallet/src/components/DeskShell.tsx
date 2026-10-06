@@ -3,7 +3,7 @@
 import { DeskLayout } from '@keyline/ui';
 import { usePathname, useRouter } from 'next/navigation';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
-import { copy, copyGaps } from '../copy';
+import { copy } from '../copy';
 import { bootstrapPersona } from '../lib/device';
 import { deskTokenStore } from '../lib/storage';
 
@@ -24,19 +24,19 @@ export function DeskShell({ children }: { children: ReactNode }) {
   const signedIn = Boolean(token);
   return (
     <DeskLayout
-      operator={signedIn ? copyGaps.desk.operatorName : undefined}
+      operator={signedIn ? copy.desk.operatorName : undefined}
       onSignOut={signedIn ? signOut : undefined}
       footer={copy.desk.footer}
       nav={
         signedIn
           ? [
               {
-                label: copyGaps.desk.navQueue,
+                label: copy.desk.navQueue,
                 href: '/desk/queue',
                 current: pathname.startsWith('/desk/queue') || pathname.startsWith('/desk/requests'),
               },
               {
-                label: copyGaps.desk.navAudit,
+                label: copy.desk.navAudit,
                 href: '/desk/audit',
                 current: pathname.startsWith('/desk/audit'),
               },

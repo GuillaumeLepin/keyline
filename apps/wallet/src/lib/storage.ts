@@ -46,6 +46,8 @@ export const LocalTransferSchema = z.object({
     })
     .default({}),
   decisionId: z.string().optional(),
+  /** dApp operations: the bank's decode of the call (shown instead of an amount on /activity). */
+  summary: z.string().optional(),
 });
 export type LocalTransfer = z.infer<typeof LocalTransferSchema>;
 
@@ -123,8 +125,18 @@ export const PendingSendSchema = z.object({
   to: AddressSchema,
   toLabel: z.string(),
   knownContact: z.boolean(),
-  amountChf: z.number().positive(),
-  amountUsdc: z.number().positive(),
+  /** Zero for a dApp permission request (no USDC leaves the wallet at signing time). */
+  amountChf: z.number().nonnegative(),
+  amountUsdc: z.number().nonnegative(),
+  /** Present when the draft is a dApp request from /dapps: the review evaluates `kind: 'dapp'` with these calls. */
+  dapp: z
+    .object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      description: z.string(),
+      calls: z.array(z.object({ to: AddressSchema, value: z.string(), data: HexSchema })),
+    })
+    .optional(),
 });
 export type PendingSend = z.infer<typeof PendingSendSchema>;
 

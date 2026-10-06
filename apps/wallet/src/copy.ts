@@ -1,5 +1,5 @@
 // Generated from docs/DESIGN.md §9–10. Do not edit strings here; edit DESIGN.md and re-paste.
-export const copy = {
+const base = {
   brand: 'Keyline',
   device: {
     'lea-phone': 'Lea · phone',
@@ -491,42 +491,58 @@ export const copy = {
   },
 } as const;
 
-/**
- * Wave-2 strings the recovery / desk / mock screens need that DESIGN.md Appendix A does not yet contain.
- * Listed in the wallet-client report so design-system can add them to DESIGN.md; the block is deleted once they land.
- */
-export const copyGaps = {
+/** DESIGN.md Appendix A.2 — Wave 2 additions, merged over the base object (same keys win). */
+const wave2 = {
+  demo: { city: 'Zürich' },
+  home: { restoredRow: 'Access restored on this phone' },
   recover: {
-    /** The bank issues the email code when the recovery is created, so the new key must exist first. */
+    codeHint: 'Email delivery is simulated — the code is in the demo inbox.',
+    idDobPlaceholder: 'DD.MM.YYYY',
+    openEid: 'Open the e-ID stand-in',
+    keyWhere: 'This phone',
+    keyCan: 'Signs every transfer once access is restored',
+    keyDone: 'Key created on this phone.',
     emailUnknown: 'That email isn’t on a Swissquote file with a Keyline.',
     docNumber: 'Document number',
-    keyDone: 'Key created on this phone.',
+    recSafety: 'Your laptop',
+    recSafetyCan: 'Open Keyline on your laptop to confirm',
+    recCard: 'On paper, with you',
+    recCardCan: 'Paste the key printed on the card below',
     sqHeld: 'Signature held by Swissquote — relayed with the second one',
     cardInvalid: 'That doesn’t look like an Emergency card key.',
     cardNotGuardian: 'This key is not one of the wallet’s recoverers.',
-    laptopOption: 'Confirm on your laptop',
-    cardOption: 'Paste your Emergency card',
     noPending: 'No recovery in progress on this phone.',
     startOver: 'Start over',
     walletLabel: 'Wallet being restored',
+    newKey: 'New key',
+    ready: 'Ready to finish',
+    restoredLabel: 'Restored',
+    welcome: 'You’re back in, Lea',
+    viewRestoreTx: 'View the restore transaction on Basescan',
     cancelledBody: 'Your old phone cancelled this recovery. Nothing changed on the wallet.',
   },
   approve: {
     recoveryTitle: 'Restore access on a new phone?',
     recoveryBody: 'A new phone asked to become the only key of this wallet. Confirm only if this is you.',
+    confirmedTitle: 'Confirmed on this laptop',
     recoveryConfirmed:
       'Confirmed. The waiting period starts once Swissquote’s signature is relayed with yours.',
+    waitingBody: (t: string) => `The waiting period has started. It ends at ${t}.`,
     recoveryRefused: 'Not confirmed. Nothing changed; the new phone stays locked out.',
     noSafetyKey: 'This laptop holds no Safety key. Pair it first.',
     pairLink: 'Pair this laptop',
-    newKey: 'New key',
-    requested: 'Requested',
+    requestedLabel: 'Requested',
     signingTitle: 'What you sign',
   },
   alerts: {
+    startedTitle: 'Was this you?',
+    open: 'Open alerts',
+    periodOver: 'Period over',
+    periodOverBody: (t: string) =>
+      `The waiting period ended at ${t}. The new phone can finish at any moment; you can still cancel until it does.`,
     cancelSequence: ['Signed', 'Sent', 'In block', 'Cancelled'],
-    finalizedTitle: 'Recovery finished',
     cancelledTitle: 'Recovery cancelled',
+    finalizedTitle: 'Access moved to a new phone',
     noWallet: 'No wallet on this device.',
   },
   desk: {
@@ -535,7 +551,7 @@ export const copyGaps = {
     operatorName: 'M. Keller',
     client: 'Client',
     device: 'Device',
-    status: 'Status',
+    statusCol: 'Status',
     waitingFor: 'Waiting for',
     age: 'Age',
     waitingForValues: {
@@ -550,6 +566,9 @@ export const copyGaps = {
       swissquote: 'Swissquote',
       partner: 'Partner',
     },
+    sigValues: { verdictOverridden: 'Overridden by operator (demo)' },
+    operatorRow: 'Operator',
+    confOf: (have: number, need: number) => `${have} of ${need} confirmations`,
     newOwner: 'New key (signer)',
     wallet: 'Wallet',
     reasons: 'Reasons',
@@ -566,8 +585,11 @@ export const copyGaps = {
     notFound: 'This request is not in the queue.',
   },
   mock: {
+    inboxShort: 'Inbox',
     inboxEmail: 'Email',
     inboxShow: 'Show inbox',
+    eidBody:
+      'Stand-in for the Swiss e-ID (live 1 Dec 2026). A name that doesn’t match the client, or a failed liveness check, fails.',
     eidIssued: (issuer: string) => `Issued by ${issuer} — forward it from the recovery screen.`,
     eidBack: 'Back to recovery',
     eidNote:
@@ -580,7 +602,120 @@ export const copyGaps = {
     proofCopied: 'Proof copied',
     verifiedAt: 'Verified',
     method: 'Method',
+    proof: { methodValue: 'Signed by your wallet' },
+    limitsNewAddress: 'First transfer to a new address, or above CHF 10’000',
     exportLater: 'Available in the next step of the prototype',
     eventFallback: (type: string) => type.replace(/[.-]/g, ' '),
+  },
+} as const;
+
+type IsFn<T> = T extends (...args: never[]) => unknown ? true : false;
+type DeepMerge<A, B> =
+  IsFn<B> extends true
+    ? B
+    : B extends readonly unknown[]
+      ? B
+      : B extends object
+        ? A extends object
+          ? {
+              [K in keyof A | keyof B]: K extends keyof B
+                ? K extends keyof A
+                  ? DeepMerge<A[K], B[K]>
+                  : B[K]
+                : K extends keyof A
+                  ? A[K]
+                  : never;
+            }
+          : B
+        : B;
+
+function isPlain(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function deepMerge<A, B>(a: A, b: B): DeepMerge<A, B> {
+  if (!isPlain(a) || !isPlain(b)) return b as DeepMerge<A, B>;
+  const out: Record<string, unknown> = { ...a };
+  for (const [k, v] of Object.entries(b)) out[k] = isPlain(v) && isPlain(a[k]) ? deepMerge(a[k], v) : v;
+  return out as DeepMerge<A, B>;
+}
+
+export const copy = deepMerge(base, wave2);
+
+/**
+ * Wave-3 strings (review decision states, laptop co-approval, dApps, security exit hatch) not yet in DESIGN.md Appendix A.
+ * Listed in the wallet-client report so design-system can add them to DESIGN.md; the block is deleted once they land.
+ */
+export const copyGaps = {
+  recover: {
+    laptopOption: 'Confirm on your laptop',
+    cardOption: 'Paste your Emergency card',
+  },
+  security: {
+    proveFinma:
+      'FINMA’s travel-rule guidance asks the receiving platform to verify the beneficiary controls the wallet — this signature is that proof.',
+    proveWallet: 'Wallet',
+    proveChain: 'Network',
+    proveNonce: 'Nonce',
+    proveSignature: 'Signature',
+    exportPlainNote: 'Prototype: plain JSON — production: encrypted keystore.',
+    exportPlainPrimary: 'Download Safety key',
+    exportNoKey: 'This laptop holds no Safety key for this wallet.',
+    exportDone: 'Downloaded. Keep the file off this laptop.',
+    exitThreshold: (n: number, of: number) => `Any ${n} of ${of} restore access`,
+    exitSigning4337: 'Your phone key keeps signing through any ERC-4337 bundler.',
+    exitCliCopied: 'Command copied',
+    exitLoadingGuardians: 'Reading the recovery module on Base Sepolia…',
+    exitGuardianLabel: (kind: string) => kind,
+    exitUnknownGuardian: 'Recoverer',
+    exitCli: (safe: string) =>
+      `pnpm keyline recover --without-bank --safe ${safe} --safety-key safety.json --emergency-card <hex>`,
+    guardiansUnavailable: 'The recovery module could not be read. Nothing is changed — try again.',
+  },
+  review: {
+    stepUpWaiting: 'Waiting for your Safety key on your laptop',
+    stepUpDone: 'Approved on your laptop. Confirm here to send.',
+    screened: 'Counterparty screened',
+    screenedLists: 'OFAC SDN · SECO',
+    screenedHit: 'Hit · OFAC SDN (simulated test entry)',
+    simulationProvider: 'Simulation',
+    providerLive: 'eth_simulateV1 (live)',
+    providerFallback: 'decode only — no state simulation',
+    feeCapExhausted: 'Not sponsored — today’s 20 sponsored transfers are used up.',
+    feeNotSponsored: 'Not sponsored',
+    reasons: 'Why',
+    riskWord: { none: 'Ok', warn: 'Caution', danger: 'Danger' } as Record<string, string>,
+    coolingFinishes: (time: string) => `Finishes at ${time}`,
+    cancelled: 'Cancelled. Nothing was sent.',
+    continuing: 'Approved — continuing…',
+    dappTitle: (name: string) => `${name} asks`,
+    dappUnknownBlock: 'Unknown dApp — request a review',
+    dappUnknownBody: 'Swissquote hasn’t reviewed this app. Nothing was signed.',
+    dappCapApplied: (usdc: string) => `Capped at ${usdc}. Within your limits.`,
+    dappEvaluating: 'Checking the capped request…',
+    userOpHash: 'userOp hash',
+    stepUpWaitingNote: 'Open Lea · laptop → Approve. The transfer continues here on its own.',
+  },
+  approveTransfer: {
+    section: 'Transfers waiting for this key',
+    recoverySection: 'Recovery',
+    approved: 'Approved · policy-layer enforcement in the prototype',
+    dappTitle: (what: string) => `Approve: ${what}?`,
+    refusedNote: 'Refused. The phone has been told.',
+    noWallet: 'No wallet paired with this laptop.',
+    decodedTitle: 'What you co-approve',
+    callsHash: 'Calls hash',
+    signing: 'Signing with the Safety key…',
+    noPending: 'Nothing waiting right now — this screen refreshes on its own.',
+  },
+  dapps: {
+    connect: 'Connect',
+    requestTitle: (name: string) => `${name} asks`,
+    requestBody: 'The app’s request, in its own words. Swissquote decodes it on the next screen.',
+    review: 'Review the request',
+    unknownDemo: 'An app Swissquote hasn’t reviewed asks your wallet for a transaction.',
+    simulatedApp: 'Mock app — no contract deployed',
+    loadError: 'The app list couldn’t be loaded.',
+    empty: 'No apps yet.',
   },
 } as const;

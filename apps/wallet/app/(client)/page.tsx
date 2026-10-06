@@ -18,7 +18,7 @@ import {
   StatementRow,
   TestnetStrip,
 } from '@keyline/ui';
-import { ShieldCheck } from '@phosphor-icons/react/dist/ssr';
+import { Bell, ShieldCheck } from '@phosphor-icons/react/dist/ssr';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -29,7 +29,14 @@ import { env } from '@/src/env';
 import { api } from '@/src/lib/api';
 import { addressUrl, PasskeyCancelledError } from '@/src/lib/chain';
 import { usePersona } from '@/src/lib/device';
-import { useLocalTransfers, useLocalWallet, useMe, useUsdcBalance, useWalletEvents } from '@/src/lib/hooks';
+import {
+  useAlerts,
+  useLocalTransfers,
+  useLocalWallet,
+  useMe,
+  useUsdcBalance,
+  useWalletEvents,
+} from '@/src/lib/hooks';
 import { localWalletFromLogin, loginWithPasskey } from '@/src/lib/passkey';
 import { type LocalWallet, topupStore } from '@/src/lib/storage';
 
@@ -124,6 +131,16 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
   const balance = useUsdcBalance(wallet.address);
   const events = useWalletEvents(wallet.address);
   const { transfers, topups, refresh } = useLocalTransfers();
+  const alerts = useAlerts(wallet.address);
+  const attack = (alerts.data ?? []).some(
+    (a) =>
+      a.kind === 'recovery-started' &&
+      !(alerts.data ?? []).some(
+        (o) =>
+          o.recoveryRequestId === a.recoveryRequestId &&
+          (o.kind === 'recovery-finalized' || o.kind === 'recovery-cancelled'),
+      ),
+  );
   const [sheet, setSheet] = useState<'none' | 'receive' | 'topup'>('none');
   const [protectionWord, protectionReason] = copy.home.protection.split(' · ');
   const usdc = balance.data ?? 0;
@@ -135,14 +152,32 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
     <>
       <header className="kl-topbar">
         <h1 className="kl-topbar__title">{copy.brand}</h1>
-        <Link
-          href="/security"
-          className="kl-btn kl-btn--ghost kl-btn--sm kl-btn--icon"
-          aria-label={copy.security.title}
-        >
-          <ShieldCheck size={20} aria-hidden="true" />
-        </Link>
+        <div className="flex items-center gap-1">
+          {alerts.data && alerts.data.length > 0 ? (
+            <Link
+              href="/alerts"
+              className="kl-btn kl-btn--ghost kl-btn--sm kl-btn--icon"
+              aria-label={copy.alerts.title}
+            >
+              <Bell size={20} aria-hidden="true" />
+            </Link>
+          ) : null}
+          <Link
+            href="/security"
+            className="kl-btn kl-btn--ghost kl-btn--sm kl-btn--icon"
+            aria-label={copy.security.title}
+          >
+            <ShieldCheck size={20} aria-hidden="true" />
+          </Link>
+        </div>
       </header>
+      {attack ? (
+        <Note tone="danger" title={copy.alerts.startedTitle}>
+          <Button variant="danger" size="sm" href="/alerts">
+            {copy.alerts.open}
+          </Button>
+        </Note>
+      ) : null}
 
       {onboardingPending ? (
         <StatementRow

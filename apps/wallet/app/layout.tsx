@@ -20,6 +20,8 @@ export const metadata: Metadata = {
   title: 'Keyline',
   description: 'Self-custody wallet with 2 of 3 recoverers. Prototype on Base Sepolia.',
   applicationName: 'Keyline',
+  manifest: '/manifest.webmanifest',
+  icons: { icon: '/icon.svg', apple: '/icon-192.png' },
 };
 
 export const viewport: Viewport = {
