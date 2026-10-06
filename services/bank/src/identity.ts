@@ -44,7 +44,9 @@ export const evaluatePersona = (input: PersonaInput): PersonaResult => {
   const thief = norm(input.deviceLabel).includes('thief');
   const nameMismatch = norm(input.eidName) !== norm(input.clientName);
   const signals: string[] = [];
-  if (thief) signals.push(`Device label contains "thief" (${input.deviceLabel})`);
+  // The scripted persona rule is stated in the README; the operator-visible signal describes what a real
+  // re-verification would report (face/liveness mismatch), not the demo switch.
+  if (thief) signals.push('Liveness check did not match the ID document (simulated re-verification)');
   if (nameMismatch) signals.push(`Name on ID "${input.eidName}" ≠ client "${input.clientName}"`);
   if (!input.liveness) signals.push('Liveness toggle was off');
   if (thief || nameMismatch) {
