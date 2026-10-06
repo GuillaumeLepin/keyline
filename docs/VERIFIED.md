@@ -242,3 +242,12 @@ Driven by Playwright CDP virtual authenticators against a private bank (:4200) +
 | Finalize (after the 180 s grace period, sq-guardian via its sponsored Safe) | https://sepolia.basescan.org/tx/0xad898b42a5b7696fef18c4680ba96b70d397e1482ad26bc8b01e5f8db0213e53 | `cast receipt … status` → 1 (success) |
 | New sole owner | `0x07dDC4D0DfF95022806Ec4931EBB8cfF89fd016A` (new phone's SafeWebAuthnSignerProxy) | `cast call <safe> "getOwners()(address[])"` |
 | Thief persona | `identity-refused` → after operator override `awaiting-guardians`, `waitingFor: second-recoverer`; nothing executed on-chain | bank DB + desk screenshot `docs/screens/w2-desk-override.png` |
+
+## 16. Gate 3 Tier-2 co-approval from the UI (recorded by the orchestrator, 6 Oct 2026 09:40 CEST)
+
+| Step | Value | How |
+|---|---|---|
+| Wallet | `0x3cfC079f1fFA8C66DC40B2B115fAcc8963F0D7E2` (protect tx `0x6e1ce4ef9049b58cb920a66e2390c8fd7a9d975f1eaa462c7e239652cac919f0`) | bank DB `userops` |
+| Decision | `dec_c55b65ee6a9644938f63` — `step-up`, tier 2, `stepUp.satisfiedBy = safety-key` (laptop EIP-712 `KeylinePolicyStepUp` signature) | bank DB `policy_decisions` |
+| Sponsored userOp after the laptop's approval | https://sepolia.basescan.org/tx/0x10769b35fd65919840019367359f8d15d7e04c27280e9cbb92098758e2e5a2ee | `cast receipt … status` → 1 (success) |
+| Screening block | transfer to the seeded sanctioned contact → `block` (`docs/screens/w3-review-block.png`); OFAC list loaded live (`GET /policy/screening` → `source: live, count: 120`) | UI walk + bank |
