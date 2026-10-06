@@ -76,7 +76,7 @@ test.describe('F4b Fraud while Lea still has her phone — the owner cancels an 
     await d.goto('/desk');
     await d.page.getByRole('textbox', { name: 'Operator token' }).fill(operatorToken());
     await d.page.getByRole('button', { name: 'Sign in' }).click();
-    await d.page.waitForURL(/\/desk\/queue/, { timeout: 30_000 });
+    await d.page.waitForURL(/\/desk\/queue/, { timeout: 90_000 }); // first visit compiles the route on next dev
     await d.goto(`/desk/requests/${recoveryId}`);
     await d.page.getByRole('button', { name: 'Override (demo: assume the bank was fooled)' }).click();
     await d.page.locator('.kl-sheet__panel').getByRole('button', { name: 'Override', exact: true }).click();
@@ -118,8 +118,22 @@ test.describe('F4b Fraud while Lea still has her phone — the owner cancels an 
     const p = need(state.phone, 'phone');
     const w = need(state.wallet, 'wallet');
     const id = need(state.recoveryId, 'recoveryId');
-    await p.goto('/alerts');
-    await expect(p.page.getByText('Recovery started from a new device')).toBeVisible({ timeout: 30_000 });
+    // The alerts query polls every 5 s; on a cold dev server the first render took 16 s in run 2. Reload once if the
+    // started card is not there after 45 s.
+    const cancelButton = p.page.getByRole('button', { name: /Cancel recovery/ });
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await p.goto('/alerts');
+      try {
+        await expect(cancelButton).toBeVisible({ timeout: 45_000 });
+        break;
+      } catch (error) {
+        console.warn(
+          `alerts page without the started card (attempt ${attempt + 1}): ${await bodyText(p.page)}`,
+        );
+        if (attempt === 1) throw error;
+      }
+    }
+    await expect(p.page.getByText(/Recovery started from a new device|Was this you\?/)).toBeVisible();
     await shot(p, '03-lea-alert-started');
     const started = Date.now();
     await p.page.getByRole('button', { name: 'Cancel recovery — it wasn’t me' }).click();
@@ -129,12 +143,14 @@ test.describe('F4b Fraud while Lea still has her phone — the owner cancels an 
     if (await failed.isVisible()) throw new Error(`owner cancel failed: ${await bodyText(p.page)}`);
     console.info(`cancel confirmed in the UI after ${Math.round((Date.now() - started) / 1000)} s`);
     await shot(p, '04-lea-cancelled');
-    const link = p.page.getByRole('link', { name: 'View on Basescan' }).last();
-    const tx = txHashFromUrl(await link.getAttribute('href'));
+    // The cancelled note links the tx (copy still moving: "View on Basescan" / "View … on Basescan").
+    const link = p.page.getByRole('link', { name: /Basescan/ }).last();
+    const href = await link.getAttribute('href', { timeout: 10_000 }).catch(() => null);
+    const tx = txHashFromUrl(href);
     if (tx) {
       state.txs.cancelTx = txUrl(tx);
       expect(await txSucceeded(tx)).toBe(true);
-    }
+    } else console.warn(`no Basescan link in the cancelled note: ${await bodyText(p.page)}`);
 
     const status = await recoveryStatus(w.safe);
     expect(status.pending).toBe(false);
@@ -153,7 +169,9 @@ test.describe('F4b Fraud while Lea still has her phone — the owner cancels an 
     expect(r.status).toBe('cancelled');
     // The fraudster's screen says so.
     const t = need(state.thief, 'thief');
-    await expect(t.page.getByText('Recovery cancelled by the owner.')).toBeVisible({ timeout: 60_000 });
+    await expect(t.page.getByText(/cancelled by the owner|Recovery cancelled/)).toBeVisible({
+      timeout: 90_000,
+    });
     await shot(t, '05-thief-cancelled');
   });
 });

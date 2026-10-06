@@ -24,6 +24,8 @@ export default defineConfig({
   use: {
     baseURL: WALLET_URL,
     trace: 'retain-on-failure',
+    // Never hang a test on a missing element: a locator action waits at most 30 s (the test timeout is 15 min).
+    actionTimeout: 30_000,
     // The app renders a 390×844 phone frame inside the page; a desktop viewport shows the frame + DeviceBar.
     viewport: { width: 1280, height: 960 },
     locale: 'en-CH',

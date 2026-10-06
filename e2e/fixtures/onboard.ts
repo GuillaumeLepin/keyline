@@ -62,7 +62,19 @@ export async function createProtectedWallet(
   const done = phone.page.getByText('Your phone key signs.');
   const failed = phone.page.locator('.kl-error');
   await expect(done.or(failed)).toBeVisible({ timeout: PROTECT_TIMEOUT });
-  if (await failed.isVisible()) throw new Error(`protect failed: ${await bodyText(phone.page)}`);
+  if (await failed.isVisible()) {
+    // Same one-shot retry as story.spec.ts F1.5 (bundler rejection seen once in four runs).
+    console.warn(`protect rejected once, retrying: ${await bodyText(phone.page)}`);
+    await phone.page.getByRole('button', { name: 'Try again' }).click();
+    await expect(done.or(failed)).toBeVisible({ timeout: PROTECT_TIMEOUT });
+    if (await failed.isVisible()) {
+      await failed
+        .getByText('Technical details')
+        .click()
+        .catch(() => undefined);
+      throw new Error(`protect failed twice: ${await bodyText(phone.page)}`);
+    }
+  }
   const protectTx = txHashFromUrl(
     await phone.page.getByRole('link', { name: 'View on Basescan' }).getAttribute('href'),
   );

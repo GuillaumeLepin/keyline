@@ -251,3 +251,14 @@ Driven by Playwright CDP virtual authenticators against a private bank (:4200) +
 | Decision | `dec_c55b65ee6a9644938f63` — `step-up`, tier 2, `stepUp.satisfiedBy = safety-key` (laptop EIP-712 `KeylinePolicyStepUp` signature) | bank DB `policy_decisions` |
 | Sponsored userOp after the laptop's approval | https://sepolia.basescan.org/tx/0x10769b35fd65919840019367359f8d15d7e04c27280e9cbb92098758e2e5a2ee | `cast receipt … status` → 1 (success) |
 | Screening block | transfer to the seeded sanctioned contact → `block` (`docs/screens/w3-review-block.png`); OFAC list loaded live (`GET /policy/screening` → `source: live, count: 120`) | UI walk + bank |
+
+## 17. Playwright end-to-end runs (qa-demo, 6 Oct 2026 morning; recorded by the orchestrator 09:50 CEST)
+
+Isolated stack (:3100/:4100/:4101), CDP virtual authenticators, every EOA at 0 ETH / 0 USDC (sponsored relayer Safes).
+
+| Spec | Result | Proof |
+|---|---|---|
+| `story.spec.ts` run 7 (4.2 min) | 9 passed, 3 skipped (no USDC) | Safe `0x824192a3907a1CF42Ecc4cB655dA62c32147A6C2`; protect `0x8d4ec7487d0c0344401a84873807f9212c3bba2a311bf37c8e7dbd1c6356dac1`; new signer `0x3257b6225b39d4bba8582bd80f5f7988401b4bc26ca67afbbbb96821616c2c7c`; execute `0xb6356f10a03347acc6a748566f60bf2cc5759ac81fc13941d9769fba8374739e`; finalize `0x09568d0e7783062bcc37991816de1f160be003707f10f1e7aabebef3d1767ef3` → `getOwners() = [0x1993F68A47Dd89de40ee0872753c08De9368eAB5]` (checked with `cast`) |
+| `attacker.spec.ts` | 6 of 6 | Safe `0xBDAF4F0F2Ec55Bd0A8E1Cc6AFc7aF7fFd1bfD58c`: refused at identity, `/alerts` shows the refusal, desk override → `awaiting-guardians`, module `pending = false`, approvals 0 before override, owners unchanged |
+| `fraud-cancel.spec.ts` | 4 of 4 | override + Emergency card → executed (`0x814a452a…0d8d2ce0`) → owner cancel from `/alerts`, sponsored (`0xd1175115…7003812d`) → `pending = false`, owners unchanged |
+| Video | `docs/demo.webm` (5:16, new phone), `docs/demo-phone.webm`, `docs/demo-laptop.webm` (not committed) | run 3 |

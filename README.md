@@ -2,7 +2,7 @@
 
 A self-custody wallet for Swissquote clients: the phone passkey alone moves funds, and a lost phone is recovered by any two of three recoverers (the client's Safety key, the client's Emergency card, Swissquote) after a public, cancellable on-chain delay. Swissquote is the only institution in the list, so it cannot move funds alone or with anyone.
 
-Demo video (3 min): `TODO-FINAL: video link`
+Demo video: `docs/demo.webm` in this repository (5 min 16 s, the full recovery seen from Lea's new phone, recorded by the Playwright story run on Base Sepolia; a hosted link is added at submission).
 
 Screenshots, in story order (all captures in `docs/screens/`, taken by Playwright with virtual authenticators; the desk and laptop are desktop views, the client is a 390×844 phone frame):
 
@@ -332,7 +332,7 @@ The bank's `GET /health` reports `paymasterEnabled`; the guardian's reports `cha
 
 `pnpm test` at the freeze (6 Oct 2026, 09:20 CEST): 289 unit tests, all passing: `services/bank` 115 · `packages/shared` 89 · `packages/chain` 46 · `services/guardian-core` 26 · `packages/ui` 11 · `scripts` 2. `pnpm lint` (biome and typecheck) clean.
 
-Unit tests (vitest): policy engine tables for every tier and precedence, screening (seeded and real OFAC hits, snapshot fallback), guardian rules, verdict verification, recovery hash parity with the module (`hashTypedData == getRecoveryHash`), `encodeCallData` parity with abstractionkit, live `eth_simulateV1`, live ERC-1271 attestation with two negative cases. E2E (Playwright with CDP virtual authenticators, against a running stack and Base Sepolia, every "it worked" checked on-chain, not on UI copy): `e2e/story.spec.ts` F1.1 to F1.7, F2, F3.1 to F3.4 (12 tests; the USDC legs skip themselves while the funder holds no USDC), `e2e/attacker.spec.ts` F4.0 to F4.5 (6 tests), `e2e/fraud-cancel.spec.ts` F4b.0 to F4b.3 (4 tests). Latest pass counts: `TODO-FINAL: e2e pass/skip counts from the final run`. CI (`.github/workflows/ci.yml`) runs lint and unit tests on push; the story needs a funded stack and runs locally.
+Unit tests (vitest): policy engine tables for every tier and precedence, screening (seeded and real OFAC hits, snapshot fallback), guardian rules, verdict verification, recovery hash parity with the module (`hashTypedData == getRecoveryHash`), `encodeCallData` parity with abstractionkit, live `eth_simulateV1`, live ERC-1271 attestation with two negative cases. E2E (Playwright with CDP virtual authenticators, against Base Sepolia): `story.spec.ts` 12 tests (9 passed, 3 skipped pending USDC: top-up and the two transfers), `attacker.spec.ts` 6 of 6, `fraud-cancel.spec.ts` 4 of 4; the full suite ran green twice on 6 Oct (5 complete on-chain recoveries and 3 owner cancels that morning, 0 chain-side failures; story run 4.2 to 6.6 min). Hashes in `docs/VERIFIED.md` §17.
 
 Recorded transactions on Base Sepolia (Basescan: `https://sepolia.basescan.org/tx/<hash>`):
 

@@ -3,7 +3,7 @@
 Self-custody for Swissquote clients: the phone key moves the money, two of three recoverers restore it, and Swissquote can never act alone.
 
 Repository: `TODO-FINAL: repo URL` (local git at submission: 25 commits, 5 Oct 15:08 to 6 Oct 09:05 CEST)
-Video (3 min): `TODO-FINAL: video link`
+Video: `docs/demo.webm` in the repository (5 min 16 s, full recovery from the new phone; hosted link added at submission)
 Track: Swissquote. Chain: Base Sepolia. Application code frozen 6 Oct 09:15 CEST (commit `ae4f253`).
 
 ## Custody decision

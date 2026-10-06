@@ -17,9 +17,10 @@ data/
 test-results/
 playwright-report/
 e2e/.auth/
-docs/demo.webm
 docs/demo.mp4
 _kit/
 *.tsbuildinfo
 e2e/test-results*/
 e2e/.playwright-artifacts*/
+docs/demo-phone.webm
+docs/demo-laptop.webm

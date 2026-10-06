@@ -1,3 +1,4 @@
 .wallet-snapshot/
 test-results/
+test-results-*/
 playwright-report/

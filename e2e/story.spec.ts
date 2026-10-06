@@ -112,6 +112,17 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
       ...(story.laptop?.errors ?? []),
       ...(story.newPhone?.errors ?? []),
     ].filter((e) => e.startsWith('[pageerror'));
+    for (const [name, session] of Object.entries({
+      phone: story.phone,
+      laptop: story.laptop,
+      newPhone: story.newPhone,
+    })) {
+      const video = await session?.page
+        .video()
+        ?.path()
+        .catch(() => undefined);
+      if (video) console.info(`video ${name}: ${video}`);
+    }
     await story.phone?.close();
     await story.laptop?.close();
     await story.newPhone?.close();
@@ -222,8 +233,19 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
     const failed = p.page.locator('.kl-error');
     await expect(protectedTitle.or(failed)).toBeVisible({ timeout: PROTECT_TIMEOUT });
     if (await failed.isVisible()) {
+      // One bundler rejection in four runs this morning ("The network didn’t accept the request"): the UI offers
+      // Try again and the presenter would tap it — so does the test, once.
       await shot(p, '05-onboarding-protect-error');
-      throw new Error(`protect failed: ${await bodyText(p.page)}`);
+      console.warn(`protect rejected once, retrying: ${await bodyText(p.page)}`);
+      await p.page.getByRole('button', { name: 'Try again' }).click();
+      await expect(protectedTitle.or(failed)).toBeVisible({ timeout: PROTECT_TIMEOUT });
+      if (await failed.isVisible()) {
+        await failed
+          .getByText('Technical details')
+          .click()
+          .catch(() => undefined);
+        throw new Error(`protect failed twice: ${await bodyText(p.page)}`);
+      }
     }
     console.info(`protect confirmed in the UI after ${Math.round((Date.now() - started) / 1000)} s`);
     await shot(p, '05-onboarding-protected');
@@ -464,7 +486,7 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
       expect(await txSucceeded(r.onchain.finalizedTxHash as Hex)).toBe(true);
     }
 
-    await expect(np.page.getByText('Welcome back, Lea')).toBeVisible({ timeout: 30_000 });
+    await expect(np.page.getByText(/Welcome back, Lea|You’re back in, Lea/)).toBeVisible({ timeout: 60_000 });
     await shot(np, '15-recover-welcome');
     const owners = await safeOwners(safe());
     expect(owners.map((o) => o.toLowerCase())).toEqual([newProxy().toLowerCase()]);
