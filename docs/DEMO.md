@@ -100,6 +100,11 @@ virtual authenticators only in Playwright.
       `DEMO_FAST_MODE=true` in `services/bank/.env` (identity verdict signed without a desk click; the desk still shows it).
 - [ ] `pnpm demo:predeploy` → `data/demo-state.json` with Lea's fallback Safe + the **twin**; both "Protected" on Basescan.
 - [ ] `pnpm e2e` green within the last hour (or at least `story.spec.ts` F1–F3) → bundler, sponsor, relayer, finalizer alive.
+- [ ] **Clean profiles after rehearsals:** in each of the five profiles open `http://localhost:3000/dev/reset?device=<persona>`
+      once (`lea-phone`, `lea-laptop`, `thief`, `lea-new-phone`, `desk`) and press **Clear this profile** — dev-only page;
+      it clears that profile's `keyline*` local/sessionStorage, the Safety key (IndexedDB `keyline`) and the bank session
+      cookie (via `POST /auth/logout`). Then delete the leftover passkeys in
+      `chrome://password-manager/passkeys` (rpId `localhost`) so Touch ID offers no stale Keyline credential.
 - [ ] `pnpm demo:open`; macOS Focus on; laptop charged; hotspot ready; `pnpm --filter @keyline/scripts anvil-fork --fund`
       terminal ready but not switched (§5).
 - [ ] Backup video `docs/demo.webm` (or `.mp4`) open in QuickTime, paused at 0:00.

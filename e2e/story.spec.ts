@@ -8,7 +8,7 @@
 // the first test created. Run: `pnpm e2e` (defaults: wallet :3000, bank :4000) or with E2E_WALLET_URL/E2E_BANK_URL.
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, type Request, test } from '@playwright/test';
 import type { Address, Hex } from 'viem';
 import { getAddress, parseUnits } from 'viem';
 import {
@@ -33,6 +33,7 @@ import {
   readLocalWallet,
   waitForRecovery,
 } from './fixtures/personas';
+import { readEmergencyCardKey } from './fixtures/onboard';
 import { type RecoveryView, startRecoveryToIdentity, submitIdentity } from './fixtures/recover';
 
 const SCREENS = resolve(import.meta.dirname, '../docs/screens');
@@ -196,13 +197,105 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
   test('F1.3 Emergency card shown once, confirmed, registered as recoverer', async () => {
     const p = phone();
     await expect(p.page.getByText('KEYLINE EMERGENCY CARD')).toBeVisible();
-    await expect(p.page.getByText('This card cannot spend your money')).toBeVisible();
+    await expect(
+      p.page
+        .getByText(
+          'This card cannot spend your money. It can only help restore access after a waiting period you will see.',
+          { exact: true },
+        )
+        .first(),
+    ).toBeVisible();
+    await expect(p.page.locator('.kl-ecard__qr')).toBeVisible();
+
+    // "Never persisted": from the moment the card shows its hex until step 4, the phone must not send it anywhere
+    // and must not keep it in any web storage, IndexedDB record or cookie.
+    const cardKey = await readEmergencyCardKey(p);
+    const bodies: string[] = [];
+    const onRequest = (req: Request): void => {
+      const body = req.postData();
+      if (body) bodies.push(`${req.method()} ${req.url()}\n${body}`);
+    };
+    p.context.on('request', onRequest);
+
     await shot(p, '03-onboarding-emergency-card');
     await p.page.getByRole('button', { name: 'I stored it' }).click();
     await expect(p.page.getByText('Have you really stored it?')).toBeVisible();
     await shot(p, '03-onboarding-emergency-card-confirm');
     await p.page.getByRole('button', { name: 'Yes, I stored it' }).click();
     await expect(p.page.getByText('Step 4 of 6')).toBeVisible({ timeout: 20_000 });
+    p.context.off('request', onRequest);
+
+    const needles = [cardKey.toLowerCase(), cardKey.toLowerCase().slice(2)];
+    const leaks = (haystack: string): boolean => needles.some((n) => haystack.toLowerCase().includes(n));
+    expect(
+      bodies.filter(leaks).map((b) => b.split('\n')[0]),
+      `card hex in none of the ${bodies.length} request bodies`,
+    ).toEqual([]);
+    const persisted = await p.page.evaluate(async () => {
+      const dump = (st: Storage): string[] => {
+        const out: string[] = [];
+        for (let i = 0; i < st.length; i++) {
+          const k = st.key(i) ?? '';
+          out.push(`${k}=${st.getItem(k) ?? ''}`);
+        }
+        return out;
+      };
+      const idb: string[] = [];
+      const dbs = await indexedDB.databases();
+      for (const info of dbs) {
+        if (!info.name) continue;
+        const db = await new Promise<IDBDatabase>((res, rej) => {
+          const r = indexedDB.open(info.name as string);
+          r.onsuccess = () => res(r.result);
+          r.onerror = () => rej(r.error);
+        });
+        for (const store of Array.from(db.objectStoreNames)) {
+          const rows = await new Promise<unknown[]>((res, rej) => {
+            const r = db.transaction(store, 'readonly').objectStore(store).getAll();
+            r.onsuccess = () => res(r.result);
+            r.onerror = () => rej(r.error);
+          });
+          const keys = await new Promise<unknown[]>((res, rej) => {
+            const r = db.transaction(store, 'readonly').objectStore(store).getAllKeys();
+            r.onsuccess = () => res(r.result);
+            r.onerror = () => rej(r.error);
+          });
+          const ser = (v: unknown): string => {
+            try {
+              return JSON.stringify(v, (_k, x) =>
+                x instanceof ArrayBuffer || ArrayBuffer.isView(x)
+                  ? Array.from(new Uint8Array(x instanceof ArrayBuffer ? x : x.buffer))
+                      .map((b) => b.toString(16).padStart(2, '0'))
+                      .join('')
+                  : typeof x === 'bigint'
+                    ? x.toString(16)
+                    : x,
+              );
+            } catch {
+              return String(v);
+            }
+          };
+          idb.push(`${info.name}/${store}: ${ser(keys)} ${ser(rows)}`);
+        }
+        db.close();
+      }
+      return {
+        localStorage: dump(localStorage),
+        sessionStorage: dump(sessionStorage),
+        indexedDB: idb,
+        idbDatabases: dbs.map((d) => d.name ?? ''),
+        cookie: document.cookie,
+      };
+    });
+    console.info(
+      `F1.3 never-persisted: ${bodies.length} request bodies, ${persisted.localStorage.length} localStorage, ` +
+        `${persisted.sessionStorage.length} sessionStorage, IndexedDB [${persisted.idbDatabases.join(', ')}] ` +
+        `(${persisted.indexedDB.length} stores), cookie ${persisted.cookie.length} chars`,
+    );
+    expect(persisted.localStorage.filter(leaks), 'card hex in no localStorage value').toEqual([]);
+    expect(persisted.sessionStorage.filter(leaks), 'card hex in no sessionStorage value').toEqual([]);
+    expect(persisted.indexedDB.filter(leaks), 'card hex in no IndexedDB record').toEqual([]);
+    expect(leaks(persisted.cookie), 'card hex not in document.cookie').toBe(false);
 
     const local = await readLocalWallet(p.page);
     expect(local?.guardians.emergencyCard, 'card address kept locally (public), key dropped').toBeTruthy();
