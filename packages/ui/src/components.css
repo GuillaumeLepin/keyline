@@ -4,6 +4,32 @@
  */
 
 /* ---------- shared ---------- */
+/* German compounds ("Wiederherstellungsmitteln", 25 letters) must wrap, not overflow, at 390 px (Phase D).
+ * Hyphenate running text in German only (needs <html lang="de-CH">, which the wallet sets); never codes,
+ * addresses, amounts, inputs or buttons. */
+:lang(de) {
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  hyphenate-limit-chars: 10 4 4;
+}
+:lang(de)
+  :is(
+    .kl-mono,
+    .kl-code,
+    .kl-addr,
+    .kl-btn,
+    .kl2-action,
+    input,
+    code,
+    pre,
+    .kl-row__amount,
+    .kl-panel__value,
+    .kl-balance__amount,
+    .kl2-chip
+  ) {
+  hyphens: manual;
+  -webkit-hyphens: manual;
+}
 .kl-focus:focus-visible,
 .kl-link:focus-visible,
 .kl-btn:focus-visible,
@@ -344,7 +370,10 @@
 /* ---------- StatementRow ---------- */
 .kl-row {
   display: flex;
-  align-items: center;
+  /* Label and value share the first baseline (value 16/24 600 on the label's line, sub-values below),
+   * so asset rows, holdings and send's Asset row align on one grid (Phase D, C-20). Icon and chevron
+   * stay centred on the row. */
+  align-items: first baseline;
   gap: var(--space-3);
   min-height: 56px;
   padding: var(--space-2) 0;
@@ -360,6 +389,10 @@
   text-decoration: none;
   border-radius: 0;
 }
+/* A row without a value column (navigation rows) centres its label in the 56 px row. */
+.kl-row:not(:has(.kl-row__amount)) {
+  align-items: center;
+}
 .kl-row--pressable {
   cursor: pointer;
   transition: background-color var(--duration-fast) var(--ease-out);
@@ -373,6 +406,7 @@
 }
 .kl-row__icon {
   flex: none;
+  align-self: center;
   /* One icon column: a 20 px glyph and the 24 px ring both occupy 24 px, so every label starts on the
    * same x (Phase C, settings list). */
   width: 24px;
@@ -433,6 +467,7 @@
 }
 .kl-row__chevron {
   flex: none;
+  align-self: center;
   color: var(--ink-3);
   display: inline-flex;
 }

@@ -633,7 +633,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: var(--space-4);
-  align-items: center;
+  align-items: first baseline; /* same grid as StatementRow (C-20) */
   min-height: 56px;
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--line);

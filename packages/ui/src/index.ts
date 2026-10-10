@@ -5,6 +5,8 @@ export { ADDRESS_LABELS, Address, type AddressLabels, type AddressProps } from '
 export { AmountField, type AmountFieldProps } from './components/AmountField';
 export { Button, type ButtonProps, type ButtonVariant } from './components/Button';
 export {
+  DESK_LABELS,
+  type DeskLabels,
   DeskLayout,
   type DeskLayoutProps,
   DeskLegend,

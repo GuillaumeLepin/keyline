@@ -12,6 +12,10 @@ export type WebShellCopy = {
   navLabel: string;
   /** "Sign out" */
   signOut?: string;
+  /** Translated chip label (FR `SIMULÉ`, DE `SIMULIERT`); default `SIMULATED`. */
+  chipLabel?: string;
+  /** Translated chip tooltip; default `CHIP_SIMULATED_TOOLTIP`. */
+  chipTooltip?: string;
 };
 
 export type WebLinkProps = {
@@ -55,7 +59,7 @@ export function WebShell({ copy, nav, client, account, onSignOut, linkAs, childr
       <div className="kl2-web__proto">
         <div className="kl2-web__inner kl2-web__proto-inner">
           <span>{copy.prototype}</span>
-          <Chip />
+          <Chip label={copy.chipLabel} tooltip={copy.chipTooltip} />
         </div>
       </div>
       <header className="kl2-web__head">

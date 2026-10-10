@@ -107,18 +107,49 @@ export type DeskLayoutProps = {
   titleAside?: ReactNode;
   showLegend?: boolean;
   footer?: string;
+  /** Translated chrome (brand, legend, operator line, sign out, chip). */
+  labels?: Partial<DeskLabels>;
+  /** Translated persona bar label (default "Swissquote desk (simulated)"). */
+  personaLabel?: string;
 };
 
-export function DeskLegend() {
+/** Translatable desk chrome (FR/DE); every key defaults to English. */
+export type DeskLabels = {
+  brand: string;
+  legend: string;
+  real: string;
+  simulated: string;
+  /** `Operator: M. Keller` — receives the operator name. */
+  operator: (name: string) => string;
+  signOut: string;
+  /** Label + tooltip of the SIMULATED badge next to the brand. */
+  chip: string;
+  chipTooltip?: string;
+  nav: string;
+};
+
+export const DESK_LABELS: DeskLabels = {
+  brand: 'Swissquote · Recovery desk',
+  legend: 'Legend',
+  real: 'Real · On-chain and signed',
+  simulated: 'Simulated · Mocked for the prototype',
+  operator: (name) => `Operator: ${name}`,
+  signOut: 'Sign out',
+  chip: 'SIMULATED',
+  nav: 'Desk',
+};
+
+export function DeskLegend({ labels }: { labels?: Partial<DeskLabels> } = {}) {
+  const t = { ...DESK_LABELS, ...labels };
   return (
-    <section className="kl-legend" aria-label="Legend">
+    <section className="kl-legend" aria-label={t.legend}>
       <span className="kl-legend__item">
         <span className="kl-legend__swatch" aria-hidden="true" />
-        Real · On-chain and signed
+        {t.real}
       </span>
       <span className="kl-legend__item">
         <span className="kl-legend__swatch kl-legend__swatch--simulated" aria-hidden="true" />
-        Simulated · Mocked for the prototype
+        {t.simulated}
       </span>
     </section>
   );
@@ -134,18 +165,21 @@ export function DeskLayout({
   titleAside,
   showLegend = true,
   footer = 'This console cannot move client funds.',
+  labels,
+  personaLabel,
 }: DeskLayoutProps) {
+  const t = { ...DESK_LABELS, ...labels };
   return (
     <div className="kl-desk">
-      <DeviceBar persona="desk" />
+      <DeviceBar persona="desk" label={personaLabel} />
       <header className="kl-desk__header">
         <div className="kl-desk__header-inner">
           <div className="kl-desk__brand">
-            Swissquote · Recovery desk
-            <SimulatedBadge />
+            {t.brand}
+            <SimulatedBadge label={t.chip} tooltip={t.chipTooltip} />
           </div>
           {nav ? (
-            <nav className="kl-desk__nav" aria-label="Desk">
+            <nav className="kl-desk__nav" aria-label={t.nav}>
               {nav.map((n) => (
                 <a key={n.href} href={n.href} aria-current={n.current ? 'page' : undefined}>
                   {n.label}
@@ -155,10 +189,10 @@ export function DeskLayout({
           ) : null}
           {operator ? (
             <div className="kl-desk__operator">
-              <span>Operator: {operator}</span>
+              <span>{t.operator(operator)}</span>
               {onSignOut ? (
                 <button type="button" onClick={onSignOut}>
-                  Sign out
+                  {t.signOut}
                 </button>
               ) : null}
             </div>
@@ -171,7 +205,7 @@ export function DeskLayout({
             {title ? <h1 className="kl-desk__title">{title}</h1> : <span />}
             <div style={{ display: 'flex', gap: 'var(--space-6)', alignItems: 'center', flexWrap: 'wrap' }}>
               {titleAside}
-              {showLegend ? <DeskLegend /> : null}
+              {showLegend ? <DeskLegend labels={labels} /> : null}
             </div>
           </div>
         ) : null}
