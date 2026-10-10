@@ -719,3 +719,19 @@ export const copyGaps = {
     empty: 'No apps yet.',
   },
 } as const;
+
+/** Dev-only `/dev/reset` (not shown in production builds). */
+export const devResetCopy = {
+  title: 'Reset this browser profile',
+  body: 'Clears Keyline from this profile: stored wallet, persona, pending send, recovery, desk token, the laptop Safety key, and the bank session cookie.',
+  run: 'Clear this profile',
+  running: 'Clearing',
+  done: 'Cleared',
+  cleared: (items: string) => `Removed: ${items}.`,
+  cookieFailed:
+    'The bank did not answer, so the session cookie is still there. Start the bank and try again.',
+  passkeyTitle: 'One step the app cannot do',
+  passkeyBody: (rpId: string) =>
+    `Now delete this profile's Keyline passkeys in chrome://password-manager/passkeys — look for entries for "${rpId}".`,
+  next: 'Then open the profile URL from the reset checklist.',
+} as const;
