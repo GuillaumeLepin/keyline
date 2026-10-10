@@ -17,6 +17,7 @@ import type { ChainDeps } from '../deps';
 import { evaluate, REASON_OWN_ACCOUNT, REASON_OWN_ACCOUNT_TRAVEL_RULE } from '../policy/engine';
 import { createSqLedger, formatChfCents, toBaseUnits, valueCents } from '../sq/ledger';
 import { testConfig } from '../test-env';
+import { createFailureLimiter } from './sq';
 
 const X = `0x${'5a17'.repeat(16)}` as Hex;
 const Y = `0x${'9c3e'.repeat(16)}` as Hex;
@@ -210,6 +211,42 @@ describe('SPEC §10 — Swissquote web, handoff, Safety key, moves', () => {
     expect(claim.statusCode).toBe(409);
     expect(claim.json().message).toMatch(/expired/);
     expect((await app.inject({ method: 'POST', url: '/handoff/999999/claim' })).statusCode).toBe(404);
+  });
+
+  it('claim brute force: the 6th wrong code from one IP is 429 for the window; another IP still claims', async () => {
+    const attacker = '203.0.113.7';
+    const fresh = await app.inject({ method: 'POST', url: '/sq/login', payload: { username: 'lea' } });
+    const h = await app.inject({ method: 'POST', url: '/handoff', headers: { cookie: cookieOf(fresh) } });
+    const good = h.json().code as string;
+    const wrong = good === '000000' ? '000001' : '000000';
+    for (let i = 0; i < 5; i += 1) {
+      const r = await app.inject({ method: 'POST', url: `/handoff/${wrong}/claim`, remoteAddress: attacker });
+      expect(r.statusCode).toBe(404);
+    }
+    const sixth = await app.inject({
+      method: 'POST',
+      url: `/handoff/${wrong}/claim`,
+      remoteAddress: attacker,
+    });
+    expect(sixth.statusCode).toBe(429);
+    expect(sixth.json()).toMatchObject({
+      error: 'too-many-attempts',
+      message: 'Too many wrong codes. Ask for a new code on your computer.',
+    });
+    // Blocked for the rest of the window, even with the right code.
+    const blocked = await app.inject({
+      method: 'POST',
+      url: `/handoff/${good}/claim`,
+      remoteAddress: attacker,
+    });
+    expect(blocked.statusCode).toBe(429);
+    const phone = await app.inject({
+      method: 'POST',
+      url: `/handoff/${good}/claim`,
+      remoteAddress: '198.51.100.20',
+    });
+    expect(phone.statusCode, phone.body).toBe(200);
+    expect(phone.json().client.id).toBe('SQ-48213-LK');
   });
 
   it('the onboarding token binds the new wallet to the client and to the handoff; a bad token is 401', async () => {
@@ -530,6 +567,23 @@ describe('SPEC §10 — Swissquote web, handoff, Safety key, moves', () => {
     const res = await app.inject({ method: 'POST', url: '/sq/logout', headers: web });
     expect(res.json()).toEqual({ ok: true });
     expect(String(res.headers['set-cookie'])).toMatch(/sq_web=;/);
+  });
+});
+
+describe('handoff claim failure limiter', () => {
+  it('slides: failures older than the window stop counting', () => {
+    let t = 0;
+    const limiter = createFailureLimiter(5, 10 * 60 * 1000, () => t);
+    for (let i = 0; i < 5; i += 1) {
+      limiter.fail('ip');
+      t += 60_000;
+    }
+    expect(limiter.blocked('ip')).toBe(true); // 5 failures at t = 0…4 min
+    expect(limiter.blocked('other')).toBe(false);
+    t = 10 * 60 * 1000 + 1; // the t=0 failure left the window
+    expect(limiter.blocked('ip')).toBe(false);
+    limiter.fail('ip');
+    expect(limiter.blocked('ip')).toBe(true);
   });
 });
 

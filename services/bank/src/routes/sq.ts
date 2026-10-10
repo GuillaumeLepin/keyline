@@ -34,7 +34,15 @@ import {
 import type { BankConfig } from '../config';
 import { type Db, newId, nowIso } from '../db';
 import type { ChainDeps } from '../deps';
-import { conflict, notFound, policyRefused, unauthorized, upstream, validationError } from '../errors';
+import {
+  conflict,
+  notFound,
+  policyRefused,
+  tooManyAttempts,
+  unauthorized,
+  upstream,
+  validationError,
+} from '../errors';
 import type { EventStore } from '../events';
 import type { GuardianRegistrar } from '../guardians';
 import type { Repo } from '../repo';
@@ -58,6 +66,28 @@ export const HANDOFF_TTL_MS = 10 * 60 * 1000;
 /** Gas headroom the funder keeps for one transfer on Base Sepolia. */
 export const MIN_FUNDER_GAS_WEI = 200_000_000_000_000n; // 0.0002 ETH
 const CodeParam = z.object({ code: z.string().regex(/^\d{6}$/) });
+/** Brute-force guard on POST /handoff/:code/claim: 5 wrong codes (unknown / expired) per IP per sliding 10 min. */
+export const CLAIM_FAILURE_LIMIT = 5;
+export const CLAIM_FAILURE_WINDOW_MS = 10 * 60 * 1000;
+export const TOO_MANY_CODES_MESSAGE = 'Too many wrong codes. Ask for a new code on your computer.';
+
+/** In-memory sliding window of failure timestamps per key (per process; resets on restart). */
+export const createFailureLimiter = (limit: number, windowMs: number, now: () => number = Date.now) => {
+  const failures = new Map<string, number[]>();
+  const recent = (key: string): number[] => {
+    const cutoff = now() - windowMs;
+    const kept = (failures.get(key) ?? []).filter((t) => t > cutoff);
+    if (kept.length > 0) failures.set(key, kept);
+    else failures.delete(key);
+    return kept;
+  };
+  return {
+    blocked: (key: string): boolean => recent(key).length >= limit,
+    fail: (key: string): void => {
+      failures.set(key, [...recent(key), now()]);
+    },
+  };
+};
 
 type HandoffRow = {
   code: string;
@@ -102,6 +132,7 @@ export const registerSqRoutes = (
     EURC: getAddress(config.EURC_ADDRESS),
   };
 
+  const claimLimiter = createFailureLimiter(CLAIM_FAILURE_LIMIT, CLAIM_FAILURE_WINDOW_MS);
   const handoffByCode = db.prepare('SELECT * FROM handoffs WHERE code = ?');
   const openHandoffForSession = db.prepare(
     "SELECT * FROM handoffs WHERE session_id = ? AND status = 'open' AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
@@ -245,11 +276,21 @@ export const registerSqRoutes = (
   });
 
   app.post('/handoff/:code/claim', async (req) => {
+    const ip = req.ip;
+    if (claimLimiter.blocked(ip)) throw tooManyAttempts(TOO_MANY_CODES_MESSAGE);
     const { code } = CodeParam.parse(req.params);
     const row = handoffByCode.get(code) as HandoffRow | undefined;
-    if (!row) throw notFound('Code');
+    if (!row) {
+      claimLimiter.fail(ip);
+      events.recordEvent('handoff.claim-failed', undefined, { reason: 'unknown-code', ip });
+      throw notFound('Code');
+    }
     if (row.status === 'claimed') throw conflict('This code was already used — ask Swissquote for a new one');
-    if (row.expires_at <= nowIso()) throw conflict('This code has expired — show a new one on Swissquote');
+    if (row.expires_at <= nowIso()) {
+      claimLimiter.fail(ip);
+      events.recordEvent('handoff.claim-failed', undefined, { reason: 'expired-code', ip });
+      throw conflict('This code has expired — show a new one on Swissquote');
+    }
     const at = nowIso();
     if (claimHandoff.run(at, code, at).changes !== 1)
       throw conflict('This code was already used — ask Swissquote for a new one');

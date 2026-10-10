@@ -79,6 +79,7 @@ Laptop (Swissquote web, cookie sq_web)
   GET  /sq/moves                                  → { moves: Move[] } (follows receipts: sent → confirmed|failed)
 Phone
   POST /handoff/:code/claim                       → { client, onboardingToken, expiresAt } (no session; single use)
+                                                    5 unknown/expired codes per IP / sliding 10 min → 429 too-many-attempts
   then send `X-Onboarding-Token: <onboardingToken>` (30 min) on POST /auth/passkey/register/options|verify and
   POST /wallets (and any client route during onboarding) → passkey + wallet bound to that client, handoff.walletAddress set
   GET  /sq/deposit-address                        → { address (= funder), label: 'Your Swissquote account', verified: true }

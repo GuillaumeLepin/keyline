@@ -9,6 +9,7 @@ export type ErrorCode =
   | 'not-found'
   | 'conflict'
   | 'upstream'
+  | 'too-many-attempts'
   | 'not-implemented-yet'
   | 'internal';
 
@@ -20,6 +21,7 @@ const STATUS: Record<ErrorCode, number> = {
   'not-found': 404,
   conflict: 409,
   upstream: 502,
+  'too-many-attempts': 429,
   'not-implemented-yet': 501,
   internal: 500,
 };
@@ -44,6 +46,7 @@ export const forbidden = (message = 'Not allowed') => new ApiError('forbidden', 
 export const notFound = (what: string) => new ApiError('not-found', `${what} not found`);
 export const conflict = (message: string, details?: unknown) => new ApiError('conflict', message, details);
 export const upstream = (message: string, details?: unknown) => new ApiError('upstream', message, details);
+export const tooManyAttempts = (message: string) => new ApiError('too-many-attempts', message);
 /** 403 with the policy copy the UI shows verbatim. */
 export const policyRefused = (message: string, details?: unknown) =>
   new ApiError('policy-refused', message, details);
