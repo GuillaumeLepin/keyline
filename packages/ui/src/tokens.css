@@ -96,3 +96,112 @@
     --duration-base: 0ms;
   }
 }
+
+/* ===================================================================================================
+ * v2 — additive only (docs/DESIGN.md v2 §2–§6). Nothing below changes a light value an existing
+ * screen reads: new variable names in :root, and every dark value is scoped to [data-theme].
+ * =================================================================================================== */
+:root {
+  /* Type v2: tighter tracking as size grows; measure for running text */
+  --tracking-28: -0.015em;
+  --tracking-44: -0.025em;
+  --measure: 65ch;
+
+  /* Ring (protection motif). Light: no glow. */
+  --ring-track: var(--line);
+  /* The light accent is 2.94:1 on paper — below 3:1 for a meaningful mark. The ring uses this
+   * one-step-deeper shade of the same hue (3.38:1 on paper); the focus ring keeps --accent on its
+   * 2 px surface halo (3.18:1). */
+  --ring-arc: #ec502b;
+  --ring-glow: none;
+
+  /* Sheets v2 */
+  --scrim: rgba(20, 20, 20, 0.32);
+
+  /* Motion v2 — one family. Movement uses the spring in JS (stiffness 420, damping 40, mass 1). */
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fade: 180ms;
+  --duration-move: 200ms;
+  --duration-draw: 240ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fade: 0ms;
+    --duration-move: 0ms;
+    --duration-draw: 0ms;
+  }
+}
+
+/* Dark — designed, not inverted: warm graphite paper, hairlines lifted, accent lifted in luminance,
+ * a faint glow on the ring only. Ratios: scripts/contrast.ts (dark pairs). Keep the two blocks below
+ * identical (tokens.test.ts asserts it). */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #141311;
+  --surface: #1c1b18;
+  --surface-2: #26241f;
+  --line: #2e2c28;
+  --line-strong: #77736a;
+  --ink: #efede8;
+  --ink-2: #b8b4ab;
+  --ink-3: #9c988e;
+  --on-ink: #141311;
+  --accent: #ff7452;
+  --accent-text: #ff8a6b;
+  --ok: #5cc28e;
+  --ok-bg: #14261c;
+  --pending: #e3a548;
+  --pending-bg: #2a2114;
+  --danger: #f27a6a;
+  --danger-bg: #2e1814;
+  --danger-bar: #f27a6a;
+  --laptop-bar: #b8b4ab;
+  --newphone-bar: #5cc28e;
+  --simulated-bg: #2a2114;
+  --simulated-text: #e9b866;
+  --simulated-border: #a97b2f;
+  --shadow-modal: 0 8px 24px rgba(0, 0, 0, 0.48);
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  --ring-arc: #ff7452;
+  /* Re-declared: a var() in :root resolves there (light), so dark must restate it. */
+  --ring-track: var(--line);
+  --ring-glow: drop-shadow(0 0 3px rgba(255, 116, 82, 0.35));
+  --scrim: rgba(0, 0, 0, 0.56);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    color-scheme: dark;
+    --bg: #141311;
+    --surface: #1c1b18;
+    --surface-2: #26241f;
+    --line: #2e2c28;
+    --line-strong: #77736a;
+    --ink: #efede8;
+    --ink-2: #b8b4ab;
+    --ink-3: #9c988e;
+    --on-ink: #141311;
+    --accent: #ff7452;
+    --accent-text: #ff8a6b;
+    --ok: #5cc28e;
+    --ok-bg: #14261c;
+    --pending: #e3a548;
+    --pending-bg: #2a2114;
+    --danger: #f27a6a;
+    --danger-bg: #2e1814;
+    --danger-bar: #f27a6a;
+    --laptop-bar: #b8b4ab;
+    --newphone-bar: #5cc28e;
+    --simulated-bg: #2a2114;
+    --simulated-text: #e9b866;
+    --simulated-border: #a97b2f;
+    --shadow-modal: 0 8px 24px rgba(0, 0, 0, 0.48);
+    --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+    --ring-arc: #ff7452;
+    /* Re-declared: a var() in :root resolves there (light), so dark must restate it. */
+    --ring-track: var(--line);
+    --ring-glow: drop-shadow(0 0 3px rgba(255, 116, 82, 0.35));
+    --scrim: rgba(0, 0, 0, 0.56);
+  }
+}

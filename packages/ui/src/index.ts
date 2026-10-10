@@ -62,3 +62,41 @@ export {
   groupHex,
   shortAddress,
 } from './format';
+
+// ---- v2 (docs/DESIGN.md v2) — additive; styles in ./v2/v2.css (`@keyline/ui/v2.css`) ----
+export { ActionButton, type ActionButtonProps, type ActionStatus } from './v2/ActionButton';
+export { CHIP_SIMULATED_TOOLTIP, Chip, type ChipProps } from './v2/Chip';
+export { CrossFade, type CrossFadeProps } from './v2/CrossFade';
+export { contrastRatio, luminance } from './v2/color';
+export { type HapticKind, haptic } from './v2/haptics';
+export { DRAW, DURATION, dampingRatio, EASE_STANDARD, FADE, SPRING } from './v2/motion';
+export { NumberTicker, type NumberTickerProps } from './v2/NumberTicker';
+export { ProtectionCountdown, type ProtectionCountdownProps } from './v2/ProtectionCountdown';
+export {
+  DrawnCheck,
+  ProtectionRing,
+  type ProtectionRingProps,
+  type ProtectionRingState,
+} from './v2/ProtectionRing';
+export { QrCode, type QrCodeProps } from './v2/QrCode';
+export {
+  arcAngles,
+  arcLength,
+  arcPath,
+  circlePath,
+  RECOVERER_LABEL,
+  RECOVERERS,
+  type Recoverer,
+  RING_SIZES,
+  type RingSpec,
+  ringSpec,
+} from './v2/ring-geometry';
+export { SheetV2, type SheetV2Props } from './v2/SheetV2';
+export { StackView, type StackViewProps } from './v2/StackView';
+export {
+  type ThemePreference,
+  ThemeSwitch,
+  type ThemeSwitchProps,
+  useThemePreference,
+} from './v2/ThemeSwitch';
+export { type TickerCell, tickerCells } from './v2/ticker';

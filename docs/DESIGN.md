@@ -1,18 +1,352 @@
-# Keyline — Design specification
+# Keyline — Design specification v2
+
+Owner: `design-system` agent. **Status: Phase A — proposal for approval (10 Oct 2026).** Nothing in the shipped app has changed. The proposal is visible at `/design` (theme switch, ring, motion, five hero screens); the v1 kitchen sink moved to `/design/v1`. Proof: `docs/design-v2/` (video + 6 screenshots).
+
+How to read this file: §1–§10 are the v2 rules and replace v1 where they disagree. §11 is the full v2 screen inventory (Phase B builds from it). **Appendix V1** is the previous specification, kept verbatim: its screen specs and its copy (Appendix A → `apps/wallet/src/copy.ts`) remain the source of truth for every screen until Phase B rebuilds that screen; the parts v2 supersedes are listed at the top of the appendix.
+
+Engineers build screens only from `packages/ui` primitives and the copy in this file. If a string is missing, ask; do not invent it.
+
+## 1. Thesis
+
+**A Swiss bank document that moves like a watch.**
+
+Not a crypto app and not a neo-bank template. Every screen is set like a printed statement: a grid, hairlines, tabular numerals, restraint, one accent. The only decoration is one motif, the **protection ring**: three arcs for the three recoverers (Safety key, Emergency card, Swissquote). It is the onboarding progress, the home protection indicator, the recovery countdown and the receipt's success state. It is drawn once, in SVG, and it moves with the same easing everywhere.
+
+Movement is mechanical, never playful: things travel the shortest honest distance, settle without bouncing, and only move when something actually happened (a screen changed, an amount changed, a key was registered on-chain). Nothing animates for its own sake.
+
+Honesty is part of the beauty: every simulated value carries the same quiet dashed `SIMULATED` chip; every status has an icon and a word; every address can be read in full.
+
+## 2. Type
+
+Fonts unchanged: **Hanken Grotesk** (variable, self-hosted, tabular figures by default on `<html>`) for all UI; **JetBrains Mono** (`"zero"`) for addresses, hashes, codes. Reason to keep: Hanken is a quiet grotesk with true tabular figures and a straight-legged `1`, which is what a statement needs; it is not one of the defaults that make AI-built apps look alike. Never Inter, Geist, Space Grotesk, Roboto, Satoshi.
+
+| Role | Size / line | Weight | Tracking | Use |
+|---|---|---|---|---|
+| Amount | 44 / 48 | 600 | −0.025em (`--tracking-44`) | balances, review amount, countdown centre |
+| Title | 28 / 32 | 600 | −0.015em (`--tracking-28`) | screen titles, desk headings |
+| Heading | 20 / 28 | 600 | 0 | sheet titles, section heads on desk |
+| Body | 16 / 24 | 400 · 600 | 0 | body, row labels, inputs, buttons |
+| Small | 14 / 20 | 400 · 600 | 0 | secondary text, table cells, status words |
+| Meta | 12 / 16 | 400 · 600 | 0 (0.04em uppercase for eyebrows and the chip only) | timestamps, captions |
+
+Rules: weights 400 and 600 only. Tracking tightens as size grows (above). Headings use `text-wrap: balance`. Running text is capped at **65 ch** (`--measure`). Numbers are tabular everywhere and never italic. The 44 px amount is the largest type in the product; nothing competes with it on the same screen.
+
+## 3. Colour
+
+One accent, used for exactly three things: **focus**, **the active thing** (current step, active tab underline on desk) and **the ring**. Links are ink, underlined. Status colours are semantic and separate; each always comes with an icon and a word. Banned: gradients, glassmorphism, backdrop blur, glows (except the one ring glow in dark, below), purple/indigo/violet, emoji, stock imagery, 3D.
+
+A theme setting offers **System / Light / Dark** (`ThemeSwitch`, stored per device). Tokens: `[data-theme="light"|"dark"|"system"]` on the app root; `system` follows `prefers-color-scheme`. Light values are v1 and unchanged.
+
+### 3.1 Light (v1 values, unchanged) and dark (designed, not inverted)
+
+Ratios measured by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). **61/61 pairs pass** (31 light + 30 dark). Text ≥ 4.5:1, marks and UI edges ≥ 3:1.
+
+| Token | Light | Dark | Role | Light ratio | Dark ratio |
+|---|---|---|---|---|---|
+| `--bg` | `#F7F6F3` | `#141311` | paper — warm white / warm graphite | — | — |
+| `--surface` | `#FFFFFF` | `#1C1B18` | sheets, inputs, true objects | — | — |
+| `--surface-2` | `#EFEDE8` | `#26241F` | pressed rows, skeletons | — | — |
+| `--line` | `#E4E2DD` | `#2E2C28` | hairlines (lifted in dark so they still read) | — | — |
+| `--line-strong` | `#8A877F` | `#77736A` | input borders | 3.59 surface · 3.32 bg | 3.65 · 3.93 |
+| `--ink` | `#141414` | `#EFEDE8` | text, primary fill | 17.05 bg | 15.87 bg |
+| `--ink-2` | `#5C5C57` | `#B8B4AB` | secondary text | 6.22 bg | 8.98 bg |
+| `--ink-3` | `#6B6B68` | `#9C988E` | meta text | 4.95 bg · 4.57 surface-2 | 6.45 · 5.39 |
+| `--on-ink` | `#FFFFFF` | `#141311` | text on ink | 18.42 | 15.87 |
+| `--accent` | `#FA5B35` | `#FF7452` | focus ring (on its 2 px halo), active marks | 3.18 surface | 6.46 surface |
+| `--accent-text` | `#C8371A` | `#FF8A6B` | v1 links only (v2 links are ink) | 4.84 bg | 8.05 bg |
+| `--ring-arc` *(new)* | `#EC502B` | `#FF7452` | ring arcs, countdown stroke | **3.38 bg** · 3.65 surface | 6.96 · 6.46 |
+| `--ring-track` *(new)* | = `--line` | = `--line` | ring at rest | — | — |
+| `--ring-glow` *(new)* | `none` | `drop-shadow(0 0 3px rgba(255,116,82,.35))` | the only glow, ring only | — | — |
+| `--ok` / `--ok-bg` | `#1F7A4D` / `#E8F3EC` | `#5CC28E` / `#14261C` | success | 4.92 · 4.67 tint | 8.45 · 7.22 |
+| `--pending` / `--pending-bg` | `#9A5B00` / `#FBF1E0` | `#E3A548` / `#2A2114` | waiting | 5.02 · 4.85 | 8.61 · 7.35 |
+| `--danger` / `--danger-bg` | `#B42318` / `#FBE9E7` | `#F27A6A` / `#2E1814` | refusal, irreversible | 6.08 · 5.61 | 6.87 · 6.18 |
+| `--simulated-text` | `#7A4B00` | `#E9B866` | chip label | 6.86 bg · 7.41 surface | 10.18 · 9.44 |
+| `--simulated-border` | `#B07A1E` | `#A97B2F` | chip dashed border | 3.42 | 4.19 |
+| `--scrim` *(new)* | `rgba(20,20,20,.32)` | `rgba(0,0,0,.56)` | behind sheets | — | — |
+| `--shadow-modal` | `0 8px 24px rgba(20,20,20,.12)` | `0 8px 24px rgba(0,0,0,.48)` | sheets only | — | — |
+
+Finding while measuring: the v1 accent `#FA5B35` is **2.94:1 on paper**, under the 3:1 a meaningful mark needs. The focus ring is fine (it sits on a 2 px surface halo: 3.18:1), but the ring is drawn directly on paper, so it uses the new `--ring-arc` `#EC502B` — the same hue one step deeper (3.38:1). Visually indistinguishable from the accent at ring stroke widths.
+
+How dark differs from an inversion: paper is warm graphite, not black; surfaces step *up* in luminance (bg → surface → surface-2) instead of down; hairlines are lifted to `#2E2C28` so a 1 px line still reads on graphite; the accent is lifted in luminance (`#FF7452`) so it keeps its weight against dark; status colours are re-picked for ≥ 6:1 on graphite rather than flipped; the ring alone gets a 3 px glow so the accent does not look dull at 6 px stroke. The phone bezel and the QR quiet zone stay physical (black bezel, white QR) in both themes.
+
+Implementation note: a `var()` declared in `:root` is resolved at `:root`. Any token defined as `var(--other)` must be re-declared in the dark blocks (`--ring-track`, `--focus-ring` are). `tokens.test.ts` asserts the `dark` and `system` blocks are identical.
+
+## 4. Layout
+
+- **4-pt grid**: 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64. Nothing off-grid except 1 px hairlines and the 2 px stepper track.
+- Phone: 390 px, 16 px gutters (358 usable). Laptop (Swissquote web, desk): 12 columns, 24 px gutters, max 1200 px.
+- **Lists, not cards.** Rows have one left edge (the gutter), one right edge, one baseline grid: 56 px minimum, 8 px vertical padding, hairline below, label 16/24 over meta 12/16, value right-aligned and tabular. Every list on every screen uses this row (`StatementRow` or the same metrics).
+- **Card styling only for true objects**: the Emergency card, the review panel ("What will happen"), the Keyline tile on Swissquote web, sheets. 10 px radius, hairline border, no shadow (sheets keep the one shadow).
+- **One primary per screen**, docked at the bottom of the phone screen above the home indicator when it is the screen's purpose (onboarding, review, recovery), inline otherwise (home's Send).
+- Radii 6 (controls, chips) and 10 (true objects, sheets). Circles only for the ring and status dots.
+- Nothing clipped at 390 px; long values wrap (`overflow-wrap: anywhere`) rather than truncate; the page never scrolls horizontally (wide tables scroll inside their own container).
+
+## 5. The protection ring
+
+One SVG, three equal arcs, one per recoverer, **clockwise from 12 o'clock: Safety key, Emergency card, Swissquote**. Gaps are centred on 12, 4 and 8 o'clock. Component: `ProtectionRing` (`packages/ui/src/v2/ProtectionRing.tsx`); geometry is pure and tested (`ring-geometry.ts`, `ring-geometry.test.ts`).
+
+### 5.1 Geometry
+
+| Size | Use | Stroke | r (centre line) | Gap | Arc | Inner countdown stroke |
+|---|---|---|---|---|---|---|
+| 24 | home indicator, row icon | 2.5 | 10.75 | **10°** | 110° | none (< 48 px) |
+| 64 | receipt, Swissquote tile | 4 | 30 | 4° | 116° | r 23.25, 1.5 px |
+| 200 | onboarding, countdown | 6 | 97 | 4° | 116° | r 85, 2 px |
+
+`gapDeg = max(4°, the angle that leaves ≥ 1.5 px on the arc's inner edge)`. At 24 px a 4° gap is 0.7 px — invisible — so the indicator widens it to 10°; the three recoverers must stay countable at every size. (Refinement of plan item 5.) Caps are butt (square ends read as precise; round caps read as a loading spinner).
+
+The 200 px ring, exactly as rendered (state `registering`, 2 of 3; Safety key and Emergency card lit, Swissquote at rest):
+
+```svg
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" aria-hidden="true">
+  <!-- track: the three arcs at rest (--ring-track) -->
+  <g stroke="var(--ring-track)" stroke-width="6">
+    <path d="M 103.385 3.059 A 97 97 0 0 1 185.646 145.539"/>   <!-- Safety key      2° → 118° -->
+    <path d="M 182.261 151.402 A 97 97 0 0 1 17.739 151.402"/>  <!-- Emergency card 122° → 238° -->
+    <path d="M 14.354 145.539 A 97 97 0 0 1 96.615 3.059"/>     <!-- Swissquote     242° → 358° -->
+  </g>
+  <!-- lit arcs (--ring-arc); drawn with pathLength 0 → 1 -->
+  <g stroke="var(--ring-arc)" stroke-width="6" style="filter: var(--ring-glow)">
+    <path d="M 103.385 3.059 A 97 97 0 0 1 185.646 145.539" pathLength="1"/>
+    <path d="M 182.261 151.402 A 97 97 0 0 1 17.739 151.402" pathLength="1"/>
+  </g>
+  <!-- state counting only: thin inner stroke, starts at 12 o'clock, length = remaining fraction -->
+  <!-- <path d="M 100 15 A 85 85 0 1 1 100 185 A 85 85 0 1 1 100 15" stroke="var(--ring-arc)" stroke-width="2"
+             pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="{1 - remaining}"/> -->
+</svg>
+```
+
+### 5.2 States
+
+| `state` | Arcs | Centre (≥ 64 px) | Where |
+|---|---|---|---|
+| `empty` | three track arcs | `0 of 3` + `recoverers added` | onboarding before Protect; Swissquote tile before setup |
+| `registering` + `registered={1\|2\|3}` | first *n* arcs in `--ring-arc`, in order | `n of 3` | onboarding Protect, as each guardian lands on-chain |
+| `protected` | gaps close to 0°: one continuous ring in `--ring-arc` | a drawn check (onboarding), nothing (home 24 px) | home indicator, Security header |
+| `counting` + `lit` + `progress` | confirmed recoverers in `--ink-3`, others at rest; thin inner stroke in `--ring-arc` = remaining fraction | `mm:ss` 44/48 + `remaining` | recovery waiting period (new phone, alerts, desk 64 px) |
+| `success` | closed ring in `--ok` | drawn check in `--ok` | receipt (64 px), restored |
+| `revoked` | three **dashed** arcs in `--danger` | — | recovery cancelled, protection removed |
+
+`lit` overrides "first *n*" when the confirmed recoverers are not a prefix (a recovery confirmed by Safety key + Swissquote). Revoked is dashed, not just recoloured: in dark, `--danger` and `--accent` are close in hue, and "broken" must read without colour.
+
+Accessible name: a sentence per state (`Protected · 2 of 3 recoverers can restore access`), plus a hidden per-recoverer list (`Safety key: yes, Emergency card: not yet, Swissquote: not yet`). The SVG is `aria-hidden`.
+
+### 5.3 The one orchestrated moment — "Protect my wallet"
+
+1. Tap `Protect my wallet` → button: pressed (scale .98), then loading (label stays, small turning ring). The passkey sheet appears (system UI).
+2. The userOp is sponsored, signed, sent. Rows under the ring read `Waiting` → `Adding` (accent dot, 600) → `Added` (ok check).
+3. **Each arc draws (240 ms) when its guardian is seen on-chain.** Per SPEC F1 step 5 the three guardians are added by **one batched userOp**, so their guardian-added logs arrive together in one receipt (event name to be confirmed by `account-chain` in `docs/VERIFIED.md`). The arcs therefore start on that receipt and chain one after another through `onDrawn` (Safety key → Emergency card → Swissquote, in log order) — paced by the draw itself, never by a timer. Before the receipt, the status line under the button reads `Signed` → `Sent` → `In block 6’812’334`, so the wait is never silent.
+4. When the third arc has drawn and the receipt is confirmed, the **gaps close** (4° → 0° on the spring, ≈ 200 ms) and a check draws in the centre (220 ms). Title becomes `Protected`; the button's label folds and a check draws (220 ms); one short vibration.
+5. On the next screen (home) the same ring sits in the header at 24 px, closed. The ring that closed is the ring that lives on home.
+
+On `/design` a 700–800 ms demo timer stands in for the events (labelled on the page).
+
+## 6. Motion
+
+Library: `motion` 12 (`motion/react`), already installed. Constants: `packages/ui/src/v2/motion.ts`.
+
+- **Movement** — one spring: `{ stiffness: 420, damping: 40, mass: 1 }`. Damping ratio ζ = 40 / (2·√420) ≈ **0.98**: settles in ≈ 200 ms, no visible overshoot. A test pins ζ ∈ (0.95, 1].
+- **Opacity / colour** — 180 ms, `cubic-bezier(.2,.8,.2,1)` (`--ease-standard`, `--duration-fade`).
+- **Strokes** — arcs 240 ms, checks 220 ms, same curve.
+- Range 160–240 ms. Nothing loops except the loading indicator inside a button whose label stays visible.
+- **Reduced motion** (`prefers-reduced-motion: reduce`, read with `useReducedMotion` and CSS): every movement becomes an instant change or a 180 ms cross-fade; strokes appear drawn; the pulse is skipped; the countdown stroke steps once per second.
+
+| Motion | Trigger | Duration / curve | What moves | Reduced motion |
+|---|---|---|---|---|
+| Stack push / pop (`StackView`) | navigation to a child screen / back | spring | new screen slides in from 100 %; old one moves −24 % and dims to .6; header stays, title cross-fades 180 ms | content cross-fades 180 ms |
+| Sheet (`SheetV2`) | open / close | scrim 180 ms; panel spring | scrim fades; panel rises from 100 %; drag down > 96 px or flick > 600 px/s closes | panel and scrim fade 180 ms; no drag |
+| Number ticker (`NumberTicker`) | an amount's value changes | spring | each digit column rolls to its new digit; separators and codes never move; new leading digits fade in | text swaps |
+| Cross-fade (`CrossFade`) | skeleton → content, any in-place swap | 180 ms | both layers overlap in one grid cell; no layout jump | instant |
+| Button press (`ActionButton`) | pointer down | spring | scale .98 | none |
+| Button loading | async action starts | — | label stays; 16 px ring turns (900 ms/turn, linear) beside it; `aria-busy` | static ring at 50 % |
+| Button success | action confirmed | label 140 ms fold; check 220 ms | label folds to the centre (scaleX .2, fade), a check draws in its place; one vibration | check appears |
+| Arc draw | guardian registered on-chain | 240 ms | one arc, pathLength 0 → 1 | drawn |
+| Ring close | protection confirmed | spring | gaps 4° → 0°; seam cover fades in 180 ms after 200 ms | closed |
+| Countdown sweep | every animation frame | real time | inner stroke shortens continuously; centre time changes once per second | steps per second |
+| Countdown lands | remaining reaches 0 | 240 ms | one soft pulse (scale 1 → 1.04 → 1); centre `00:00` + `Ready to finish`; one vibration | no pulse |
+| Theme change | setting | 180 ms | page background colour | instant |
+
+Anything not in this table does not animate.
+
+## 7. Honesty: the `SIMULATED` chip
+
+`<Chip/>` (v2; `SimulatedBadge` stays for v1 screens until Phase B). A quiet, consistent marker: 20 px tall, 0 6 px padding, **1 px dashed** `--simulated-border`, **no fill**, label `SIMULATED` 12 px 600 uppercase 0.04em in `--simulated-text`, radius 6, 4 px after the value it qualifies, on the same line. It is focusable; hover or focus shows the tooltip `Simulated for the prototype. See the README’s Real / Simulated table.` (inverse colours, no shadow). One chip per simulated *group*, at its header (e.g. once after `In your Swissquote account`, once after `Valuation …`), not on every number. What gets a chip: Swissquote account balances and prices, conversion rates, the Swissquote web session, the e-ID, email delivery, the partner guardian. Never on chain data.
+
+## 8. Feel
+
+- Targets ≥ 44 px (buttons 48, rows 56, icon buttons 44, segmented control 44).
+- Focus always visible: `--focus-ring` (2 px halo + 2 px accent). Never removed.
+- Haptics: `haptic('success')` (12 ms) on a confirmed transfer, protection complete, countdown landed; `haptic('refusal')` (24-60-24) on a policy block or a refused recovery. No-op where unsupported.
+- PWA: maskable icon (ring on ink), splash = paper with the 64 px ring, `theme-color` per theme (`#F7F6F3` / `#141311`), status bar `default` / `black-translucent`. Phase B.
+- Lighthouse ≥ 95 on Performance, Accessibility, Best Practices for `/`, `/send/review`, `/recover` (Phase B gate).
+
+## 9. Copy
+
+All strings live in `copy.ts` (EN now; FR and DE later — keep strings whole, no concatenated fragments except formatted values). The client's side, second person, specific and calm: what happens, what it costs, what cannot be undone. Never "Oops", "seamless", "unlock", "journey", exclamation marks, "Welcome back". Vocabulary per `CLAUDE.md` (recoverer, network fee, key; never seed phrase, gas, guardian, userOp). Greetings use the first name only: `Hi Lea`.
+
+## 10. Primitives v2 (`@keyline/ui`, additive)
+
+Styles in `@keyline/ui/v2.css` (prefix `kl2-`). v1 primitives are unchanged; in dark they re-theme through tokens only (verified on `/design`: `Panel`, `PolicyLine`, `Address`, `StatementRow`, `Disclosure`).
+
+| Primitive | Props | Notes |
+|---|---|---|
+| `ProtectionRing` | `state`, `registered?: 0\|1\|2\|3`, `lit?`, `progress?`, `size?`, `onDrawn?(i)`, `pulseKey?`, `children` (centre), `label?` | §5 |
+| `ProtectionCountdown` | `endsAt`, `durationMs`, `lit?`, `size?`, `subLabel?`, `doneLabel?`, `onDone?` | ring in `counting`; rAF sweep; pulse + haptic at 0 |
+| `DrawnCheck` | `size?` | 220 ms check |
+| `StackView` | `screenKey`, `direction: 1\|-1`, `title`, `onBack?`, `backLabel?`, `trailing?` | shared header |
+| `SheetV2` | `open`, `title`, `onClose`, `contained?` | spring + scrim, drag to close, focus return |
+| `NumberTicker` | `value`, `format` (a package formatter) | digit columns keyed from the right (`tickerCells`, tested) |
+| `CrossFade` | `stateKey` | skeleton → content |
+| `ActionButton` | `label`, `status: idle\|loading\|success`, `successLabel?`, `variant?`, `full?`, `icon?` | width never changes |
+| `Chip` | `label?`, `tooltip?` | §7 |
+| `ThemeSwitch` + `useThemePreference()` | `value`, `onChange` | System / Light / Dark, localStorage guarded |
+| `QrCode` | `value`, `size?`, `label` | white quiet zone in both themes |
+| `haptic(kind)` | `'success' \| 'refusal'` | §8 |
+| `contrastRatio`, `luminance` | — | shared by the contrast script and `/design` |
+| motion constants | `SPRING`, `FADE`, `DRAW`, `DURATION`, `EASE_STANDARD`, `dampingRatio` | §6 |
+
+## 11. Screen inventory v2 (Phase B builds from this)
+
+`[P]` = the one primary. `SIM` = carries the `SIMULATED` chip. Device: Phone (390 px) or Laptop. EN titles and primary actions are final; body copy marked *draft* is for review. Every screen also has the three global states — **loading** (skeleton in the content's exact shape, cross-fades in), **error** (`Something didn’t work` / screen-specific sentence / `Try again`), **offline bank** (`Swissquote isn’t reachable` / `Your keys and your money are unaffected…`) — not repeated below. Screens marked *v1* keep their v1 spec (Appendix V1 §10) and only take the v2 primitives, theme and motion.
+
+### A. Swissquote web — Laptop, whole area `SIM` (chip in the address bar)
+
+| # | Screen | States | Title · [P] · key copy |
+|---|---|---|---|
+| A1 | Sign in | default · wrong password · loading | `Sign in to Swissquote` · [P] `Sign in` · error `That doesn’t match our records.` · note `Swissquote web is simulated for the prototype.` |
+| A2 | Portfolio | default (Keyline not set up) · handoff (QR + code) · code expired · phone connected · Keyline protected (tile shows 64 px ring closed + wallet balance) | `Portfolio` · `Valuation 10 Oct 2026, 17:30` SIM · columns `Position · Quantity · Price · Value` · groups `Cash · Securities · Crypto` · tile eyebrow `Keyline`, title `A wallet only you can spend from`, body `Your phone holds the key. Any 2 of your 3 recoverers can restore access: your Safety key, your Emergency card and Swissquote. Swissquote can’t move your money, alone or with anyone.` · [P] `Set up Keyline on my phone` → `Scan with your phone’s camera, or open keyline.app/start and type this code:` `482 137` · `Code expires in 4:52` · `Waiting for your phone` · expired: `Code expired` + `Show a new code` |
+| A3 | “Why?” sheet (BTC) | open | `Why can’t I move Bitcoin?` · `Keyline only moves an asset it can protect the same way as the rest of your wallet: your phone signs, and any 2 of your 3 recoverers can restore access after a waiting period.` · `Bitcoin can do this too, but it needs a different tool: a threshold key or a timelocked script. That is on our roadmap.` · `Until then your Bitcoin stays in your Swissquote account, where it is today.` · link `Roadmap: Bitcoin` |
+| A4 | Move to Keyline (ETH, USDC, EURC rows) | amount · review · moving · moved · policy refused | `Move ETH to Keyline` · `Amount` · `From Swissquote account · To your Keyline wallet (verified as yours)` · [P] `Move to Keyline` · done `Moved. It appears in Keyline within a minute.` · BTC row: action disabled + `Why?` |
+| A5 | This laptop becomes your Safety key | ask · confirming · done · already a Safety key | `Make this laptop your Safety key?` · *draft* `It co-approves large transfers and can help restore access. It can’t spend alone.` · [P] `Make this laptop my Safety key` · done `This laptop is your Safety key. The old pairing code no longer works.` |
+
+### B. Handoff — Phone
+
+| # | Screen | States | Title · [P] · key copy |
+|---|---|---|---|
+| B1 | `/start` | scanned (code prefilled) · type code · wrong code · expired · matched | `Continue on your phone` · `Type the 6-digit code shown on your laptop.` · [P] `Continue` · `That code doesn’t match. Check your laptop and try again.` · `Code expired. Show a new one on your laptop.` |
+
+### C. Onboarding — Phone (stepper `Step n of 6`)
+
+| # | Screen | States | Title · [P] · key copy |
+|---|---|---|---|
+| C1 | Hi Lea | default | `Hi Lea` · *draft* `Keyline is a wallet only you can spend from. Swissquote helps you get back in if you lose your phone — it can’t move your money.` · [P] `Create my Keyline` |
+| C2 | Create your key (1/6) | idle · prompt open · cancelled · unsupported | `A key that stays on this phone` · [P] `Create with Face ID / fingerprint` · v1 errors |
+| C3 | Safety key (2/6) | waiting for laptop · confirmed (via A5) · skipped | `Your laptop becomes your Safety key` · `Confirm on your laptop. Nothing to type.` · [P] `Continue` (enabled when confirmed) · ghost `Skip for now — add it later` |
+| C4 | Emergency card (3/6) | card · print · confirm sheet · stored | *v1* · [P] `I stored it` · sheet `Have you really stored it?` |
+| C5 | How recovery works (4/6) | default · assisted (greyed, SIM) | *v1* `Who can help you back in` · [P] `Continue` |
+| C6 | **Protect (5/6)** | idle · signing · sent · arc 1 · arc 2 · arc 3 · protected · error | `One signature protects your wallet` → `Protected` · body `Your wallet is created on Base and your three recoverers are written into it. Swissquote pays the network fee.` → `Your phone key signs. Any 2 of your 3 recoverers can restore access. Swissquote can’t move your money, alone or with anyone.` · rows `Waiting · Adding · Added` · [P] `Protect my wallet` → `Continue` · `Network fee paid by Swissquote` → `In block 6’812’334` · error `The wallet wasn’t created` / `Nothing was charged. The network didn’t accept the request — try again.` |
+| C7 | Prove ownership (6/6) | idle · signing · done | *v1* · [P] `Sign the proof` → `Go to my wallet` |
+
+### D. Home and money — Phone
+
+| # | Screen | States | Title · [P] · key copy |
+|---|---|---|---|
+| D1 | Home | default · empty statement · amount changing (ticker) · alert banner · no key on this device · not yet protected | header `Keyline` + 24 px ring `Protected` (→ Security) + settings · `Balance` · `CHF 96.00` · `120.00 USDC` · `1 USDC = CHF 0.80` SIM · [P] `Send` · `Receive` · `Top up` · `Statement` / `All` · section `In your Swissquote account` SIM (read-only rows, `Open`) · `Test network · Base Sepolia — nothing here is real money.` |
+| D2 | Protection sheet (tap the ring) | protected · counting (recovery running) | `Protected · 2 of 3 recoverers` · 64 px ring · three recoverer rows · link `Security` |
+| D3 | Receive (sheet) | default · copied | `Receive` · QR + `Address` · `Only send USDC on Base Sepolia to this address.` |
+| D4 | Top up (sheet) | amount · sending · done | `Top up from my Swissquote account` · `Swissquote account balance: CHF 4’210.35` SIM · [P] `Top up` · `Accepted instantly: this wallet is verified as yours.` |
+| D5 | Back to Swissquote | amount · review · sent | `Back to Swissquote` · *draft* `Sends to your own Swissquote account, verified as yours.` · [P] `Review` |
+| D6 | Send | recipient · amount · new address · errors | *v1* · [P] `Review` |
+| D7 | **Review** | ok · step-up · cooling · block · dApp danger · loading · success | `Review` · `CHF 20.00` · `25.00 USDC to Lukas Meier` · `Approved · Within your CHF 1’000 daily limit.` · panel `What will happen` · `This can’t be undone.` · [P] `Confirm with Face ID` (success morph → D8) · v1 verdict strings |
+| D8 | Receipt | confirmed · pending · failed | `Transfer` · 64 px ring `success` · `Sent` · `−25.00 USDC` · `CHF 20.00 to Lukas Meier` · `Signed · Sent · In block 6’812’334 · Confirmed` · [P] `Done` |
+| D9 | Activity | list · empty | `Activity` · `Nothing yet` / `Your first top-up will appear here.` |
+| D10 | Activity detail | *v1* | `Transfer` |
+| D11 | Approve (laptop) | request · approved · refused · empty | *v1* `Approve CHF 2’000.00 to Lukas Meier?` · [P] `Approve with Safety key` |
+
+### E. Contacts, apps — Phone
+
+| # | Screen | States | Title · [P] · key copy |
+|---|---|---|---|
+| E1 | Contacts | list · empty | `Contacts` · rows with `Verified` (ok) or `New` · empty `No contacts yet` / `People you send to appear here.` |
+| E2 | Add contact | form · invalid address · saved | `Add a contact` · `Name` · `Base address` · [P] `Save contact` · `This doesn’t look like a Base address.` |
+| E3 | Apps | *v1* | `Apps` |
+
+### F. Security — Phone
+
+| # | Screen | States | Title · [P] · key copy |
+|---|---|---|---|
+| F1 | Security centre | protected · recovery running · not protected | `Security` · 64 px ring + `Protected · 2 of 3 recoverers` · *v1* sections |
+| F2 | Recoverer detail (stack) | active · pending · removed | `Safety key` · `On your laptop` · what it can / cannot do |
+| F3 | Prove this wallet is yours (sheet) | *v1* | [P] `Create proof` |
+| F4 | Export Safety key (sheet, laptop) | *v1* | [P] `Download encrypted file` |
+| F5 | If Swissquote disappears (sheet) | *v1* | — |
+| F6 | Roadmap: Bitcoin | default | `Roadmap: Bitcoin` · *draft* `Bitcoin can be protected the same way with a script: your phone key spends; after a waiting period, 2 of your 3 recoverers can move it to a new key.` · diagram (small, hairline, mono): `spend: phone key` · `or after 72 h: 2-of-3 (Safety key, Emergency card, Swissquote)` · `Not in this prototype.` |
+
+### G. Recovery — Phone (new phone, stepper `Step n of 5`)
+
+| # | Screen | States | Title · [P] · key copy |
+|---|---|---|---|
+| G1 | Email | *v1* | `Let’s get you back in` · [P] `Send code` |
+| G2 | Identity | *v1*, SIM | `Confirm it’s you` · [P] `Submit identity check` |
+| G3 | New key | *v1* | `Create a key on this phone` |
+| G4 | Recoverers | waiting · one confirmed · two confirmed | `Waiting for a second recoverer` · 200 px ring `counting` without stroke, arcs lit as confirmed |
+| G5 | **Waiting period** | counting · last second (pulse) · period over · cancelled by owner | `Access restores at 14:35:12` · 200 px `ProtectionCountdown` · `Waiting period accelerated for the demo: 3 min instead of 72 h.` · `During this period the previous owner can still cancel. If nobody cancels, this phone becomes the only key.` · rows `Confirmed 14:30:12` · link `Watch on Basescan` · over: `00:00` `Ready to finish` |
+| G6 | Restored | done | `You’re back in, Lea` · ring `success` · [P] `Go to my wallet` |
+
+### H. Alerts and refusal — Phone
+
+| # | Screen | States | Title · [P] · key copy |
+|---|---|---|---|
+| H1 | Alerts | recovery started (120 px countdown) · period over · finalized · refused · empty | *v1* `Was this you?` · [P danger] `Cancel recovery — it wasn’t me` → after cancel ring `revoked` + `Recovery cancelled. Your phone remains the only key.` (+ refusal vibration on the fraudster's device) |
+| H2 | Refused (thief) | default | *v1* `Recovery can’t start` |
+
+### I. Settings and help — Phone
+
+| # | Screen | States | Title · [P] · key copy |
+|---|---|---|---|
+| I1 | Settings | default | `Settings` · rows `Currency` (`CHF · EUR · USD`), `Language` (`English · Français · Deutsch`), `Appearance` (`System · Light · Dark`) · `Help` · `Security` |
+| I2 | Help 1/3 | default | `How is my money protected?` · *draft* `Only your phone can spend. Its key never leaves it, and Swissquote never holds it.` · [P] `Next` |
+| I3 | Help 2/3 | default | `If you lose your phone` · *draft* `Any 2 of your 3 recoverers can move access to a new phone, after a waiting period you can see and cancel.` · ring with three arcs labelled · [P] `Next` |
+| I4 | Help 3/3 | default | `What Swissquote can’t do` · *draft* `Swissquote is one of your three recoverers. It can’t act alone, can’t move your money, and you can leave without it.` · [P] `Done` |
+
+### J. Desk and stand-ins — Laptop
+
+| # | Screen | States | Notes |
+|---|---|---|---|
+| J1 | Desk sign-in | *v1*, SIM | — |
+| J2 | Desk queue + request detail | *v1* | on-chain timer becomes the 64 px `ProtectionCountdown` |
+| J3 | Desk audit log | *v1* | — |
+| J4 | `/mock/inbox` | *v1*, SIM | — |
+| J5 | `/mock/eid` | *v1*, SIM | — |
+
+Count: 50 screens, ≈ 150 states including the global loading / error / offline states.
+
+## 12. Review checklist v2
+
+- One primary per screen; verb phrase; 48 px; `ActionButton` when async.
+- Accent only on focus, the active step and the ring; links in ink.
+- Lists use the 56 px row; card styling only on true objects.
+- Every simulated group has one `Chip`; every status has icon + word; every waiting period shows its exact end time and the demo caption.
+- Amount 44/48 tabular; titles balanced; text ≤ 65 ch.
+- Both themes checked; contrast script green; no hard-coded colour outside device drawings.
+- Only the motions in §6; each has a reduced-motion fallback.
+- No shadow except sheets; radii 6/10; no gradient, blur, purple, emoji, stock imagery.
+- Focus visible; targets ≥ 44 px; nothing clipped or horizontally scrolling at 390 px.
+
+---
+
+# Appendix V1 — the v1 specification (kept; superseded where marked)
+
+Superseded by v2: **§3 Type** (tracking now −0.025em at 44, −0.015em at 28; headings balanced; 65 ch) · **§6 Motion** (whole section → v2 §6; the CountdownRing signature animation becomes the ring's `counting` state) · **§9 CountdownRing rules** (→ `ProtectionCountdown`; the finish-time-once rule still holds) · the **`SimulatedBadge`** look (→ `Chip`, v2 §7; the placement rule still holds) · **§2 accent usage for links** (v2 links are ink) · §11 checklist (→ v2 §12).
+
+Still valid: §1 position, §2 light token values, §4 spacing, §5 shape and elevation, §7 icons, §8 primitive catalogue (v1 primitives are unchanged), §9 chrome and global loading/empty/error strings, **§10 screen-by-screen specs (source of truth for every screen marked *v1* in v2 §11)**, **Appendix A copy (still pasted into `apps/wallet/src/copy.ts`)**, Appendix B implementation notes.
+
+
+## Keyline — Design specification (v1)
 
 Owner: `design-system` agent. Engineers build screens **only** from the primitives in `packages/ui` and the copy in this file (Appendix A is pasted verbatim into `apps/wallet/src/copy.ts`). If a string is missing here, ask; do not invent it. If a screen disagrees with this file, this file wins until the orchestrator edits it.
 
-## 1. Design position
+### 1. Design position
 
 A Swiss bank statement, not a crypto dashboard: International Typographic Style — strict grid, flush-left, one accent, hairlines instead of shadows, dense where it matters (amounts, status), quiet everywhere else.
 Copy is plain, second person, specific and calm: it says what will happen, what it costs, and what cannot be undone. Nothing "unlocks", nothing is "seamless".
 Every simulation is marked `SIMULATED`, every status has an icon **and** a word, every address can be read in full. Honesty is part of the aesthetic.
 
-## 2. Tokens (`packages/ui/src/tokens.css`)
+### 2. Tokens (`packages/ui/src/tokens.css`)
 
 Ratios computed by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). All text pairs ≥ 4.5:1; UI edges and large marks ≥ 3:1. 23/23 pass.
 
-### Surfaces and ink
+#### Surfaces and ink
 
 | Token | Hex | Role | Contrast |
 |---|---|---|---|
@@ -26,14 +360,14 @@ Ratios computed by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). All text pai
 | `--ink-3` | `#6B6B68` | meta text (timestamps, captions) | 4.95:1 on bg · 4.76:1 on surface · 4.57:1 on surface-2 |
 | `--on-ink` | `#FFFFFF` | text on `--ink` and on danger fills | 18.42:1 on ink · 6.57:1 on danger |
 
-### Accent (Swissquote-adjacent orange-red; never body text)
+#### Accent (Swissquote-adjacent orange-red; never body text)
 
 | Token | Hex | Role | Contrast |
 |---|---|---|---|
 | `--accent` | `#FA5B35` | focus ring, active step dot, countdown ring, links on dark bars | 5.80:1 on ink (text) · 3.18:1 on surface (UI mark only) |
 | `--accent-text` | `#C8371A` | links and accent words on light | 4.84:1 on bg · 5.23:1 on surface |
 
-### Status (always icon + word)
+#### Status (always icon + word)
 
 | Token | Hex | Tint | Contrast on bg / on tint |
 |---|---|---|---|
@@ -42,7 +376,7 @@ Ratios computed by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). All text pai
 | `--danger` | `#B42318` | `--danger-bg #FBE9E7` | 6.08:1 / 5.61:1 |
 | `--danger-bar` | `#B42318` | Thief device bar; white label | 6.57:1 |
 
-### Simulated (honest-mock marking)
+#### Simulated (honest-mock marking)
 
 | Token | Hex | Contrast |
 |---|---|---|
@@ -52,7 +386,7 @@ Ratios computed by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). All text pai
 
 Banned: purple/indigo/violet in any form, gradients, backdrop-blur, glows, any shadow outside `--shadow-modal`.
 
-## 3. Type
+### 3. Type
 
 Fonts: **Hanken Grotesk** (variable, self-hosted in `apps/wallet/app/fonts`, `--font-hanken`) for all UI; **JetBrains Mono** (`--font-jetbrains`, `font-feature-settings: "zero"`) for addresses, hashes, codes. Never Inter, Geist, Roboto, Space Grotesk, Satoshi. Tabular digits (`tnum`) everywhere, by default on `<html>`.
 
@@ -67,24 +401,24 @@ Fonts: **Hanken Grotesk** (variable, self-hosted in `apps/wallet/app/fonts`, `--
 
 Weights 400 and 600 only. Numbers are never italic.
 
-## 4. Spacing and layout
+### 4. Spacing and layout
 
 4-pt base: 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64. Phone content width 390 px with 16 px gutters (358 px usable). Desk: 12 columns, 24 px gutters, max 1200 px, centred. Vertical rhythm inside a phone screen: title block 24 px below the device bar, 24 px between sections, 12 px between rows inside a section, hairline (`--line`) between statement rows. Tap targets ≥ 44 px (buttons are 48 px, statement rows 56 px).
 
-## 5. Shape and elevation
+### 5. Shape and elevation
 
 Radii: **6 px** (buttons, inputs, badges, status chips) · **10 px** (sheets, modals, the phone screen corners, cards that are real objects such as the Emergency card). Nothing else — no pills except the countdown ring which is a circle by nature.
 Elevation: one level, `--shadow-modal: 0 8px 24px rgba(20,20,20,.12)`, modals and the Tier-2 laptop approval sheet only. Everything else is separated by 1 px `--line`.
 
-## 6. Motion
+### 6. Motion
 
 120 ms (`--duration-fast`, hover/press) and 200 ms (`--duration-base`, sheet entry, status change), `cubic-bezier(.2,0,0,1)`. One signature animation: the recovery `CountdownRing` arc (CSS `stroke-dashoffset` transition, 1 s linear per tick — the only animation allowed above 300 ms, and it is a progress indicator, not decoration). `prefers-reduced-motion: reduce` sets both durations to 0 and the ring updates without tweening. No skeleton shimmer; skeletons are static `--surface-2` blocks.
 
-## 7. Icons
+### 7. Icons
 
 Phosphor, **regular** weight, 20 px, `currentColor`, one set only. Icons never carry meaning alone: `ok` = `CheckCircle` + word, `pending` = `Clock`, `step-up` = `DeviceMobile` + `Laptop`, `cooling` = `Hourglass`, `block` = `Prohibit`, danger = `WarningCircle`, simulated = none (text badge), copy = `Copy`, external link = `ArrowSquareOut`, print = `Printer`, key = `Key`, card = `IdentificationCard`, bank = `Bank`. No emoji anywhere in UI.
 
-## 8. Primitive catalogue (`@keyline/ui`)
+### 8. Primitive catalogue (`@keyline/ui`)
 
 All components are typed React 19 function components, styled by `components.css` classes (`kl-*`) on top of tokens — no runtime CSS-in-JS. Every interactive element has a visible focus ring (`--focus-ring`). Props listed are the public contract.
 
@@ -120,9 +454,9 @@ Number formats: `CHF 1’234.50` (code first, non-breaking space, 2 decimals, U+
 
 Dates: `5 Oct 2026, 14:32` (`en-CH`), times inside the countdown `14:32:10`. Relative: "2 minutes ago", "just now".
 
-## 9. Global chrome
+### 9. Global chrome
 
-### DeviceBar (top of every client screen; also on the desk)
+#### DeviceBar (top of every client screen; also on the desk)
 Full-width 28 px bar, `text-12` 600, letter-spacing 0.04em, white text. **Five personas, five tones** (Wave 2 audit): a judge must tell the bars apart from across the room. The persona label is for judges only — it is **never** sent to the bank as the device label (`getDeviceLabel()` returns a device-ish string such as `iPhone · new device`).
 
 | Persona (`?device=`) | String | Bar |
@@ -133,19 +467,19 @@ Full-width 28 px bar, `text-12` 600, letter-spacing 0.04em, white text. **Five p
 | `thief` | `Thief · stolen phone` | `--danger-bar` (red) |
 | `desk` | `Swissquote desk (simulated)` | `--ink` + 2 px `--accent` rule below |
 
-### TestnetStrip (bottom of Home and Security; top of desk content)
+#### TestnetStrip (bottom of Home and Security; top of desk content)
 `Test network · Base Sepolia — nothing here is real money.` 12/16, `--ink-3`, hairline above, link `View on Basescan` (`ArrowSquareOut`).
 
-### SimulatedBadge
+#### SimulatedBadge
 Label `SIMULATED`. Tooltip/`title`: `Mocked for the prototype — see README`. Placed inline after the thing it qualifies (never on its own line), e.g. `Identity check SIMULATED`.
 
-### Demo caption (anywhere a waiting period is shown)
+#### Demo caption (anywhere a waiting period is shown)
 `Waiting period accelerated for the demo: 3 min instead of 72 h.` — `text-12` `--ink-3`, below the ring or the timer.
 
-### CountdownRing rules (Wave 2)
+#### CountdownRing rules (Wave 2)
 The exact finish time appears **once** per screen: in the title when there is one (`Access restores at 14:35:12`, then `showFinish={false}`), otherwise in the ring's own `Finishes at` line. Finished state: centre `00:00`, sub-label `doneLabel` — `Ready to finish` on the new phone, `Period over` on the owner's alert; never `Done`/`Finished` (the *period* is over, not the recovery).
 
-### Loading / empty / error (every route)
+#### Loading / empty / error (every route)
 - Loading: `Skeleton` in the exact shape of the content (balance block = `kind="amount"`, lists = 3 × `kind="row"`); never a lone spinner. Buttons that wait show `loading` with their label unchanged.
 - Empty: `EmptyState` with the strings given per screen.
 - Error: `ErrorState` title `Something didn’t work`, body given per screen — or, when the screen has no specific sentence, `Nothing was changed. Try again in a moment.` (`common.errorBody`). Button `Try again`, `Technical details` disclosure with the raw error. Never pair the generic title with the offline body.
@@ -154,11 +488,11 @@ The exact finish time appears **once** per screen: in the title when there is on
 - Policy refused outside `/send/review` (e.g. protect): `PolicyLine` reason `Swissquote’s policy check didn’t approve this. Nothing was sent.`; raw backend reasons go under `Technical details`.
 - Offline bank: `ErrorState` title `Swissquote isn’t reachable`, body `Your keys and your money are unaffected. The bank service answers policy checks and pays network fees; try again in a moment.`
 
-## 10. Screen-by-screen
+### 10. Screen-by-screen
 
 Layout sketches are 390 px wide unless marked *desk*. `[P]` = the one primary button on the screen.
 
-### `/onboarding` — 6 steps, `Stepper` on top, one primary per step
+#### `/onboarding` — 6 steps, `Stepper` on top, one primary per step
 
 **Step 1 · Create your Keyline**
 ```
@@ -283,7 +617,7 @@ Layout sketches are 390 px wide unless marked *desk*. `[P]` = the one primary bu
 ```
 - Done: `Ownership proven — Travel Rule check done.` sub `Deposits from your Swissquote account are accepted instantly.` [P] `Go to my wallet`.
 
-### `/pair` — laptop
+#### `/pair` — laptop
 ```
 ┌ Lea · laptop — Safety key ───────────┐  (desk width, content max 480 centred-left)
 │ Pair this laptop as Lea’s Safety key  │  text-28
@@ -302,7 +636,7 @@ Layout sketches are 390 px wide unless marked *desk*. `[P]` = the one primary bu
 ```
 - Success: `Paired. This laptop now holds Lea’s Safety key.` [P] `Done`. Wrong code: field error `That code doesn’t match. Check the phone and try again.`
 
-### `/` — Home
+#### `/` — Home
 ```
 ┌ Lea · phone ─────────────────────────┐
 │ Keyline                    Security ⚙│  text-20 600 · ghost icon button (ShieldCheck)
@@ -330,7 +664,7 @@ Layout sketches are 390 px wide unless marked *desk*. `[P]` = the one primary bu
 - Receive sheet: `Address` expanded + QR + `Only send USDC on Base Sepolia to this address.`
 - No key on this device (Thief): hero replaced by `Note danger`: `This device has no key for this wallet.` body `Sending is not possible from here. If this is your phone and you lost access, start a recovery.` buttons `I lost my phone` (secondary) — no primary.
 
-### `/send`
+#### `/send`
 ```
 │ ← Send                                │
 │ To                                    │
@@ -346,7 +680,7 @@ Layout sketches are 390 px wide unless marked *desk*. `[P]` = the one primary bu
 - New address notice (Note warn): `First transfer to this address. A short waiting period will apply and your laptop will be asked to confirm.`
 - Errors: `Enter an amount` · `Not enough USDC. You have 120.00 USDC.` · `This doesn’t look like a Base address.`
 
-### `/send/review` — one screen, four verdicts
+#### `/send/review` — one screen, four verdicts
 ```
 │ ← Review                              │
 │ CHF 20.00                             │  text-44
@@ -373,7 +707,7 @@ PolicyLine strings (icon + word + reason):
 - After confirm: `StatusSequence` `Signed → Sent → In block 6’812’334 → Confirmed`, `Address` of tx hash, `View on Basescan`, [P] `Done`.
 - Errors: `Approval expired` / `Policy approvals last 5 minutes. Review the transfer again.` [P] `Review again`. Passkey cancelled: `Note warn` `Face ID was cancelled. Nothing was sent.`
 
-### `/approve` — laptop, Tier-2 co-approval
+#### `/approve` — laptop, Tier-2 co-approval
 ```
 ┌ Lea · laptop — Safety key ───────────┐  desk width, Sheet-like card centred (the only shadow)
 │ Approve CHF 2’000.00 to Lukas Meier?  │  text-28
@@ -385,7 +719,7 @@ PolicyLine strings (icon + word + reason):
 - Empty queue: `EmptyState` `Nothing to approve` / `Transfers above CHF 1’000 a day appear here.`
 - Approved: `Approved. The phone can now send.` Refused: `Refused. The phone has been told.`
 
-### `/activity/:hash`
+#### `/activity/:hash`
 ```
 │ ← Transfer                            │
 │ − 25.00 USDC                          │  text-44
@@ -401,7 +735,7 @@ PolicyLine strings (icon + word + reason):
 ```
 - Pending: last step active with `Clock`. Failed: step `failed` `Not accepted by the network` + `ErrorState` body `Nothing was sent. Your balance is unchanged.`
 
-### `/dapps`
+#### `/dapps`
 ```
 │ ← Apps                                │
 │ Apps Swissquote has reviewed can ask  │
@@ -415,7 +749,7 @@ PolicyLine strings (icon + word + reason):
 ```
 - `Request review` → `Note` `Review requested. Swissquote answers within 2 business days.` + `SimulatedBadge`.
 
-### `/security` — Security centre
+#### `/security` — Security centre
 ```
 │ ← Security                            │
 │ Protected · 2 of 3 recoverers         │
@@ -446,7 +780,7 @@ Sheets:
   rows: `Wallet` Address + `Verify yourself on Basescan ↗` · `Recoverers on-chain` three addresses labelled · `Your phone key keeps signing through any public network relay.` Toggle `Pay my own network fee` (description `Uses ETH in this wallet instead of Swissquote’s sponsorship.`) · `Your Safety key + your Emergency card restore access without Swissquote.` code block `pnpm keyline recover --without-bank --safety-key safety.json --emergency-card <hex>` · caveat (Note info): `Passkeys are tied to this app’s web address. In production the app is open source and the address is held by an independent escrow, so it can’t disappear with the bank.`
 - Event log row examples: `Wallet created` · `Safety key added` · `Emergency card added` · `Ownership proven` · `Transfer confirmed · 25.00 USDC` · `Recovery attempt refused`. Empty: `No events yet`.
 
-### `/recover` — new phone (also the Thief’s path until identity fails)
+#### `/recover` — new phone (also the Thief’s path until identity fails)
 Stepper total 5: `Email · Identity · New key · Recoverers · Waiting period`.
 1. **Email** — title `Let’s get you back in` body `Enter the email on your Swissquote file. We’ll send a code.` TextField `Email`, [P] `Send code`; then TextField `6-digit code` + hint `Email delivery is simulated — the code is in the demo inbox.` + `SimulatedBadge` + quiet link `Show inbox`, [P] `Continue`. Error `That code doesn’t match.`
 2. **Identity** — title `Confirm it’s you` + `SimulatedBadge` eyebrow `swiyu e-ID check SIMULATED`. Body `Swissquote checks your identity before its recoverer may act. In production this is the Swiss e-ID (swiyu).` Fields `Name on ID`, `Date of birth` (plain numeric TextField, placeholder `DD.MM.YYYY`, never the browser date picker), `Document number` (mono), Toggle `Liveness check passed` (prefilled). Footer quiet link `Open the e-ID stand-in` (no second badge). [P] `Submit identity check`. Status while desk decides: `StatusSequence` `Sent to Swissquote` done → `Being checked` active. Refused → `/refused`.
@@ -457,12 +791,12 @@ Stepper total 5: `Email · Identity · New key · Recoverers · Waiting period`.
 5. **Waiting period** — title `Access restores at 14:35:12` `CountdownRing` size 200 (`showFinish={false}` — the title carries the time), inside `02:41` + `remaining`; caption `Waiting period accelerated for the demo: 3 min instead of 72 h.`; body `During this period the previous owner can still cancel. If nobody cancels, this phone becomes the only key.` Link `Watch on Basescan`. `read from the SocialRecoveryModule` only under `Technical details`. Period over: ring `00:00` + `Ready to finish`. When finalized: stepper label `Restored`, title `You’re back in, Lea` (not "Welcome back" — ban list) body `This phone is now your only key. The old phone can no longer sign.` Panel `Wallet` · `New key`; link `View the restore transaction on Basescan`; [P] `Go to my wallet`.
 - Error (bank unreachable) uses the global offline ErrorState. Error (module refuses): `ErrorState` `The recovery couldn’t start` / `The chain rejected the request. Nothing changed.`
 
-### `/alerts` — Lea’s existing devices
+#### `/alerts` — Lea’s existing devices
 - Recovery started (danger Note + ring): title `Was this you?` body `Recovery started from a new phone in Zürich, 2 minutes ago. If nobody cancels, that device becomes the only key at 14:35:12.` `CountdownRing` size 120, `doneLabel` `Period over`. [P danger] `Cancel recovery — it wasn’t me` · ghost `It was me`. Period over, not finalized: body `The waiting period ended at 14:35:12. The new phone can finish at any moment; you can still cancel until it does.` Finalized: the started Note disappears; only the finalized Note (`Access moved to a new phone`) remains, no cancel. Home shows a danger Note `Was this you?` + `Open alerts` while a started alert exists, and a `Bell` icon link in the top bar. After cancel: `Recovery cancelled. Your phone remains the only key.` + `View on Basescan`. Fraudster’s screen (`/recover` step 5) switches to `Recovery cancelled by the owner.` with `ErrorState` tone.
 - Recovery refused (info Note): title `Recovery attempt refused` body `Someone tried to recover this wallet from a device labelled “Thief · stolen phone” at 14:28. The identity check failed; Swissquote’s recoverer did not act. Nothing changed.` ghost `See event log`.
 - Empty: `EmptyState` `No alerts` / `Recovery attempts and large transfers appear here.`
 
-### `/refused`
+#### `/refused`
 ```
 │ Thief · stolen phone (red bar)        │
 │ Prohibit icon  Recovery can’t start   │  text-28
@@ -473,7 +807,7 @@ Stepper total 5: `Email · Identity · New key · Recoverers · Waiting period`.
 │ ghost: Back to start                  │  no primary
 ```
 
-### `/desk` — Swissquote recovery desk (desktop, `DeskLayout`)
+#### `/desk` — Swissquote recovery desk (desktop, `DeskLayout`)
 Header (ink): `Swissquote · Recovery desk` + `SimulatedBadge` + operator `Operator: M. Keller` + `Sign out`. Footer: `This console cannot move client funds.` Legend (top-right): `Real` (solid ink square) `On-chain and signed` · `Simulated` (dashed square) `Mocked for the prototype`.
 - **Login**: title `Operator sign-in` body `Single sign-on is simulated for the prototype.` + badge; TextField `Operator token`; [P] `Sign in`; error `That token isn’t valid.`
 - **Queue** (left column 4/12): heading `Recovery requests`, filter chips `Open · Refused · Finished` (selected chip = solid ink via `aria-selected`; the id `#48A7BE` is mono ink-2, never a status colour; the `Waiting for` fragment is omitted when it equals the status chip); rows: `Lea Keller · SQ-48213-LK` / `Awaiting recoverers · 2 min ago` status chips: `identity-pending → Identity check` (pending) · `identity-refused → Refused` (danger) · `awaiting-guardians → Waiting for a 2nd recoverer` (pending) · `executed-waiting → Waiting period` (pending) · `finalized → Finished` (ok) · `cancelled → Cancelled by owner` (ink-2). Empty: `No recovery requests` / `New requests appear here within a few seconds.`
@@ -485,13 +819,13 @@ Header (ink): `Swissquote · Recovery desk` + `SimulatedBadge` + operator `Opera
   Finalize appears only when the timer is done: secondary `Finish recovery` (fee paid by Swissquote).
 - **Audit log** (full width, below): heading `Audit log · append-only`; table `Time · Service · Event · Who`; rows mono time; empty `No events yet`.
 
-### `/mock/inbox` — `SimulatedBadge` in title
+#### `/mock/inbox` — `SimulatedBadge` in title
 Title `Inbox` + badge, lead `lea.keller@example.ch`. Body `Email delivery is simulated. Codes sent by Keyline appear here.` Rows: `Keyline · Your recovery code is 482137 · 14:28`. Empty `No messages`.
 
-### `/mock/eid` — `SimulatedBadge` in title
+#### `/mock/eid` — `SimulatedBadge` in title
 Title `swiyu e-ID check` + badge. Body `Stand-in for the Swiss e-ID (live 1 Dec 2026). A name that doesn’t match the client, or a failed liveness check, fails.` (The device label is never an identity signal — the Thief fails because the name on the ID is not the client's.) Fields `Name on ID`, `Date of birth`, Toggle `Liveness check passed`. [P] `Submit`. Result Note `Verdict: pass` / `Verdict: fail — ID document name mismatch, liveness check failed`.
 
-## 11. Review checklist (design-system audits every screen against this)
+### 11. Review checklist (design-system audits every screen against this)
 
 - One primary button per screen; 48 px; label is a verb phrase.
 - Every status: icon + word. Every simulation: `SimulatedBadge`. Every waiting period: exact finish time + demo caption.
@@ -500,7 +834,7 @@ Title `swiyu e-ID check` + badge. Body `Stand-in for the Swiss e-ID (live 1 Dec 
 - Focus ring visible on every control; tap targets ≥ 44 px; no text clipped at 390 px.
 - Vocabulary: recoverer · Safety key · Emergency card · network fee · approver — never guardian/gas/seed/userOp outside `Technical details`.
 
-## Appendix A — `copy.ts` (paste into `apps/wallet/src/copy.ts`)
+### Appendix A — `copy.ts` (paste into `apps/wallet/src/copy.ts`)
 
 ```ts
 // Generated from docs/DESIGN.md §9–10. Do not edit strings here; edit DESIGN.md and re-paste.
@@ -827,7 +1161,7 @@ export const copy = {
 } as const;
 ```
 
-### Appendix A.2 — Wave 2 additions (merge into the objects above; replaces the `copyGaps` block in `copy.ts`)
+#### Appendix A.2 — Wave 2 additions (merge into the objects above; replaces the `copyGaps` block in `copy.ts`)
 
 ```ts
 // demo
@@ -912,7 +1246,7 @@ security: {
 },
 ```
 
-## Appendix B — Implementation notes for engineers
+### Appendix B — Implementation notes for engineers
 
 - **Styling model.** Primitives are styled by `kl-*` classes in `@keyline/ui/components.css` (plain CSS over tokens). Tailwind v4 is loaded **without its default theme** (`preflight.css` + `utilities.css` only); `apps/wallet/app/theme.pcss` maps tokens to utilities with `@theme inline reference` (no default palette exists, so `bg-purple-500` is not a class). Use utilities for layout; never restyle a primitive from outside.
 - **Fonts** are self-hosted woff2 in `apps/wallet/app/fonts` via `next/font/local` (`--font-hanken`, `--font-jetbrains`); no Google Fonts request at runtime.

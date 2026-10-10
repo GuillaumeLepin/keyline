@@ -1,0 +1,495 @@
+/*
+ * Keyline v2 primitives — prefix kl2-. Additive: nothing here restyles a kl- (v1) class in light.
+ * The only kl- rules below are dark-scoped fixes for v1 hover colours that were hard-coded hex.
+ * Radii 6/10 only. One shadow (sheet). Motion values come from motion.ts and tokens.css.
+ */
+
+.kl2-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.kl2-balance {
+  text-wrap: balance;
+}
+.kl2-measure {
+  max-width: var(--measure);
+}
+
+/* ---------- ProtectionRing ---------- */
+.kl2-ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  transform-origin: 50% 50%;
+}
+.kl2-ring__svg {
+  display: block;
+  overflow: visible;
+}
+.kl2-ring__track {
+  stroke: var(--ring-track);
+}
+.kl2-ring__arc--accent {
+  stroke: var(--ring-arc);
+}
+.kl2-ring__arc--ok {
+  stroke: var(--ok);
+}
+.kl2-ring__arc--danger {
+  stroke: var(--danger);
+}
+.kl2-ring__arc--quiet {
+  stroke: var(--ink-3);
+}
+.kl2-ring__inner-track {
+  stroke: var(--line);
+}
+.kl2-ring__inner {
+  stroke: var(--ring-arc);
+}
+.kl2-ring__glow {
+  filter: var(--ring-glow);
+}
+.kl2-ring__centre {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--ink);
+}
+.kl2-ring__time {
+  font-size: var(--text-44);
+  line-height: var(--leading-44);
+  font-weight: 600;
+  letter-spacing: var(--tracking-44);
+  font-variant-numeric: tabular-nums;
+}
+.kl2-ring__time--sm {
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
+  letter-spacing: 0;
+}
+.kl2-ring__sub {
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
+  color: var(--ink-3);
+}
+.kl2-check {
+  display: block;
+  color: inherit;
+}
+
+/* ---------- NumberTicker ---------- */
+.kl2-tick {
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kl2-tick__cells {
+  display: inline-flex;
+}
+.kl2-tick__static {
+  display: inline-block;
+  white-space: pre;
+}
+.kl2-tick__cell {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+}
+.kl2-tick__ghost {
+  visibility: hidden;
+}
+.kl2-tick__strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+/* ---------- CrossFade ---------- */
+.kl2-xfade {
+  display: grid;
+}
+.kl2-xfade__layer {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+/* ---------- Icon button (44 px target) ---------- */
+.kl2-iconbtn {
+  appearance: none;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color var(--duration-fade) var(--ease-standard);
+}
+.kl2-iconbtn:hover {
+  background: var(--surface-2);
+}
+.kl2-iconbtn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ---------- StackView ---------- */
+.kl2-stack {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+}
+.kl2-stack__head {
+  display: grid;
+  grid-template-columns: var(--tap-min) 1fr var(--tap-min);
+  align-items: center;
+  gap: var(--space-1);
+  height: 56px;
+  padding: 0 var(--space-2);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.kl2-stack__title-slot {
+  display: grid;
+  min-width: 0;
+}
+.kl2-stack__title {
+  grid-area: 1 / 1;
+  margin: 0;
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kl2-stack__viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.kl2-stack__screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+/* ---------- SheetV2 ---------- */
+.kl2-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+.kl2-sheet--contained {
+  position: absolute;
+}
+.kl2-sheet__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: var(--scrim);
+  cursor: default;
+}
+.kl2-sheet__panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 85%;
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  box-shadow: var(--shadow-modal);
+  padding: var(--space-2) var(--gutter-phone) var(--space-6);
+  touch-action: none;
+}
+.kl2-sheet__panel:focus {
+  outline: none;
+}
+.kl2-sheet__grip {
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 0 auto var(--space-2);
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+.kl2-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.kl2-sheet__title {
+  margin: 0;
+  font-size: var(--text-20);
+  line-height: var(--leading-20);
+  font-weight: 600;
+  text-wrap: balance;
+}
+.kl2-sheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ---------- ActionButton ---------- */
+.kl2-action {
+  appearance: none;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    background-color var(--duration-fade) var(--ease-standard),
+    opacity var(--duration-fade) var(--ease-standard);
+}
+.kl2-action--full {
+  width: 100%;
+}
+.kl2-action--primary {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+.kl2-action--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 88%, var(--bg));
+}
+.kl2-action--secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.kl2-action--secondary:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.kl2-action:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.kl2-action:disabled:not([aria-busy="true"]) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.kl2-action[aria-busy="true"] {
+  cursor: progress;
+}
+.kl2-action__label {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.kl2-action__check {
+  grid-area: 1 / 1;
+  display: inline-grid;
+  place-items: center;
+}
+.kl2-action__spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
+  animation: kl2-turn 900ms linear infinite;
+}
+@keyframes kl2-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Chip (SIMULATED) ---------- */
+.kl2-chip {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: var(--space-1);
+}
+.kl2-chip__mark {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px dashed var(--simulated-border);
+  border-radius: var(--radius-control);
+  color: var(--simulated-text);
+  font-size: var(--text-12);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: help;
+}
+.kl2-chip__mark:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.kl2-chip__tip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  width: max-content;
+  max-width: 240px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fade) var(--ease-standard);
+}
+.kl2-chip:hover .kl2-chip__tip,
+.kl2-chip__mark:focus + .kl2-chip__tip {
+  opacity: 1;
+}
+
+/* ---------- ThemeSwitch (segmented) ---------- */
+.kl2-seg {
+  display: inline-flex;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  min-width: 0;
+}
+.kl2-seg__opt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: var(--tap-min);
+  padding: 0 var(--space-4);
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fade) var(--ease-standard),
+    color var(--duration-fade) var(--ease-standard);
+}
+.kl2-seg__opt + .kl2-seg__opt {
+  border-left: 1px solid var(--line);
+}
+.kl2-seg__opt[data-checked] {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+.kl2-seg__opt:has(:focus-visible) {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.kl2-seg__input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kl2-action__spinner {
+    animation: none;
+    border-color: currentColor;
+    opacity: 0.5;
+  }
+  .kl2-chip__tip,
+  .kl2-iconbtn,
+  .kl2-action,
+  .kl2-seg__opt {
+    transition: none;
+  }
+}
+
+/* ---------- v1 hover colours were hard-coded hex; dark-scoped fixes only (light unchanged) ---------- */
+[data-theme="dark"] .kl-btn--primary:hover {
+  background: #ffffff;
+}
+[data-theme="dark"] .kl-btn--primary:active {
+  background: #d9d6cf;
+}
+[data-theme="dark"] .kl-btn--danger:hover {
+  background: #ff8f80;
+}
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] .kl-btn--primary:hover {
+    background: #ffffff;
+  }
+  [data-theme="system"] .kl-btn--primary:active {
+    background: #d9d6cf;
+  }
+  [data-theme="system"] .kl-btn--danger:hover {
+    background: #ff8f80;
+  }
+}
+
+.kl2-ring--success .kl2-ring__centre {
+  color: var(--ok);
+}
+
+.kl2-qr {
+  display: inline-block;
+  padding: 8px;
+  background: #ffffff;
+  border-radius: var(--radius-control);
+  line-height: 0;
+}
+
+/* v2 links are ink, underlined; the accent is reserved for focus, active and the ring. */
+.kl2-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  border-radius: 2px;
+}
+.kl2-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
