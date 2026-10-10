@@ -1,41 +1,46 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
+import { useParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { ScreenHeader } from '@/src/components/ScreenHeader';
+import { copy, copyC } from '@/src/copy';
+import { formatFiat } from '@/src/i18n/money';
+import { api } from '@/src/lib/api';
+import { txUrl } from '@/src/lib/chain';
+import { type LocalTransfer, transferStore } from '@/src/lib/storage';
 import {
   Address,
   Button,
   Disclosure,
+  DrawnCheck,
   EmptyState,
   ErrorState,
-  formatCHF,
   formatClock,
+  formatDateTime,
   formatInteger,
   formatSignedUSDC,
+  haptic,
+  Note,
   Panel,
+  ProtectionRing,
   Skeleton,
   StatusSequence,
   type StatusStep,
-} from '@keyline/ui';
-import { ArrowSquareOut } from '@phosphor-icons/react/dist/ssr';
-import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy } from '@/src/copy';
-import { api } from '@/src/lib/api';
-import { addressUrl, txUrl } from '@/src/lib/chain';
-import { type LocalTransfer, transferStore } from '@/src/lib/storage';
+} from '@/src/ui';
 
 export default function ActivityPage() {
   const params = useParams<{ hash: string }>();
   const hash = params.hash;
   const [local, setLocal] = useState<LocalTransfer | null | undefined>(undefined);
   useEffect(() => setLocal(transferStore.get(hash)), [hash]);
+  // A transfer this device already saw confirmed (or failed) needs no polling: its receipt is final.
+  const settled = local?.status === 'confirmed' || local?.status === 'failed';
 
   const status = useQuery({
     queryKey: ['userop', hash],
     queryFn: () => api.userops.status(hash),
-    enabled: /^0x[0-9a-fA-F]{64}$/.test(hash),
+    enabled: /^0x[0-9a-fA-F]{64}$/.test(hash) && local !== undefined && !settled,
     retry: false,
     refetchInterval: (q) => {
       const s = q.state.data?.status;
@@ -44,6 +49,18 @@ export default function ActivityPage() {
       return 2_000;
     },
   });
+
+  // One vibration when the transfer lands (or is refused), not on every reload of a finished receipt.
+  const lastStatus = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const st = status.data?.status;
+    if (!st) return;
+    if (lastStatus.current && lastStatus.current !== st) {
+      if (st === 'confirmed') haptic('success');
+      if (st === 'failed') haptic('refusal');
+    }
+    lastStatus.current = st;
+  }, [status.data?.status]);
 
   // Persist what the bank reports so the Home statement and this receipt agree after a reload.
   useEffect(() => {
@@ -71,74 +88,132 @@ export default function ActivityPage() {
     }
   }, [status.data, local]);
 
-  if (local === undefined) return <Skeleton kind="amount" />;
+  if (local === undefined) return <ReceiptSkeleton />;
 
   const s = status.data;
-  const failed = s?.status === 'failed';
+  const current = s?.status ?? local?.status ?? 'sent';
+  const failed = current === 'failed';
+  const confirmed = current === 'confirmed';
   const txHash = s?.txHash ?? local?.txHash;
   const blockNumber = s?.blockNumber ?? local?.blockNumber;
-  const steps = receiptSteps(local, s?.status ?? local?.status ?? 'sent', blockNumber);
+  const steps = receiptSteps(local, current, blockNumber);
+  const r = copyC.receipt;
+  const a = copyC.activity;
+  const word = failed ? r.failed : confirmed ? copy.home.status.confirmed : r.pending;
+  const isDapp = Boolean(local && local.amountUsdc === 0 && local.summary);
+
+  if (!local)
+    return (
+      <>
+        <ScreenHeader title={r.title} backHref="/" />
+        <EmptyState
+          title={copy.activity.notFoundTitle}
+          body={copy.activity.notFoundBody}
+          action={
+            <Button variant="secondary" href="/activity">
+              {a.title}
+            </Button>
+          }
+        />
+        <Disclosure summary={copy.common.technicalDetails}>
+          <pre className="kl-code">userOpHash {hash}</pre>
+        </Disclosure>
+      </>
+    );
 
   return (
     <>
-      <ScreenHeader title={copy.activity.title} backHref="/" />
-      {local ? (
-        <section className="kl-balance">
-          <p className="kl-balance__amount">
-            {local.amountUsdc === 0 && local.summary ? local.toLabel : formatSignedUSDC(-local.amountUsdc)}
-          </p>
-          <p className="kl-balance__secondary">
-            {local.amountUsdc === 0 && local.summary
-              ? local.summary
-              : copy.review.toLine(formatCHF(local.amountChf), local.toLabel)}
-          </p>
-        </section>
-      ) : (
-        <EmptyState title={copy.activity.notFoundTitle} body={copy.activity.notFoundBody} />
-      )}
+      <ScreenHeader title={r.title} backHref="/" />
+      <section className="grid justify-items-center gap-2 text-center" data-testid="receipt">
+        <ProtectionRing
+          size={64}
+          state={failed ? 'revoked' : confirmed ? 'success' : 'registering'}
+          registered={current === 'included' ? 3 : 2}
+          label={word}
+        >
+          {confirmed ? (
+            <span className="text-ok">
+              <DrawnCheck size={24} />
+            </span>
+          ) : null}
+        </ProtectionRing>
+        <p className="m-0 flex items-center gap-1 text-14 font-semibold" data-testid="receipt-status">
+          {word}
+        </p>
+        <p className="kl-balance__amount m-0">
+          {isDapp ? local.toLabel : formatSignedUSDC(-local.amountUsdc)}
+        </p>
+        <p className="kl-balance__secondary m-0">
+          {isDapp ? local.summary : r.line(formatFiat(local.amountChf), local.toLabel)}
+        </p>
+      </section>
 
       <StatusSequence steps={steps} />
       {failed ? <ErrorState title={copy.activity.failedStep} body={copy.activity.failedBody} /> : null}
-      {status.isError ? (
-        <ApiErrorState error={status.error} body={copy.common.errorBody} onRetry={() => status.refetch()} />
+      {status.isError && !confirmed && !failed ? (
+        <Note tone="info">
+          {copy.common.offlineTitle}{' '}
+          <button type="button" className="kl2-textbtn" onClick={() => status.refetch()}>
+            {copy.common.tryAgain}
+          </button>
+        </Note>
       ) : null}
 
       <Panel
         rows={[
-          ...(local
-            ? [
-                {
-                  label: copy.activity.to,
-                  value: <Address value={local.to} explorerUrl={addressUrl(local.to)} />,
-                },
-              ]
-            : []),
-          { label: copy.review.networkFee, value: copy.common.networkFeePaid },
+          ...(isDapp
+            ? []
+            : [
+                { label: a.amount, value: formatSignedUSDC(-local.amountUsdc) },
+                { label: a.value, value: formatFiat(local.amountChf) },
+              ]),
+          { label: a.status, value: word },
+          { label: a.date, value: formatDateTime(new Date(local.at)) },
+          { label: a.from, value: a.yourWallet },
+          { label: copy.activity.to, value: <Address value={local.to} /> },
+          { label: a.fee, value: a.feeValue },
+          ...(blockNumber ? [{ label: a.block, value: formatInteger(blockNumber) }] : []),
           {
             label: copy.activity.transaction,
-            value: txHash ? <Address value={txHash} explorerUrl={txUrl(txHash)} /> : '—',
+            value: txHash ? (
+              <Address value={txHash} explorerUrl={txUrl(txHash)} labels={{ show: a.showFullHash }} />
+            ) : (
+              '—'
+            ),
           },
           { label: copy.activity.network, value: copy.activity.networkName },
         ]}
       />
-      {txHash ? (
-        <a className="kl-link" href={txUrl(txHash)} target="_blank" rel="noreferrer">
-          {copy.common.viewOnBasescan}
-          <ArrowSquareOut size={16} aria-hidden="true" />
-        </a>
-      ) : null}
       <Disclosure summary={copy.common.technicalDetails}>
         <pre className="kl-code">
-          userOpHash {hash}
-          {local?.decisionId ? `\ndecisionId ${local.decisionId}` : ''}
+          {a.userOp} {hash}
+          {local.decisionId ? `\ndecisionId ${local.decisionId}` : ''}
           {s ? `\nstatus ${s.status}` : ''}
         </pre>
       </Disclosure>
       <div className="kl-actions">
         <Button variant="primary" full href="/">
-          {copy.common.done}
+          {r.done}
         </Button>
+        {isDapp ? null : (
+          <Button variant="ghost" full href={`/contacts?add=1&address=${local.to}`}>
+            {a.saveContact}
+          </Button>
+        )}
       </div>
+    </>
+  );
+}
+
+function ReceiptSkeleton() {
+  return (
+    <>
+      <ScreenHeader title={copyC.receipt.title} backHref="/" />
+      <div className="grid justify-items-center gap-2">
+        <Skeleton kind="line" width={64} height={64} />
+        <Skeleton kind="amount" />
+      </div>
+      <Skeleton kind="row" count={4} />
     </>
   );
 }

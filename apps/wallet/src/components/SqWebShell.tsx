@@ -1,13 +1,14 @@
 'use client';
 
-import { DeviceBar, type WebLinkProps, WebShell } from '@keyline/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect } from 'react';
+import { DeviceBar, type WebLinkProps, WebShell } from '@/src/ui';
 import { copyJourney, copyV2 } from '../copy';
 import { api } from '../lib/api';
 import { bootstrapPersona, personaLabel, usePersona } from '../lib/device';
+import { OfflineBanner } from './OfflineBanner';
 
 function NextLink({ href, className, children, ...rest }: WebLinkProps) {
   return (
@@ -65,6 +66,7 @@ export function SqWebShell({ children }: { children: ReactNode }) {
         onSignOut={signInPage ? undefined : signOut}
         linkAs={NextLink}
       >
+        <OfflineBanner />
         {children}
       </WebShell>
     </div>

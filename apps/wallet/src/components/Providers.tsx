@@ -1,8 +1,8 @@
 'use client';
 
-import { useThemePreference } from '@keyline/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
+import { useThemePreference } from '@/src/ui';
 
 export function Providers({ children }: { children: ReactNode }) {
   // Theme (System / Light / Dark, per device): mirrors the stored preference on <html data-theme> on every route.

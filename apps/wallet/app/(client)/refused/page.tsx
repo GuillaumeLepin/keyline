@@ -1,11 +1,11 @@
 'use client';
 
-import { Button, Panel, SimulatedBadge, Skeleton } from '@keyline/ui';
 import { Prohibit } from '@phosphor-icons/react/dist/ssr';
 import { useEffect, useState } from 'react';
 import { copy } from '@/src/copy';
 import { useRecovery } from '@/src/lib/hooks';
 import { type PendingRecovery, recoveryStore } from '@/src/lib/storage';
+import { Button, Panel, SimulatedBadge, Skeleton } from '@/src/ui';
 
 /** SPEC F4.2: the identity check failed. No primary action — only the way back. */
 export default function RefusedPage() {

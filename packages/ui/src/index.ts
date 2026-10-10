@@ -1,7 +1,7 @@
 // @keyline/ui — tokens live in ./tokens.css, component styles in ./components.css
 // (apps/wallet/app/globals.css imports both). Everything below is typed React with no runtime CSS-in-JS.
 
-export { Address, type AddressProps } from './components/Address';
+export { ADDRESS_LABELS, Address, type AddressLabels, type AddressProps } from './components/Address';
 export { AmountField, type AmountFieldProps } from './components/AmountField';
 export { Button, type ButtonProps, type ButtonVariant } from './components/Button';
 export {
@@ -20,7 +20,13 @@ export {
 } from './components/Chrome';
 export { RadioCard, type RadioCardProps, Toggle, type ToggleProps } from './components/Controls';
 export { CountdownRing, type CountdownRingProps } from './components/CountdownRing';
-export { EMERGENCY_CARD_SENTENCE, EmergencyCard, type EmergencyCardProps } from './components/EmergencyCard';
+export {
+  EMERGENCY_CARD_LABELS,
+  EMERGENCY_CARD_SENTENCE,
+  EmergencyCard,
+  type EmergencyCardLabels,
+  type EmergencyCardProps,
+} from './components/EmergencyCard';
 export { KeyCard, type KeyCardProps, type KeyCardStatus } from './components/KeyCard';
 export { Panel, type PanelProps, type PanelRow } from './components/Panel';
 export { PolicyLine, type PolicyLineProps, type PolicyVerdict } from './components/PolicyLine';
@@ -109,7 +115,7 @@ export {
   type WebShellCopy,
   type WebShellProps,
 } from './v2/journey/WebShell';
-export { DRAW, DURATION, dampingRatio, EASE_STANDARD, FADE, SPRING } from './v2/motion';
+export { DRAW, DURATION, dampingRatio, EASE_STANDARD, FADE, INSTANT, SPRING } from './v2/motion';
 export { NumberTicker, type NumberTickerProps } from './v2/NumberTicker';
 export { ProtectionCountdown, type ProtectionCountdownProps } from './v2/ProtectionCountdown';
 export {
@@ -119,6 +125,7 @@ export {
   type ProtectionRingState,
 } from './v2/ProtectionRing';
 export { QrCode, type QrCodeProps } from './v2/QrCode';
+export { motionOrInstant, useReducedMotion } from './v2/reduced-motion';
 export {
   arcAngles,
   arcLength,

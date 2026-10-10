@@ -1,4 +1,4 @@
-import { Button, EmptyState } from '@keyline/ui';
+import { Button, EmptyState } from '@/src/ui';
 import { copy } from '../copy';
 import { ScreenHeader } from './ScreenHeader';
 

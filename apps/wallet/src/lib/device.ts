@@ -2,8 +2,8 @@
 // The label is shown in the DeviceBar and sent to the bank as `X-Device-Label` on every request.
 'use client';
 
-import type { Persona } from '@keyline/ui';
 import { useSyncExternalStore } from 'react';
+import type { Persona } from '@/src/ui';
 import { copy } from '../copy';
 
 const KEY = 'keyline.device';

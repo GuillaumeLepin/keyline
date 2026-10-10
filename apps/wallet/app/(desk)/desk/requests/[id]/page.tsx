@@ -1,6 +1,16 @@
 'use client';
 
 import type { DeskQueueItem, GuardianConfirmation, GuardianKind } from '@keyline/shared';
+import { ArrowSquareOut } from '@phosphor-icons/react/dist/ssr';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams } from 'next/navigation';
+import { useState } from 'react';
+import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { useDeskToken } from '@/src/components/DeskShell';
+import { copy } from '@/src/copy';
+import { api } from '@/src/lib/api';
+import { addressUrl, txUrl } from '@/src/lib/chain';
+import { shortId, statusLabel, useDeskQueue } from '@/src/lib/desk';
 import {
   Address,
   Button,
@@ -12,21 +22,11 @@ import {
   Note,
   Panel,
   type PanelRow,
-  Sheet,
+  SheetV2,
   SimulatedBadge,
   Skeleton,
   TextField,
-} from '@keyline/ui';
-import { ArrowSquareOut } from '@phosphor-icons/react/dist/ssr';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams } from 'next/navigation';
-import { useState } from 'react';
-import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { useDeskToken } from '@/src/components/DeskShell';
-import { copy } from '@/src/copy';
-import { api } from '@/src/lib/api';
-import { addressUrl, txUrl } from '@/src/lib/chain';
-import { shortId, statusLabel, useDeskQueue } from '@/src/lib/desk';
+} from '@/src/ui';
 
 const GRACE_MS = 180_000;
 const CLIENT_KINDS: readonly GuardianKind[] = ['swissquote', 'safety-key', 'emergency-card'];
@@ -285,7 +285,7 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
         </section>
       ) : null}
 
-      <Sheet open={overriding} title={s.overrideTitle} onClose={() => setOverriding(false)}>
+      <SheetV2 open={overriding} title={s.overrideTitle} onClose={() => setOverriding(false)}>
         <div className="kl-stack">
           <p className="kl-lead">{s.overrideBody}</p>
           <TextField label={copy.desk.noteField} value={note} onChange={(e) => setNote(e.target.value)} />
@@ -296,7 +296,7 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
             {s.overrideNo}
           </Button>
         </div>
-      </Sheet>
+      </SheetV2>
 
       <Disclosure summary={copy.common.technicalDetails}>
         {item.signals.length > 0 ? <pre className="kl-code">{item.signals.join('\n')}</pre> : null}

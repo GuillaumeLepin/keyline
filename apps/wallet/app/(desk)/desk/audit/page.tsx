@@ -1,11 +1,11 @@
 'use client';
 
 import type { Event } from '@keyline/shared';
-import { EmptyState, formatClock, Skeleton } from '@keyline/ui';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { useDeskToken } from '@/src/components/DeskShell';
 import { copy } from '@/src/copy';
 import { useDeskEvents } from '@/src/lib/desk';
+import { EmptyState, formatClock, Skeleton } from '@/src/ui';
 
 /** Append-only feed merged from the bank and the guardian processes (`GET /desk/events`). */
 export default function DeskAuditPage() {

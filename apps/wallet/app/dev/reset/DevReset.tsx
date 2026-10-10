@@ -1,7 +1,7 @@
 'use client';
 
-import { Button, Note } from '@keyline/ui';
 import { useState } from 'react';
+import { Button, Note } from '@/src/ui';
 import { devResetCopy as s } from '../../../src/copy';
 import { env } from '../../../src/env';
 

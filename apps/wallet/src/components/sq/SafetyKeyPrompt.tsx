@@ -1,7 +1,6 @@
 'use client';
 
 import type { SafetyKeyRequest } from '@keyline/shared';
-import { ConfirmPrompt, type ConfirmPromptState } from '@keyline/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getAddress } from 'viem';
@@ -9,6 +8,7 @@ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { copyJourney } from '@/src/copy';
 import { api, errorDetail } from '@/src/lib/api';
 import { safetyKeyStore } from '@/src/lib/storage';
+import { ConfirmPrompt, type ConfirmPromptState } from '@/src/ui';
 
 /**
  * A5 · "Make this computer your Safety key?" while `GET /sq/safety-key-request` says `waiting`. Confirm → viem key in

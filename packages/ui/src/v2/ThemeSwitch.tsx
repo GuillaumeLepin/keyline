@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -39,6 +39,8 @@ export type ThemeSwitchProps = {
   onChange: (t: ThemePreference) => void;
   labels?: Record<ThemePreference, string>;
   legend?: string;
+  /** Fill the container width with equal segments (Settings). */
+  full?: boolean;
 };
 
 const DEFAULT_LABELS: Record<ThemePreference, string> = { system: 'System', light: 'Light', dark: 'Dark' };
@@ -49,15 +51,17 @@ export function ThemeSwitch({
   onChange,
   labels = DEFAULT_LABELS,
   legend = 'Appearance',
+  full = false,
 }: ThemeSwitchProps) {
+  const name = useId();
   return (
-    <fieldset className="kl2-seg">
+    <fieldset className={full ? 'kl2-seg kl2-seg--full' : 'kl2-seg'}>
       <legend className="kl2-sr">{legend}</legend>
       {(['system', 'light', 'dark'] as const).map((t) => (
         <label key={t} className="kl2-seg__opt" data-checked={value === t || undefined}>
           <input
             type="radio"
-            name="kl2-theme"
+            name={name}
             value={t}
             checked={value === t}
             onChange={() => onChange(t)}

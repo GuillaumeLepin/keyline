@@ -17,6 +17,26 @@ export type AddressProps = {
   copy?: boolean;
   explorerUrl?: string;
   className?: string;
+  /** Translated strings (FR/DE); every key defaults to English. */
+  labels?: Partial<AddressLabels>;
+};
+
+export type AddressLabels = {
+  show: string;
+  hide: string;
+  copy: string;
+  copied: string;
+  copyAria: string;
+  explorer: string;
+};
+
+export const ADDRESS_LABELS: AddressLabels = {
+  show: 'Show full address',
+  hide: 'Hide',
+  copy: 'Copy',
+  copied: 'Copied',
+  copyAria: 'Copy address',
+  explorer: 'View on Basescan',
 };
 
 /**
@@ -32,7 +52,9 @@ export function Address({
   copy = true,
   explorerUrl,
   className,
+  labels,
 }: AddressProps) {
+  const t = { ...ADDRESS_LABELS, ...labels };
   const [expanded, setExpanded] = useState(initialExpanded);
   const [copied, setCopied] = useState(false);
 
@@ -87,19 +109,19 @@ export function Address({
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
         >
-          {expanded ? 'Hide' : 'Show full address'}
+          {expanded ? t.hide : t.show}
         </button>
       ) : null}
       {copy ? (
-        <button type="button" className="kl-addr__btn" onClick={onCopy} aria-label="Copy address">
+        <button type="button" className="kl-addr__btn" onClick={onCopy} aria-label={t.copyAria}>
           {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
-          {copied ? 'Copied' : 'Copy'}
+          {copied ? t.copied : t.copy}
         </button>
       ) : null}
       {explorerUrl ? (
         <a className="kl-addr__btn" href={explorerUrl} target="_blank" rel="noreferrer">
           <ArrowSquareOut size={14} aria-hidden="true" />
-          View on Basescan
+          {t.explorer}
         </a>
       ) : null}
     </span>

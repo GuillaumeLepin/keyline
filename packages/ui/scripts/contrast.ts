@@ -69,9 +69,6 @@ const pairs: Pair[] = [
   { fg: 'danger', bg: 'bg', min: 4.5, use: 'status danger on paper' },
   { fg: 'danger', bg: 'danger-bg', min: 4.5, use: 'status danger on its tint' },
   { fg: 'danger', bg: 'surface', min: 4.5, use: 'status danger on surface (sheets, Swissquote web)' },
-  { fg: 'on-ink', bg: 'danger-bar', min: 4.5, use: 'Thief device bar label' },
-  { fg: 'on-ink', bg: 'laptop-bar', min: 4.5, use: 'Lea · laptop device bar label' },
-  { fg: 'on-ink', bg: 'newphone-bar', min: 4.5, use: 'Lea · new phone device bar label' },
   { fg: 'on-ink', bg: 'danger', min: 4.5, use: 'danger button label' },
   { fg: 'simulated-text', bg: 'simulated-bg', min: 4.5, use: 'SIMULATED chip' },
   { fg: 'simulated-text', bg: 'bg', min: 4.5, use: 'SIMULATED chip (v2: no fill) on paper' },
@@ -79,6 +76,52 @@ const pairs: Pair[] = [
   { fg: 'simulated-border', bg: 'simulated-bg', min: 3, use: 'SIMULATED dashed border (UI)' },
   { fg: 'line-strong', bg: 'surface', min: 3, use: 'input border (UI component)' },
   { fg: 'line-strong', bg: 'bg', min: 3, use: 'input border on paper (UI component)' },
+
+  // ---- Phase C: every pair the v1 primitives use, so they are dark-ready ----
+  // Text on the pressed / hover / skeleton surface.
+  {
+    fg: 'ink-2',
+    bg: 'surface-2',
+    min: 4.5,
+    use: 'Address / StatementRow icon + secondary on hover (surface-2)',
+  },
+  { fg: 'ok', bg: 'surface', min: 4.5, use: 'Panel value ok / KeyCard status on surface' },
+  { fg: 'pending', bg: 'surface', min: 4.5, use: 'Panel / KeyCard pending status on surface' },
+  // Tinted panels: PolicyLine cooling/block, ErrorState, Note danger.
+  { fg: 'ink', bg: 'danger-bg', min: 4.5, use: 'ErrorState body, PolicyLine block reason, Note danger' },
+  { fg: 'ink-2', bg: 'danger-bg', min: 4.5, use: 'PolicyLine block secondary on its tint' },
+  { fg: 'ink-3', bg: 'danger-bg', min: 4.5, use: 'PolicyLine block detail on its tint' },
+  { fg: 'ink', bg: 'pending-bg', min: 4.5, use: 'PolicyLine cooling text on its tint' },
+  { fg: 'ink-2', bg: 'pending-bg', min: 4.5, use: 'PolicyLine cooling reason on its tint' },
+  { fg: 'ink-3', bg: 'pending-bg', min: 4.5, use: 'PolicyLine cooling detail on its tint' },
+  { fg: 'danger', bg: 'surface-2', min: 4.5, use: 'danger-text button pressed (surface-2)' },
+  // Status edges (Panel danger, PolicyLine, Note, ErrorState borders): UI 3:1.
+  { fg: 'ok', bg: 'surface', min: 3, use: 'ok border (PolicyLine, Note) (UI)' },
+  { fg: 'pending', bg: 'surface', min: 3, use: 'pending border (PolicyLine, Note) (UI)' },
+  { fg: 'danger', bg: 'surface', min: 3, use: 'danger border (Panel, ErrorState, field error) (UI)' },
+  // Marks: StatusSequence / Stepper dots and the seq rail.
+  { fg: 'ink', bg: 'bg', min: 3, use: 'StatusSequence done dot / Stepper done segment (UI)' },
+  { fg: 'ring-arc', bg: 'bg', min: 3, use: 'StatusSequence active dot / Stepper current segment (UI)' },
+  { fg: 'danger', bg: 'bg', min: 3, use: 'StatusSequence failed dot (UI)' },
+  { fg: 'line-strong', bg: 'surface', min: 3, use: 'StatusSequence todo dot ring (UI)' },
+  { fg: 'accent', bg: 'bg', min: 3, use: 'focus ring on its bg halo (dark --focus-ring)', themes: ['dark'] },
+  // Filled buttons in every state (Button, ActionButton).
+  { fg: 'on-ink', bg: 'ink-hover', min: 4.5, use: 'primary button label on hover' },
+  { fg: 'on-ink', bg: 'ink-active', min: 4.5, use: 'primary button label pressed' },
+  { fg: 'on-ink', bg: 'danger-hover', min: 4.5, use: 'danger button / ActionButton error label on hover' },
+  { fg: 'danger', bg: 'danger-bg', min: 4.5, use: 'danger-text button hover (danger on its tint)' },
+  // Chrome (dark in both themes): DeviceBar personas, desk header, phone bezel.
+  { fg: 'on-chrome', bg: 'chrome', min: 4.5, use: 'DeviceBar Lea · phone / desk; desk header text' },
+  { fg: 'on-chrome-2', bg: 'chrome', min: 4.5, use: 'desk nav + operator on chrome' },
+  { fg: 'on-chrome-2', bg: 'chrome', min: 3, use: 'desk SIMULATED chip border on chrome (UI)' },
+  { fg: 'accent', bg: 'chrome', min: 3, use: 'desk bar accent rule / active nav underline on chrome (UI)' },
+  { fg: 'on-chrome', bg: 'laptop-bar', min: 4.5, use: 'DeviceBar Lea · laptop (chrome text)' },
+  { fg: 'on-chrome', bg: 'newphone-bar', min: 4.5, use: 'DeviceBar Lea · new phone (chrome text)' },
+  { fg: 'on-chrome', bg: 'danger-bar', min: 4.5, use: 'DeviceBar Thief (chrome text)' },
+  // Simulated legend swatch + chip on surface-2 (desk table header).
+  { fg: 'simulated-text', bg: 'surface-2', min: 4.5, use: 'SIMULATED chip on surface-2 (table header)' },
+  { fg: 'simulated-text', bg: 'danger-bg', min: 4.5, use: 'SIMULATED chip inside a blocked PolicyLine' },
+  { fg: 'simulated-text', bg: 'pending-bg', min: 4.5, use: 'SIMULATED chip inside a cooling PolicyLine' },
 ];
 
 let failed = 0;

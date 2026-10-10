@@ -1,11 +1,12 @@
 'use client';
 
-import { DeskLayout } from '@keyline/ui';
 import { usePathname, useRouter } from 'next/navigation';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
+import { DeskLayout } from '@/src/ui';
 import { copy } from '../copy';
 import { bootstrapPersona } from '../lib/device';
 import { deskTokenStore } from '../lib/storage';
+import { OfflineBanner } from './OfflineBanner';
 
 /** Swissquote desk chrome. The operator token (SIMULATED SSO) lives in sessionStorage; no token → /desk login. */
 export function DeskShell({ children }: { children: ReactNode }) {
@@ -45,6 +46,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
       }
     >
       <DeskTokenContext.Provider value={{ token: token ?? null, ready: token !== undefined, setToken }}>
+        <OfflineBanner />
         {children}
       </DeskTokenContext.Provider>
     </DeskLayout>

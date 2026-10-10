@@ -6,7 +6,8 @@ import { haptic } from './haptics';
 import { FADE, INSTANT, SPRING } from './motion';
 import { DrawnCheck } from './ProtectionRing';
 
-export type ActionStatus = 'idle' | 'loading' | 'success';
+/** `error` is a colour change only (no shake, no motion); pair it with a sentence next to the button. */
+export type ActionStatus = 'idle' | 'loading' | 'success' | 'error';
 
 export type ActionButtonProps = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -16,7 +17,11 @@ export type ActionButtonProps = Omit<
   status?: ActionStatus;
   /** Announced (not shown) when the action succeeds, e.g. "Sent". */
   successLabel?: string;
-  variant?: 'primary' | 'secondary';
+  /** Announced (not shown) when status turns `error`, e.g. "Not sent". Defaults to nothing (the page's
+   * own error sentence is usually the alert). */
+  errorLabel?: string;
+  /** `danger`: the confirm of an irreversible or destructive step (delete, cancel recovery). */
+  variant?: 'primary' | 'secondary' | 'danger';
   full?: boolean;
   icon?: ReactNode;
 };
@@ -30,6 +35,7 @@ export function ActionButton({
   label,
   status = 'idle',
   successLabel = 'Done',
+  errorLabel,
   variant = 'primary',
   full = false,
   icon,
@@ -85,7 +91,7 @@ export function ActionButton({
         ) : null}
       </AnimatePresence>
       <span className="kl2-sr" aria-live="polite">
-        {success ? successLabel : ''}
+        {success ? successLabel : status === 'error' ? (errorLabel ?? '') : ''}
       </span>
     </motion.button>
   );

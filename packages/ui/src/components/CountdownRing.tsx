@@ -42,6 +42,8 @@ export type CountdownRingProps = {
   doneLabel?: string;
   /** Show the "Finishes at HH:MM:SS" line under the ring (default true). Pass false when the screen title already states the time. */
   showFinish?: boolean;
+  /** Translated finish line, e.g. FR `(t, done) => (done ? `Terminé à ${t}` : `Se termine à ${t}`)`. */
+  finishText?: (clock: string, done: boolean) => string;
   onDone?: () => void;
   className?: string;
 };
@@ -58,6 +60,7 @@ export function CountdownRing({
   subLabel = 'remaining',
   doneLabel = 'Ready to finish',
   showFinish = true,
+  finishText,
   onDone,
   className,
 }: CountdownRingProps) {
@@ -117,7 +120,11 @@ export function CountdownRing({
       </div>
       {showFinish ? (
         <p className="kl-ring__finish">
-          {done ? `Finished at ${formatClock(end)}` : `Finishes at ${formatClock(end)}`}
+          {finishText
+            ? finishText(formatClock(end), done)
+            : done
+              ? `Finished at ${formatClock(end)}`
+              : `Finishes at ${formatClock(end)}`}
         </p>
       ) : null}
       {caption ? <p className="kl-ring__caption">{caption}</p> : null}

@@ -32,6 +32,8 @@ export type ProtectionRingProps = {
   children?: ReactNode;
   /** Accessible description; defaults to a sentence derived from the state. */
   label?: string;
+  /** Translated hidden per-recoverer list (default "Safety key: yes, Emergency card: not yet, …"). */
+  detail?: string;
   className?: string;
 };
 
@@ -118,6 +120,7 @@ export function ProtectionRing({
   pulseKey = 0,
   children,
   label,
+  detail,
   className,
 }: ProtectionRingProps) {
   const reduce = useReducedMotion() ?? false;
@@ -249,7 +252,8 @@ export function ProtectionRing({
       </svg>
       {children ? <div className="kl2-ring__centre">{children}</div> : null}
       <span className="kl2-sr">
-        {RECOVERERS.map((rec, i) => `${RECOVERER_LABEL[rec]}: ${litArcs[i] ? 'yes' : 'not yet'}`).join(', ')}
+        {detail ??
+          RECOVERERS.map((rec, i) => `${RECOVERER_LABEL[rec]}: ${litArcs[i] ? 'yes' : 'not yet'}`).join(', ')}
       </span>
     </div>
   );

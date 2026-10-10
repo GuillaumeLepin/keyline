@@ -1,7 +1,6 @@
 'use client';
 
 import type { Dapp } from '@keyline/shared';
-import { Button, EmptyState, Note, Sheet, SimulatedBadge, Skeleton, StatementRow } from '@keyline/ui';
 import { ArrowSquareOut, Plugs, Prohibit } from '@phosphor-icons/react/dist/ssr';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -12,6 +11,7 @@ import { copy, copyGaps } from '@/src/copy';
 import { api } from '@/src/lib/api';
 import { useLocalWallet } from '@/src/lib/hooks';
 import { pendingSendStore } from '@/src/lib/storage';
+import { Button, EmptyState, Note, SheetV2, SimulatedBadge, Skeleton, StatementRow } from '@/src/ui';
 
 /**
  * Reviewed apps from the bank's allowlist (SPEC F5). A mock app's `demoRequest` is what the app "asks"; the client
@@ -70,7 +70,8 @@ export default function DappsPage() {
           <Note tone="info">{copy.dapps.note}</Note>
         </>
       )}
-      <Sheet
+      <SheetV2
+        contained
         open={selected !== null}
         title={selected ? copyGaps.dapps.requestTitle(selected.name) : ''}
         onClose={() => setSelected(null)}
@@ -92,7 +93,7 @@ export default function DappsPage() {
             </Button>
           </div>
         ) : null}
-      </Sheet>
+      </SheetV2>
     </>
   );
 }

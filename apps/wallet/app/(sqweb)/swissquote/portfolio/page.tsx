@@ -1,17 +1,6 @@
 'use client';
 
 import type { Move, SqPosition } from '@keyline/shared';
-import {
-  BitcoinPolicyDiagram,
-  Chip,
-  formatCHF,
-  formatShortDateTime,
-  type Position,
-  PositionsTable,
-  RowAction,
-  SheetV2,
-  Skeleton,
-} from '@keyline/ui';
 import { ArrowSquareOut } from '@phosphor-icons/react/dist/ssr';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -22,10 +11,21 @@ import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { KeylineTile } from '@/src/components/sq/KeylineTile';
 import { MoveSheet } from '@/src/components/sq/MoveSheet';
 import { SafetyKeyPrompt } from '@/src/components/sq/SafetyKeyPrompt';
-import { copy, copyJourney, copyV2 } from '@/src/copy';
+import { copy, copyC, copyJourney, copyV2 } from '@/src/copy';
 import { api, isApiError } from '@/src/lib/api';
 import { txUrl } from '@/src/lib/chain';
 import { decimalsFor, formatQty, formatValuation } from '@/src/lib/format';
+import {
+  BitcoinPolicyDiagram,
+  Chip,
+  formatCHF,
+  formatShortDateTime,
+  type Position,
+  PositionsTable,
+  RowAction,
+  SheetV2,
+  Skeleton,
+} from '@/src/ui';
 
 const GROUPS = ['cash', 'security', 'crypto'] as const;
 
@@ -159,7 +159,7 @@ function toRow(p: SqPosition, onMove: () => void, onWhy: () => void): Position {
   const s = copyV2.sqWeb.portfolio;
   return {
     id: p.id,
-    name: p.name,
+    name: (copyC.positions as Record<string, string>)[p.id] ?? p.name,
     code: p.symbol,
     quantity: formatQty(Number(p.quantity), decimalsFor(p.symbol)),
     price: p.kind === 'cash' ? undefined : formatCHF(Number(p.priceChf)),

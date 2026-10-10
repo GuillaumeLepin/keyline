@@ -1,14 +1,5 @@
 'use client';
 
-import {
-  Button,
-  EmptyState,
-  formatClock,
-  SimulatedBadge,
-  Skeleton,
-  StatementRow,
-  TextField,
-} from '@keyline/ui';
 import { EnvelopeSimple } from '@phosphor-icons/react/dist/ssr';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
@@ -17,6 +8,7 @@ import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { copy } from '@/src/copy';
 import { api } from '@/src/lib/api';
+import { Button, EmptyState, formatClock, SimulatedBadge, Skeleton, StatementRow, TextField } from '@/src/ui';
 
 const DEFAULT_EMAIL = 'lea.keller@example.ch';
 

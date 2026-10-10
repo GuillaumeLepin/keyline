@@ -1,9 +1,9 @@
 'use client';
 
-import { Skeleton } from '@keyline/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { bootstrapPersona } from '@/src/lib/device';
+import { Skeleton } from '@/src/ui';
 
 /**
  * DECISIONS #28: the 6-digit pairing flow is gone. The laptop signed in to Swissquote web becomes the Safety key with

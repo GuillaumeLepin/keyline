@@ -125,7 +125,7 @@ function needsOnboardingToken(method: string, path: string): boolean {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   schema: z.ZodType<T>,
   body?: unknown,
@@ -192,6 +192,9 @@ async function request<T>(
 // ---- lenient wrappers where the bank's wire shape is still settling (always a superset of the shared schema) ----
 
 const ContactsResponse = z.object({ contacts: z.array(ContactSchema) });
+const ContactVerifyResponse = z
+  .object({ verifiedOwnership: z.boolean(), method: z.string(), simulated: z.boolean().optional() })
+  .passthrough();
 const DappsResponse = z.object({ dapps: z.array(DappSchema) });
 const WalletDetailLenient = WalletSchema.extend({
   guardians: z.array(GuardianSchema).optional(),
@@ -221,6 +224,15 @@ export const api = {
 
   me: () => request('GET', '/me', MeResponseSchema),
   contacts: async () => (await request('GET', '/contacts', ContactsResponse)).contacts,
+  contact: {
+    create: (body: { label: string; address: string }) =>
+      request('POST', '/contacts', ContactSchema, { ...body, requestId: crypto.randomUUID() }),
+    update: (id: string, body: { label?: string; trusted?: boolean }) =>
+      request('PATCH', `/contacts/${id}`, ContactSchema, body),
+    remove: (id: string) => request('DELETE', `/contacts/${id}`, z.unknown()),
+    /** SIMULATED counterparty-VASP ownership check (Travel Rule). */
+    verify: (id: string) => request('POST', `/contacts/${id}/verify`, ContactVerifyResponse, {}),
+  },
   dapps: async () => (await request('GET', '/dapps', DappsResponse)).dapps,
 
   wallets: {

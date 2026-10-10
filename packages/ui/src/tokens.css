@@ -118,6 +118,18 @@
   /* Sheets v2 */
   --scrim: rgba(20, 20, 20, 0.32);
 
+  /* Interaction shades of the two filled buttons (v1 hard-coded these; Phase C made them tokens). */
+  --ink-hover: #2a2a2a;
+  --ink-active: #000000;
+  --danger-hover: #9a1e14;
+
+  /* Chrome — hardware and demo furniture, not ink: the phone bezel, the persona device bars and the
+   * desk header stay dark in both themes (DESIGN.md v2 §3.1). Bars carry --on-chrome text. */
+  --bezel: #141414;
+  --chrome: #141414;
+  --on-chrome: #ffffff;
+  --on-chrome-2: #cfcfcd; /* secondary text on chrome (desk nav, operator); was rgba(255,255,255,.8) */
+
   /* Motion v2 — one family. Movement uses the spring in JS (stiffness 420, damping 40, mass 1). */
   --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --duration-fade: 180ms;
@@ -156,9 +168,9 @@
   --pending-bg: #2a2114;
   --danger: #f06b80;
   --danger-bg: #2e1419;
-  --danger-bar: #f06b80;
-  --laptop-bar: #b8b4ab;
-  --newphone-bar: #5cc28e;
+  --danger-bar: #9b2335;
+  --laptop-bar: #46443e;
+  --newphone-bar: #1d5c3c;
   --simulated-bg: #2a2114;
   --simulated-text: #e9b866;
   --simulated-border: #a97b2f;
@@ -169,6 +181,13 @@
   --ring-track: var(--line);
   --ring-glow: drop-shadow(0 0 3px rgba(255, 116, 82, 0.35));
   --scrim: rgba(0, 0, 0, 0.56);
+  --ink-hover: #ffffff;
+  --ink-active: #d9d6cf;
+  --danger-hover: #f58d9c;
+  --bezel: #050505;
+  --chrome: #0b0a09;
+  --on-chrome: #efede8;
+  --on-chrome-2: #b8b4ab;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -191,9 +210,9 @@
     --pending-bg: #2a2114;
     --danger: #f06b80;
     --danger-bg: #2e1419;
-    --danger-bar: #f06b80;
-    --laptop-bar: #b8b4ab;
-    --newphone-bar: #5cc28e;
+    --danger-bar: #9b2335;
+    --laptop-bar: #46443e;
+    --newphone-bar: #1d5c3c;
     --simulated-bg: #2a2114;
     --simulated-text: #e9b866;
     --simulated-border: #a97b2f;
@@ -204,5 +223,28 @@
     --ring-track: var(--line);
     --ring-glow: drop-shadow(0 0 3px rgba(255, 116, 82, 0.35));
     --scrim: rgba(0, 0, 0, 0.56);
+    --ink-hover: #ffffff;
+    --ink-active: #d9d6cf;
+    --danger-hover: #f58d9c;
+    --bezel: #050505;
+    --chrome: #0b0a09;
+    --on-chrome: #efede8;
+    --on-chrome-2: #b8b4ab;
   }
+}
+
+/* Paper scope — a physical object stays light in both themes (the Emergency card is printed). Restates
+ * the light surface/ink tokens on the element so everything inside resolves to paper values. */
+.kl-paper {
+  color-scheme: light;
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --surface-2: #efede8;
+  --line: #e4e2dd;
+  --line-strong: #8a877f;
+  --ink: #141414;
+  --ink-2: #5c5c57;
+  --ink-3: #6b6b68;
+  --on-ink: #ffffff;
+  --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #fa5b35;
 }

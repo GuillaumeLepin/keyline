@@ -23,6 +23,30 @@ export type EmergencyCardProps = {
   stored?: boolean;
   /** Hide the action buttons (e.g. when rendering a preview in /design). */
   hideActions?: boolean;
+  /** Translated strings (FR/DE); every key defaults to the English copy. */
+  labels?: Partial<EmergencyCardLabels>;
+};
+
+export type EmergencyCardLabels = {
+  title: string;
+  forWallet: string;
+  recovererAddress: string;
+  sentence: string;
+  print: string;
+  confirm: string;
+  stored: string;
+  footnote: string;
+};
+
+export const EMERGENCY_CARD_LABELS: EmergencyCardLabels = {
+  title: 'Keyline Emergency card',
+  forWallet: 'For wallet',
+  recovererAddress: 'Recoverer address',
+  sentence: EMERGENCY_CARD_SENTENCE,
+  print: 'Print',
+  confirm: 'I stored it',
+  stored: 'Stored',
+  footnote: 'Shown once. Keyline keeps no copy.',
 };
 
 /**
@@ -36,7 +60,9 @@ export function EmergencyCard({
   onPrint,
   stored = false,
   hideActions = false,
+  labels,
 }: EmergencyCardProps) {
+  const t = { ...EMERGENCY_CARD_LABELS, ...labels };
   const [confirmed, setConfirmed] = useState(stored);
   const groups = groupHex(privateKeyHex);
 
@@ -47,9 +73,10 @@ export function EmergencyCard({
 
   return (
     <div className="kl-stack">
-      <section className="kl-ecard" aria-label="Keyline Emergency card">
+      {/* kl-paper: the card is a printed object, so it stays light paper in both themes. */}
+      <section className="kl-ecard kl-paper" aria-label={t.title}>
         <div className="kl-ecard__head">
-          <span className="kl-ecard__title">Keyline Emergency card</span>
+          <span className="kl-ecard__title">{t.title}</span>
         </div>
         <div className="kl-ecard__body">
           <QRCodeSVG value={privateKeyHex} size={112} level="M" className="kl-ecard__qr" marginSize={0} />
@@ -69,20 +96,20 @@ export function EmergencyCard({
         {/* Full addresses: a printed card must be verifiable on Basescan without the app. */}
         <dl className="kl-ecard__ids">
           <div>
-            <dt>For wallet</dt>
+            <dt>{t.forWallet}</dt>
             <dd>{walletAddress}</dd>
           </div>
           <div>
-            <dt>Recoverer address</dt>
+            <dt>{t.recovererAddress}</dt>
             <dd>{address}</dd>
           </div>
         </dl>
-        <p className="kl-ecard__sentence">{EMERGENCY_CARD_SENTENCE}</p>
+        <p className="kl-ecard__sentence">{t.sentence}</p>
       </section>
       {hideActions ? null : (
         <div className="kl-ecard__actions">
           <Button variant="secondary" full icon={<Printer size={20} aria-hidden="true" />} onClick={print}>
-            Print
+            {t.print}
           </Button>
           <Button
             variant="primary"
@@ -93,9 +120,9 @@ export function EmergencyCard({
               onStored();
             }}
           >
-            {confirmed ? 'Stored' : 'I stored it'}
+            {confirmed ? t.stored : t.confirm}
           </Button>
-          <p className="kl-ecard__footnote">Shown once. Keyline keeps no copy.</p>
+          <p className="kl-ecard__footnote">{t.footnote}</p>
         </div>
       )}
     </div>

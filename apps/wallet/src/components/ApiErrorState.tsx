@@ -1,5 +1,5 @@
-import { ErrorState } from '@keyline/ui';
 import type { ReactNode } from 'react';
+import { ErrorState } from '@/src/ui';
 import { copy } from '../copy';
 import { errorDetail, isApiError } from '../lib/api';
 

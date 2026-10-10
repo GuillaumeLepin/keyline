@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
+import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
+import { PrefsRoot } from '@/src/i18n/PrefsRoot';
+import { COOKIE, DEFAULT_PREFS, isCurrency, isLang } from '@/src/i18n/prefs';
 import '@keyline/ui/v2.css';
 import './globals.css';
 
@@ -28,13 +31,33 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#F7F6F3',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#F7F6F3' },
+    { media: '(prefers-color-scheme: dark)', color: '#141311' },
+  ],
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Language, display currency and theme are per-profile settings mirrored into cookies, so the first paint
+  // already matches what the client will render (no hydration mismatch, no theme flash).
+  const jar = await cookies();
+  const lang = jar.get(COOKIE.lang)?.value;
+  const currency = jar.get(COOKIE.currency)?.value;
+  const theme = jar.get(COOKIE.theme)?.value;
+  const initial = {
+    lang: isLang(lang) ? lang : DEFAULT_PREFS.lang,
+    currency: isCurrency(currency) ? currency : DEFAULT_PREFS.currency,
+  };
   return (
-    <html lang="en-CH" className={`${hanken.variable} ${jetbrains.variable}`}>
-      <body>{children}</body>
+    <html
+      lang={initial.lang === 'fr' ? 'fr-CH' : 'en-CH'}
+      data-theme={theme === 'light' || theme === 'dark' ? theme : 'system'}
+      className={`${hanken.variable} ${jetbrains.variable}`}
+      suppressHydrationWarning
+    >
+      <body>
+        <PrefsRoot initial={initial}>{children}</PrefsRoot>
+      </body>
     </html>
   );
 }

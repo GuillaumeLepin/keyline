@@ -1,4 +1,4 @@
-import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
+import { CaretLeft } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { copy } from '../copy';
@@ -22,7 +22,7 @@ export function ScreenHeader({
             className="kl-btn kl-btn--ghost kl-btn--sm kl-btn--icon"
             aria-label={copy.common.back}
           >
-            <ArrowLeft size={20} aria-hidden="true" />
+            <CaretLeft size={20} aria-hidden="true" />
           </Link>
         ) : null}
         <h1 className="kl-topbar__title">{title}</h1>

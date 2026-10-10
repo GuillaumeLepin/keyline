@@ -1,12 +1,12 @@
 'use client';
 
-import { ActionButton, Chip, TextField } from '@keyline/ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { copy, copyV2 } from '@/src/copy';
 import { api, isApiError } from '@/src/lib/api';
+import { ActionButton, Chip, TextField } from '@/src/ui';
 
 /** A1 · Sign in to Swissquote (SIMULATED SSO: Lea pre-filled, one click). */
 export default function SqSignInPage() {

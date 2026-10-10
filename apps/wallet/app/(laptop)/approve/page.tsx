@@ -1,6 +1,17 @@
 'use client';
 
 import { type PolicyDecision, policyStepUpTypedData, type RecoveryRequest } from '@keyline/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { formatUnits, getAddress } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { copy, copyGaps } from '@/src/copy';
+import { env } from '@/src/env';
+import { api } from '@/src/lib/api';
+import { addressUrl, signRecoveryConfirmation } from '@/src/lib/chain';
+import { useNow } from '@/src/lib/hooks';
+import { type SafetyKeyRecord, safetyKeyStore } from '@/src/lib/storage';
 import {
   Address,
   Button,
@@ -15,18 +26,7 @@ import {
   type PanelRow,
   SimulatedBadge,
   Skeleton,
-} from '@keyline/ui';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { formatUnits, getAddress } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { copy, copyGaps } from '@/src/copy';
-import { env } from '@/src/env';
-import { api } from '@/src/lib/api';
-import { addressUrl, signRecoveryConfirmation } from '@/src/lib/chain';
-import { useNow } from '@/src/lib/hooks';
-import { type SafetyKeyRecord, safetyKeyStore } from '@/src/lib/storage';
+} from '@/src/ui';
 
 /**
  * Laptop persona: two queues for the one Safety key it holds.

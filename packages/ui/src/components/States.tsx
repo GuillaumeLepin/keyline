@@ -99,6 +99,8 @@ export type ErrorStateProps = {
   detail?: string;
   /** Extra action(s) next to retry. */
   actions?: ReactNode;
+  /** Translated "Technical details" summary. */
+  detailLabel?: string;
 };
 
 /** Always a sentence that says what did and did not happen. Never a bare code. */
@@ -109,6 +111,7 @@ export function ErrorState({
   retryLabel = 'Try again',
   detail,
   actions,
+  detailLabel = 'Technical details',
 }: ErrorStateProps) {
   return (
     <div className="kl-error" role="alert">
@@ -128,7 +131,7 @@ export function ErrorState({
         </div>
       ) : null}
       {detail ? (
-        <Disclosure summary="Technical details">
+        <Disclosure summary={detailLabel}>
           <pre className="kl-code">{detail}</pre>
         </Disclosure>
       ) : null}

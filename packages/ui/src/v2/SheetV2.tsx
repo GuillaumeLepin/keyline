@@ -12,6 +12,8 @@ export type SheetV2Props = {
   children: ReactNode;
   /** Positioned inside the nearest positioned ancestor (the phone screen) instead of the viewport. */
   contained?: boolean;
+  /** Translated accessible name of the close button and scrim (default "Close"). */
+  closeLabel?: string;
 };
 
 /**
@@ -19,7 +21,14 @@ export type SheetV2Props = {
  * button or a downward drag (> 96 px or a flick) close it. Focus moves into the panel and back to the
  * opener on close. The only surface with a shadow.
  */
-export function SheetV2({ open, title, onClose, children, contained = false }: SheetV2Props) {
+export function SheetV2({
+  open,
+  title,
+  onClose,
+  children,
+  contained = false,
+  closeLabel = 'Close',
+}: SheetV2Props) {
   const reduce = useReducedMotion() ?? false;
   const panel = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
@@ -50,7 +59,7 @@ export function SheetV2({ open, title, onClose, children, contained = false }: S
           <motion.button
             type="button"
             className="kl2-sheet__scrim"
-            aria-label="Close"
+            aria-label={closeLabel}
             tabIndex={-1}
             onClick={onClose}
             initial={{ opacity: 0 }}
@@ -79,7 +88,7 @@ export function SheetV2({ open, title, onClose, children, contained = false }: S
               <h2 id={titleId} className="kl2-sheet__title">
                 {title}
               </h2>
-              <button type="button" className="kl2-iconbtn" onClick={onClose} aria-label="Close">
+              <button type="button" className="kl2-iconbtn" onClick={onClose} aria-label={closeLabel}>
                 <X size={20} aria-hidden="true" />
               </button>
             </div>

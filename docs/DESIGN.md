@@ -1,6 +1,6 @@
 # Keyline — Design specification v2
 
-Owner: `design-system` agent. **Status: Phase B — approved (DECISIONS #26–#28, 10 Oct 2026).** Applied in `packages/ui`: dark `--danger` is a cooler crimson, links are ink + underline everywhere, the 24 px ring uses 10° gaps (pinned by a test). Journey primitives (§10.1) are on `/design#journey` in every state, both themes; the v1 kitchen sink is at `/design/v1`. The copy for the v2 journey is **Appendix V2** (keyed for `copy.ts`, EN; FR/DE in Phase C).
+Owner: `design-system` agent. **Status: Phase C in progress (11 Oct 2026) — v1 primitives dark-ready through tokens (chrome, paper, hover), translatable strings on every primitive, `ActionButton` error state, `useReducedMotion` export; Phase B approved (DECISIONS #26–#28, 10 Oct 2026).** Applied in `packages/ui`: dark `--danger` is a cooler crimson, links are ink + underline everywhere, the 24 px ring uses 10° gaps (pinned by a test). Journey primitives (§10.1) are on `/design#journey` in every state, both themes; the v1 kitchen sink is at `/design/v1`. The copy for the v2 journey is **Appendix V2** (keyed for `copy.ts`, EN; FR/DE in Phase C).
 
 How to read this file: §1–§10 are the v2 rules (§10.1: journey primitives) and replace v1 where they disagree. §11 is the full v2 screen inventory (Phase B builds from it). **Appendix V1** is the previous specification, kept verbatim: its screen specs and its copy (Appendix A → `apps/wallet/src/copy.ts`) remain, except where Appendix V2 replaces a string, the source of truth for every screen until Phase B rebuilds that screen; the parts v2 supersedes are listed at the top of the appendix.
 
@@ -41,7 +41,7 @@ A theme setting offers **System / Light / Dark** (`ThemeSwitch`, stored per devi
 
 ### 3.1 Light (v1 values, unchanged) and dark (designed, not inverted)
 
-Ratios measured by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). **66/66 pairs pass** (33 light + 33 dark incl. the danger/accent hue check). Text ≥ 4.5:1, marks and UI edges ≥ 3:1.
+Ratios measured by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). **123/123 checks pass** (Phase C: every pair the v1 primitives use, in both themes — 60 light + 61 dark pairs + the danger/accent hue check per theme). Text ≥ 4.5:1, marks and UI edges ≥ 3:1.
 
 | Token | Light | Dark | Role | Light ratio | Dark ratio |
 |---|---|---|---|---|---|
@@ -64,12 +64,18 @@ Ratios measured by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). **66/66 pair
 | `--danger` / `--danger-bg` | `#B42318` / `#FBE9E7` | **`#F06B80` / `#2E1419`** (was `#F27A6A` / `#2E1814`) | refusal, irreversible | 6.08 · 5.61 · 6.57 surface | 6.30 · 5.79 · 5.84 surface; on-ink on it 6.30 |
 | `--simulated-text` | `#7A4B00` | `#E9B866` | chip label | 6.86 bg · 7.41 surface | 10.18 · 9.44 |
 | `--simulated-border` | `#B07A1E` | `#A97B2F` | chip dashed border | 3.42 | 4.19 |
-| `--scrim` *(new)* | `rgba(20,20,20,.32)` | `rgba(0,0,0,.56)` | behind sheets | — | — |
+| `--scrim` *(new)* | `rgba(20,20,20,.32)` | `rgba(0,0,0,.56)` | behind sheets (v2 **and** v1 `Sheet` since Phase C) | — | — |
+| `--ink-hover` / `--ink-active` *(C)* | `#2A2A2A` / `#000000` | `#FFFFFF` / `#D9D6CF` | primary button hover / pressed (were hard-coded) | on-ink 14.35 · 21.0 | 18.57 · 12.79 |
+| `--danger-hover` *(C)* | `#9A1E14` | `#F58D9C` | danger button hover, `ActionButton` error hover | on-ink 8.17 | 8.11 |
+| `--bezel` *(C)* | `#141414` | `#050505` | phone bezel — hardware, dark in both themes | — | — |
+| `--chrome` / `--on-chrome` / `--on-chrome-2` *(C)* | `#141414` / `#FFFFFF` / `#CFCFCD` | `#0B0A09` / `#EFEDE8` / `#B8B4AB` | DeviceBar (phone, desk), desk header: demo furniture, dark in both themes | 18.42 · 11.81 | 16.91 · 9.57 |
+| `--laptop-bar` / `--newphone-bar` / `--danger-bar` | `#5C5C57` / `#1F7A4D` / `#B42318` | **`#46443E` / `#1D5C3C` / `#9B2335`** *(C; were light tints in dark)* | persona bars, `--on-chrome` label | 6.72 · 5.32 · 6.57 | 8.32 · 6.78 · 6.68 |
+| `.kl-paper` scope *(C)* | restates the light surface/ink tokens | same (light) | the Emergency card: a printed object stays paper in both themes; print CSS unchanged | light ratios | light ratios |
 | `--shadow-modal` | `0 8px 24px rgba(20,20,20,.12)` | `0 8px 24px rgba(0,0,0,.48)` | sheets only | — | — |
 
 Finding while measuring: the v1 accent `#FA5B35` is **2.94:1 on paper**, under the 3:1 a meaningful mark needs. The focus ring is fine (it sits on a 2 px surface halo: 3.18:1), but the ring is drawn directly on paper, so it uses the new `--ring-arc` `#EC502B` — the same hue one step deeper (3.38:1). Visually indistinguishable from the accent at ring stroke widths.
 
-How dark differs from an inversion: paper is warm graphite, not black; surfaces step *up* in luminance (bg → surface → surface-2) instead of down; hairlines are lifted to `#2E2C28` so a 1 px line still reads on graphite; the accent is lifted in luminance (`#FF7452`) so it keeps its weight against dark; status colours are re-picked for ≥ 6:1 on graphite rather than flipped; the ring alone gets a 3 px glow so the accent does not look dull at 6 px stroke. The phone bezel and the QR quiet zone stay physical (black bezel, white QR) in both themes.
+How dark differs from an inversion: paper is warm graphite, not black; surfaces step *up* in luminance (bg → surface → surface-2) instead of down; hairlines are lifted to `#2E2C28` so a 1 px line still reads on graphite; the accent is lifted in luminance (`#FF7452`) so it keeps its weight against dark; status colours are re-picked for ≥ 6:1 on graphite rather than flipped; the ring alone gets a 3 px glow so the accent does not look dull at 6 px stroke. The phone bezel, the persona device bars and the desk header (`--bezel`, `--chrome`), the QR quiet zone and the Emergency card (`.kl-paper`) stay physical in both themes: dark hardware, white paper. Since Phase C no v1 primitive carries a hard-coded colour; the only literal colours left are the QR's white quiet zone and black modules (a device drawing).
 
 Implementation note: a `var()` declared in `:root` is resolved at `:root`. Any token defined as `var(--other)` must be re-declared in the dark blocks (`--ring-track`, `--focus-ring` are). `tokens.test.ts` asserts the `dark` and `system` blocks are identical.
 
@@ -170,6 +176,10 @@ Library: `motion` 12 (`motion/react`), already installed. Constants: `packages/u
 
 Anything not in this table does not animate.
 
+**Errors never animate** (no shake, no bounce): `ActionButton status="error"` is a 180 ms colour change only (primary → `--danger` fill, secondary → danger text + border), the label stays, and the sentence that says what happened sits next to the button. The countdown's last second is the only pulse.
+
+**Custom motion in the wallet** (anything a primitive does not cover) imports `useReducedMotion()` (always a boolean) and `motionOrInstant(reduce, transition)` from `@keyline/ui`, and uses `SPRING` / `FADE` / `DRAW` / `INSTANT` from the same place — never its own durations.
+
 ## 7. Honesty: the `SIMULATED` chip
 
 `<Chip/>` (v2; `SimulatedBadge` stays for v1 screens until Phase B). A quiet, consistent marker: 20 px tall, 0 6 px padding, **1 px dashed** `--simulated-border`, **no fill**, label `SIMULATED` 12 px 600 uppercase 0.04em in `--simulated-text`, radius 6, 4 px after the value it qualifies, on the same line. It is focusable; hover or focus shows the tooltip `Simulated for the prototype. See the README’s Real / Simulated table.` (inverse colours, no shadow). One chip per simulated *group*, at its header (e.g. once after `In your Swissquote account`, once after `Valuation …`), not on every number. What gets a chip: Swissquote account balances and prices, conversion rates, the Swissquote web session, the e-ID, email delivery, the partner guardian. Never on chain data.
@@ -196,16 +206,19 @@ Styles in `@keyline/ui/v2.css` (prefix `kl2-`). v1 primitives are unchanged; in 
 | `ProtectionCountdown` | `endsAt`, `durationMs`, `lit?`, `size?`, `subLabel?`, `doneLabel?`, `onDone?` | ring in `counting`; rAF sweep; pulse + haptic at 0 |
 | `DrawnCheck` | `size?` | 220 ms check |
 | `StackView` | `screenKey`, `direction: 1\|-1`, `title`, `onBack?`, `backLabel?`, `trailing?` | shared header |
-| `SheetV2` | `open`, `title`, `onClose`, `contained?` | spring + scrim, drag to close, focus return |
+| `SheetV2` | `open`, `title`, `onClose`, `contained?`, `closeLabel?` | spring + scrim, drag to close, focus return; max 560 px wide, centred, on wide viewports |
 | `NumberTicker` | `value`, `format` (a package formatter) | digit columns keyed from the right (`tickerCells`, tested) |
 | `CrossFade` | `stateKey` | skeleton → content |
-| `ActionButton` | `label`, `status: idle\|loading\|success`, `successLabel?`, `variant?`, `full?`, `icon?` | width never changes |
+| `ActionButton` | `label`, `status: idle\|loading\|success\|error`, `successLabel?`, `errorLabel?`, `variant?`, `full?`, `icon?` | width never changes; `error` = colour change only |
 | `Chip` | `label?`, `tooltip?` | §7 |
 | `ThemeSwitch` + `useThemePreference()` | `value`, `onChange` | System / Light / Dark, localStorage guarded |
 | `QrCode` | `value`, `size?`, `label` | white quiet zone in both themes |
 | `haptic(kind)` | `'success' \| 'refusal'` | §8 |
 | `contrastRatio`, `luminance` | — | shared by the contrast script and `/design` |
-| motion constants | `SPRING`, `FADE`, `DRAW`, `DURATION`, `EASE_STANDARD`, `dampingRatio` | §6 |
+| motion constants | `SPRING`, `FADE`, `DRAW`, `INSTANT`, `DURATION`, `EASE_STANDARD`, `dampingRatio` | §6 |
+| `useReducedMotion()`, `motionOrInstant()` *(C)* | — | boolean hook + `reduce ? INSTANT : t`, for custom motion |
+
+**Translatable strings (Phase C, FR/DE).** No primitive renders English the wallet cannot replace. Every built-in string has an optional prop with the English default: `SheetV2` / `Sheet` `closeLabel`; `StackView` `backLabel`; `Stepper` `stepText` (`Étape 2 sur 6`); `Address` `labels` (`show`, `hide`, `copy`, `copied`, `copyAria`, `explorer`; defaults `ADDRESS_LABELS`); `EmergencyCard` `labels` (`title`, `forWallet`, `recovererAddress`, `sentence`, `print`, `confirm`, `stored`, `footnote`; defaults `EMERGENCY_CARD_LABELS`); `ErrorState` `title`, `retryLabel`, `detailLabel`; `ProtectionRing` `label` + `detail` (the hidden per-recoverer list); `ProtectionCountdown` `subLabel`, `doneLabel`; `ActionButton` `successLabel`, `errorLabel`; `ThemeSwitch` `labels`, `legend`; `Chip` `label`, `tooltip`. Desk-only chrome (`DeskLayout`, `PERSONA_LABEL`) stays English by decision (identifiers, not prose).
 
 ### 10.1 Journey primitives (Phase B, SPEC §10) — `packages/ui/src/v2/journey/`
 
@@ -220,7 +233,7 @@ Strings are always passed in (typed `…Copy` objects); the objects in Appendix 
 | `HandoffTile` | `state: idle\|starting\|waiting\|expired\|claimed\|protected`, `copy: HandoffTileCopy`, `code?`, `qrValue?`, `expiresAt?` (epoch ms), `onStart?`, `onRenew?`, `onExpire?`, `registered?: 0–3`, `children?` (protected) | true object; 64 px ring (empty → registering mirrors the phone → protected); QR (`QrCode`) + code in two mono groups (`482 137`, read digit by digit) + `Code expires in m:ss` (ticks each second, `onExpire` once) |
 | `ConfirmPrompt` | `state: ask\|confirming\|error\|done\|already`, `copy: ConfirmPromptCopy`, `onConfirm`, `onDecline?` | the laptop's one-confirmation panel: key mark, can / can't lists, one primary (`ActionButton`, loading in `confirming`), quiet `Not now` |
 | `TravelRuleLine` | `text?` (default `TRAVEL_RULE_OWN_WALLET`) | shield icon in `--ok` + sentence, 14 px ink-2 |
-| `BitcoinPolicyDiagram` | `copy: BitcoinPolicyCopy` | SVG at 358 px (true size on a phone): branch 1 `Your key, now` / `pk(owner)` solid from now; `or`; branch 2 `After the waiting period: 2 of 3 recoverers`, ring glyph, `and(older(waiting), thresh(2, …))`, dashed until the waiting period ends then solid; time axis. Tokens only, no gradients; `<title>` + `<desc>` |
+| `BitcoinPolicyDiagram` | `copy: BitcoinPolicyCopy` | Fluid SVG (Phase C): viewBox 358 × 248 (true size on a phone), `width: 100%`, max 400 px, never clips; tick labels start at their tick and `time` sits above the arrow, so FR/DE labels cannot collide: branch 1 `Your key, now` / `pk(owner)` solid from now; `or`; branch 2 `After the waiting period: 2 of 3 recoverers`, ring glyph, `and(older(waiting), thresh(2, …))`, dashed until the waiting period ends then solid; time axis. Tokens only, no gradients; `<title>` + `<desc>` |
 | helpers | `splitCode6`, `formatCode6`, `spokenCode6`, `expiryClock` | pure, tested (`handoff.test.ts`) |
 
 ## 11. Screen inventory v2 (Phase B builds from this)

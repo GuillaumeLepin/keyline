@@ -2,6 +2,28 @@
 
 import type { Event, Guardian } from '@keyline/shared';
 import {
+  Bank,
+  CurrencyBtc,
+  DeviceMobile,
+  DownloadSimple,
+  GearSix,
+  IdentificationCard,
+  Key,
+  ShieldCheck,
+  SignOut,
+} from '@phosphor-icons/react/dist/ssr';
+import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { ScreenHeader } from '@/src/components/ScreenHeader';
+import { copy, copyC, copyGaps, copyV2 } from '@/src/copy';
+import { env } from '@/src/env';
+import { api, isApiError } from '@/src/lib/api';
+import { addressUrl, readRecoveryStatus } from '@/src/lib/chain';
+import { useAlerts, useLocalTransfers, useLocalWallet, useMe, useWalletEvents } from '@/src/lib/hooks';
+import { type LocalWallet, type SafetyKeyRecord, safetyKeyStore } from '@/src/lib/storage';
+import {
   Address,
   Button,
   EmptyState,
@@ -12,33 +34,13 @@ import {
   Note,
   Panel,
   type PanelRow,
-  Sheet,
+  ProtectionRing,
+  SheetV2,
   SimulatedBadge,
   Skeleton,
   StatementRow,
   TestnetStrip,
-  ThemeSwitch,
-  useThemePreference,
-} from '@keyline/ui';
-import {
-  Bank,
-  DeviceMobile,
-  DownloadSimple,
-  IdentificationCard,
-  Key,
-  ShieldCheck,
-  SignOut,
-} from '@phosphor-icons/react/dist/ssr';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps, copyV2 } from '@/src/copy';
-import { env } from '@/src/env';
-import { api, isApiError } from '@/src/lib/api';
-import { addressUrl, readRecoveryStatus } from '@/src/lib/chain';
-import { useLocalTransfers, useLocalWallet, useMe, useWalletEvents } from '@/src/lib/hooks';
-import { type LocalWallet, type SafetyKeyRecord, safetyKeyStore } from '@/src/lib/storage';
+} from '@/src/ui';
 
 /** Security centre (SPEC F6): keys, limits, sponsored counter, recovery mode, proof, Safety-key export, exit hatch, event log. */
 export default function SecurityPage() {
@@ -95,14 +97,80 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
     .filter((t) => t.status !== 'failed' && new Date(t.at).toDateString() === today)
     .reduce((sum, t) => sum + t.amountChf, 0);
   const deployed = wallet.status === 'deployed';
-  const [theme, setTheme] = useThemePreference();
+  const guardianCount = (['safety-key', 'emergency-card', 'swissquote'] as const).filter(has).length as
+    | 0
+    | 1
+    | 2
+    | 3;
+  const allThree = guardianCount === 3;
+  // Each recoverer's word comes from the live read; when the read fails we say so instead of "Pending".
+  const keyStatus = (kind: string) =>
+    guardians.isError
+      ? { status: 'pending' as const, statusWord: copyC.security.unknown }
+      : { status: has(kind) ? ('active' as const) : ('pending' as const) };
+  const alerts = useAlerts(wallet.address);
+  const recovering = (alerts.data ?? []).some(
+    (a) =>
+      a.kind === 'recovery-started' &&
+      !(alerts.data ?? []).some(
+        (o) =>
+          o.recoveryRequestId === a.recoveryRequestId &&
+          (o.kind === 'recovery-finalized' || o.kind === 'recovery-cancelled'),
+      ),
+  );
+  const headline = !deployed
+    ? copyC.security.notProtected
+    : guardians.isError
+      ? copyC.security.readError
+      : recovering
+        ? copyC.security.recoveryRunning
+        : allThree
+          ? copy.security.protectedLine
+          : copyC.security.notProtected;
 
   return (
     <>
-      <p className="flex items-center gap-2 text-14 text-ok">
-        <ShieldCheck size={18} aria-hidden="true" />
-        {deployed ? copy.security.protectedLine : copy.security.pendingWallet}
-      </p>
+      <section className="flex items-center gap-4" data-testid="security-status">
+        <ProtectionRing
+          size={64}
+          state={
+            !deployed || guardians.isError || guardians.isPending
+              ? 'empty'
+              : recovering
+                ? 'counting'
+                : allThree
+                  ? 'protected'
+                  : 'registering'
+          }
+          registered={guardianCount}
+          lit={recovering ? [false, false, true] : undefined}
+          progress={recovering ? 0.5 : undefined}
+          label={headline}
+        />
+        <div className="grid gap-1">
+          <p className="m-0 text-16 font-semibold">{headline}</p>
+          {!deployed ? (
+            <p className="m-0 text-14 text-ink-2">{copyC.security.notProtectedBody}</p>
+          ) : guardians.isError ? (
+            <button
+              type="button"
+              className="kl2-textbtn justify-self-start"
+              onClick={() => guardians.refetch()}
+            >
+              {copy.common.tryAgain}
+            </button>
+          ) : recovering ? (
+            <Link className="kl2-link text-14" href="/alerts">
+              {copy.alerts.open}
+            </Link>
+          ) : null}
+        </div>
+      </section>
+      {!deployed ? (
+        <Button variant="primary" full href="/onboarding">
+          {copyC.security.finish}
+        </Button>
+      ) : null}
 
       <section className="kl-stack">
         <div className="kl-section">
@@ -122,7 +190,7 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
             can={s.safetyKey.can}
             cannot={copy.pair.keyCannot}
             icon={<Key size={20} aria-hidden="true" />}
-            status={has('safety-key') ? 'active' : 'pending'}
+            {...keyStatus('safety-key')}
             action={
               addressOf('safety-key') ? (
                 <GuardianAddress value={addressOf('safety-key') as string} />
@@ -135,7 +203,7 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
             can={s.emergencyCard.can}
             cannot={s.emergencyCard.cannot}
             icon={<IdentificationCard size={20} aria-hidden="true" />}
-            status={has('emergency-card') ? 'active' : 'pending'}
+            {...keyStatus('emergency-card')}
             action={
               addressOf('emergency-card') ? (
                 <GuardianAddress value={addressOf('emergency-card') as string} />
@@ -148,7 +216,7 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
             can={s.swissquote.can}
             cannot={s.swissquote.cannot}
             icon={<Bank size={20} aria-hidden="true" />}
-            status={has('swissquote') ? 'active' : 'pending'}
+            {...keyStatus('swissquote')}
             action={
               addressOf('swissquote') ? (
                 <GuardianAddress value={addressOf('swissquote') as string} />
@@ -156,13 +224,6 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
             }
           />
         </div>
-        {guardians.isError ? (
-          <ApiErrorState
-            error={guardians.error}
-            body={copy.common.errorBody}
-            onRetry={() => guardians.refetch()}
-          />
-        ) : null}
       </section>
 
       <section className="kl-stack">
@@ -176,7 +237,9 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
             {
               label: s.sponsored,
               value: me.data ? (
-                s.sponsoredCount(me.data.account.sponsoredToday, me.data.account.sponsoredDailyCap)
+                <span className="whitespace-nowrap">
+                  {s.sponsoredCount(me.data.account.sponsoredToday, me.data.account.sponsoredDailyCap)}
+                </span>
               ) : me.isError ? (
                 '—'
               ) : (
@@ -238,6 +301,7 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
 
       <ul className="m-0 list-none p-0">
         <StatementRow
+          icon={<CurrencyBtc size={20} aria-hidden="true" />}
           label={copyV2.security.bitcoin.title}
           meta={copyV2.security.bitcoin.notHere}
           href="/security/bitcoin"
@@ -245,14 +309,15 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
         />
       </ul>
 
-      <section className="kl-stack" aria-label={copyV2.theme.legend}>
-        <ThemeSwitch
-          value={theme}
-          onChange={setTheme}
-          legend={copyV2.theme.legend}
-          labels={{ system: copyV2.theme.system, light: copyV2.theme.light, dark: copyV2.theme.dark }}
+      <ul className="m-0 list-none p-0">
+        <StatementRow
+          label={copyC.security.settings}
+          meta={`${copyC.settings.language} · ${copyC.settings.appearance}`}
+          href="/settings"
+          icon={<GearSix size={20} aria-hidden="true" />}
+          chevron
         />
-      </section>
+      </ul>
 
       <section className="kl-stack">
         <div className="kl-section">
@@ -327,7 +392,7 @@ function ExitSheet({
       }))
     : [];
   return (
-    <Sheet open={open} title={s.exit} onClose={onClose}>
+    <SheetV2 contained open={open} title={s.exit} onClose={onClose}>
       <div className="kl-stack">
         <p className="kl-lead">{s.exitEyebrow}</p>
         <Panel
@@ -388,7 +453,7 @@ function ExitSheet({
           {copy.security.recoveryMode}: {env.recoveryModule}
         </p>
       </div>
-    </Sheet>
+    </SheetV2>
   );
 }
 
@@ -419,7 +484,7 @@ function ExportSheet({
     setDone(true);
   };
   return (
-    <Sheet open={open} title={s.exportKey} onClose={onClose}>
+    <SheetV2 contained open={open} title={s.exportKey} onClose={onClose}>
       <div className="kl-stack">
         <p className="kl-lead">{s.exportBody}</p>
         <Note tone="warn">
@@ -439,7 +504,7 @@ function ExportSheet({
           {g.exportPlainPrimary}
         </Button>
       </div>
-    </Sheet>
+    </SheetV2>
   );
 }
 
@@ -487,7 +552,7 @@ function ProveSheet({ wallet, open, onClose }: { wallet: LocalWallet; open: bool
   });
   const missing = attestation.isError && isApiError(attestation.error) && attestation.error.status === 404;
   return (
-    <Sheet open={open} title={s.prove} onClose={onClose}>
+    <SheetV2 contained open={open} title={s.prove} onClose={onClose}>
       <div className="kl-stack">
         <p className="kl-lead">{s.proveBody}</p>
         <Panel
@@ -563,6 +628,6 @@ function ProveSheet({ wallet, open, onClose }: { wallet: LocalWallet; open: bool
           </>
         )}
       </div>
-    </Sheet>
+    </SheetV2>
   );
 }

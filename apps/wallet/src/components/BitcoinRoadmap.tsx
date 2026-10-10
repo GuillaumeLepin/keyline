@@ -1,4 +1,4 @@
-import { BitcoinPolicyDiagram } from '@keyline/ui';
+import { BitcoinPolicyDiagram } from '@/src/ui';
 import { copyJourney, copyV2 } from '../copy';
 
 /** F6 · Roadmap: Bitcoin — the same 2-of-3 + waiting-period policy, written as a script. Not in this prototype. */

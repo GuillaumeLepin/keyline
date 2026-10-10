@@ -189,12 +189,18 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-}
-.kl2-stack__screen {
-  position: absolute;
-  inset: 0;
+  /* Clip the horizontal slide; scroll vertically when the parent gives the stack a fixed height. */
+  overflow-x: hidden;
   overflow-y: auto;
+  background: var(--bg);
+}
+/* The current screen is in normal flow, so a StackView inside an auto-height page takes its content's
+ * height (Phase C: Help rendered empty when the screen was absolutely positioned). The exiting screen is
+ * popped out of flow by motion's `mode="popLayout"` while it slides away. */
+.kl2-stack__screen {
+  /* Not positioned: a `contained` SheetV2 inside a screen resolves to the page/phone screen above the
+   * stack, not to the (content-high) screen. */
+  min-height: 100%;
   background: var(--bg);
 }
 
@@ -228,6 +234,9 @@
   box-shadow: var(--shadow-modal);
   padding: var(--space-2) var(--gutter-phone) var(--space-6);
   touch-action: none;
+  /* Wide viewports (Swissquote web, desk): a readable 560 px sheet, centred. No effect at 390 px. */
+  max-width: 560px;
+  margin-inline: auto;
 }
 .kl2-sheet__panel:focus {
   outline: none;
@@ -279,6 +288,8 @@
   overflow: hidden;
   transition:
     background-color var(--duration-fade) var(--ease-standard),
+    border-color var(--duration-fade) var(--ease-standard),
+    color var(--duration-fade) var(--ease-standard),
     opacity var(--duration-fade) var(--ease-standard);
 }
 .kl2-action--full {
@@ -298,6 +309,28 @@
 }
 .kl2-action--secondary:hover:not(:disabled) {
   background: var(--surface-2);
+}
+.kl2-action--danger {
+  background: var(--danger);
+  color: var(--on-ink);
+}
+.kl2-action--danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+/* Error: no shake, no motion — only a colour change (180 ms, the fade curve). The sentence that says
+ * what happened lives next to the button (Note / ErrorState); the label stays, so it reads as "retry". */
+.kl2-action[data-status="error"] {
+  border-color: var(--danger);
+}
+.kl2-action--primary[data-status="error"] {
+  background: var(--danger);
+  color: var(--on-ink);
+}
+.kl2-action--primary[data-status="error"]:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+.kl2-action--secondary[data-status="error"] {
+  color: var(--danger);
 }
 .kl2-action:focus-visible {
   outline: none;
@@ -403,6 +436,10 @@
   position: relative;
   display: inline-flex;
   align-items: center;
+  /* Equal segments that fill the control: a full-width control never leaves a dead tail on the right. */
+  flex: 1 1 0;
+  justify-content: center;
+  text-align: center;
   height: var(--tap-min);
   padding: 0 var(--space-4);
   font-size: var(--text-14);
@@ -413,6 +450,10 @@
   transition:
     background-color var(--duration-fade) var(--ease-standard),
     color var(--duration-fade) var(--ease-standard);
+}
+.kl2-seg--full {
+  display: flex;
+  width: 100%;
 }
 .kl2-seg__opt + .kl2-seg__opt {
   border-left: 1px solid var(--line);
@@ -441,28 +482,6 @@
   .kl2-action,
   .kl2-seg__opt {
     transition: none;
-  }
-}
-
-/* ---------- v1 hover colours were hard-coded hex; dark-scoped fixes only (light unchanged) ---------- */
-[data-theme="dark"] .kl-btn--primary:hover {
-  background: #ffffff;
-}
-[data-theme="dark"] .kl-btn--primary:active {
-  background: #d9d6cf;
-}
-[data-theme="dark"] .kl-btn--danger:hover {
-  background: #f58d9c;
-}
-@media (prefers-color-scheme: dark) {
-  [data-theme="system"] .kl-btn--primary:hover {
-    background: #ffffff;
-  }
-  [data-theme="system"] .kl-btn--primary:active {
-    background: #d9d6cf;
-  }
-  [data-theme="system"] .kl-btn--danger:hover {
-    background: #f58d9c;
   }
 }
 
@@ -1014,9 +1033,11 @@
 /* ---------- BitcoinPolicyDiagram ---------- */
 .kl2-bpd {
   display: block;
-  max-width: 100%;
+  width: 100%;
+  max-width: 400px;
   height: auto;
-  overflow: visible;
+  aspect-ratio: 358 / 248;
+  overflow: hidden; /* fluid viewBox: nothing is drawn outside it, so nothing can clip at the edge */
 }
 .kl2-bpd text {
   font-family: var(--font-sans);

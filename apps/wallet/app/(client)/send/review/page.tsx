@@ -1,26 +1,6 @@
 'use client';
 
 import type { DecodedCall, PolicyDecision } from '@keyline/shared';
-import {
-  Address,
-  Button,
-  CountdownRing,
-  Disclosure,
-  EmptyState,
-  ErrorState,
-  formatCHF,
-  formatDuration,
-  formatInteger,
-  formatUSDC,
-  Note,
-  Panel,
-  type PanelRow,
-  PolicyLine,
-  SimulatedBadge,
-  Skeleton,
-  StatusSequence,
-  type StatusStep,
-} from '@keyline/ui';
 import { CheckCircle, Prohibit, Warning } from '@phosphor-icons/react/dist/ssr';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -42,6 +22,26 @@ import {
 import { getDeviceLabel } from '@/src/lib/device';
 import { useLocalWallet, useNow, useUsdcBalance } from '@/src/lib/hooks';
 import { type PendingSend, pendingSendStore, transferStore } from '@/src/lib/storage';
+import {
+  Address,
+  Button,
+  CountdownRing,
+  Disclosure,
+  EmptyState,
+  ErrorState,
+  formatCHF,
+  formatDuration,
+  formatInteger,
+  formatUSDC,
+  Note,
+  Panel,
+  type PanelRow,
+  PolicyLine,
+  SimulatedBadge,
+  Skeleton,
+  StatusSequence,
+  type StatusStep,
+} from '@/src/ui';
 
 export default function ReviewPage() {
   const router = useRouter();

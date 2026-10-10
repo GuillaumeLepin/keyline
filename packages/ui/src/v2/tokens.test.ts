@@ -36,4 +36,29 @@ describe('theme tokens', () => {
       expect(root).toContain(pair);
     }
   });
+
+  it('keeps the Emergency card (.kl-paper) on the light values in every theme', () => {
+    const root = body(':root');
+    const paper = decls(body('.kl-paper')).filter((d) =>
+      /^--(bg|surface|surface-2|line|line-strong|ink|ink-2|ink-3|on-ink):/.test(d),
+    );
+    expect(paper).toHaveLength(9);
+    for (const d of paper) expect(root).toContain(d);
+  });
+
+  it('keeps hardware chrome dark in dark mode (bezel, device bars, desk header)', () => {
+    const dark = body('[data-theme="dark"]');
+    for (const t of [
+      '--bezel',
+      '--chrome',
+      '--on-chrome',
+      '--on-chrome-2',
+      '--ink-hover',
+      '--ink-active',
+      '--danger-hover',
+    ]) {
+      expect(dark).toContain(`${t}:`);
+    }
+    expect(dark).not.toContain('--laptop-bar: #b8b4ab');
+  });
 });

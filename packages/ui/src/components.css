@@ -123,10 +123,10 @@
   color: var(--on-ink);
 }
 .kl-btn--primary:hover {
-  background: #2a2a2a;
+  background: var(--ink-hover);
 }
 .kl-btn--primary:active {
-  background: #000000;
+  background: var(--ink-active);
 }
 .kl-btn--secondary {
   background: var(--surface);
@@ -149,7 +149,7 @@
   color: var(--on-ink);
 }
 .kl-btn--danger:hover {
-  background: #9a1e14;
+  background: var(--danger-hover);
 }
 .kl-btn--danger-text {
   background: transparent;
@@ -373,8 +373,12 @@
 }
 .kl-row__icon {
   flex: none;
+  /* One icon column: a 20 px glyph and the 24 px ring both occupy 24 px, so every label starts on the
+   * same x (Phase C, settings list). */
+  width: 24px;
   color: var(--ink-2);
   display: inline-flex;
+  justify-content: flex-start;
 }
 .kl-row__main {
   flex: 1;
@@ -510,7 +514,7 @@
   background: var(--ink);
 }
 .kl-stepper__dot--current {
-  background: var(--accent);
+  background: var(--ring-arc); /* the accent hue at ≥ 3:1 on paper (a meaningful mark) */
 }
 
 /* ---------- StatusSequence ---------- */
@@ -562,8 +566,8 @@
   border-color: var(--ink);
 }
 .kl-seq__item--active .kl-seq__dot::after {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--ring-arc);
+  border-color: var(--ring-arc);
 }
 .kl-seq__item--failed .kl-seq__dot::after {
   background: var(--danger);
@@ -695,14 +699,18 @@
 }
 .kl-panel__label {
   color: var(--ink-2);
-  flex: none;
+  /* The label wraps instead of crushing the value (Phase C, FR: "Frais de réseau payés par Swissquote
+   * aujourd’hui" squeezed "1 / 20" into one character per line). It keeps at least 35 % of the row. */
+  flex: 1 1 0;
+  min-width: 35%;
 }
 .kl-panel__value {
   margin: 0;
+  flex: 0 1 auto;
   text-align: right;
   font-variant-numeric: tabular-nums;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .kl-panel__value--em {
   font-weight: 600;
@@ -1182,8 +1190,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  background: var(--ink);
-  color: var(--on-ink);
+  background: var(--chrome);
+  color: var(--on-chrome);
   font-size: var(--text-12);
   line-height: var(--leading-12);
   font-weight: 600;
@@ -1193,7 +1201,7 @@
 .kl-devicebar--danger {
   background: var(--danger-bar);
 }
-/* Five personas, five bars: phone = ink, laptop = ink-2, new phone = ok green, thief = red, desk = ink + accent rule. */
+/* Five personas, five bars (chrome, not ink — dark in both themes): phone = chrome, laptop = grey, new phone = ok green, thief = red, desk = ink + accent rule. */
 .kl-devicebar--laptop {
   background: var(--laptop-bar);
 }
@@ -1242,7 +1250,7 @@
     min-height: 0;
     padding: 12px;
     border-radius: 44px;
-    background: var(--ink);
+    background: var(--bezel); /* hardware: dark in both themes */
     flex: none;
   }
   .kl-phone__screen {
@@ -1274,8 +1282,8 @@
   background: var(--bg);
 }
 .kl-desk__header {
-  background: var(--ink);
-  color: var(--on-ink);
+  background: var(--chrome);
+  color: var(--on-chrome);
 }
 .kl-desk__header-inner {
   max-width: var(--desk-max);
@@ -1297,8 +1305,8 @@
 }
 .kl-desk__brand .kl-sim {
   background: transparent;
-  color: var(--on-ink);
-  border-color: rgba(255, 255, 255, 0.6);
+  color: var(--on-chrome);
+  border-color: var(--on-chrome-2);
 }
 .kl-desk__nav {
   display: flex;
@@ -1306,13 +1314,13 @@
   font-size: var(--text-14);
 }
 .kl-desk__nav a {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--on-chrome-2);
   text-decoration: none;
   padding: var(--space-2) 0;
   border-bottom: 2px solid transparent;
 }
 .kl-desk__nav a[aria-current="page"] {
-  color: var(--on-ink);
+  color: var(--on-chrome);
   border-bottom-color: var(--accent);
 }
 .kl-desk__operator {
@@ -1320,11 +1328,11 @@
   align-items: center;
   gap: var(--space-4);
   font-size: var(--text-14);
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--on-chrome-2);
 }
 .kl-desk__operator a,
 .kl-desk__operator button {
-  color: var(--on-ink);
+  color: var(--on-chrome);
   background: none;
   border: 0;
   font: inherit;
@@ -1438,7 +1446,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgba(20, 20, 20, 0.4);
+  background: var(--scrim);
 }
 .kl-sheet__panel {
   position: relative;
@@ -1470,7 +1478,7 @@
   }
   .kl-sheet__panel {
     border-radius: var(--radius-sheet);
-    max-width: 480px;
+    max-width: 560px; /* readable width on a 1200 px page */
   }
 }
 .kl-sheet__head {

@@ -1,27 +1,6 @@
 'use client';
 
 import type { Guardian, PolicyDecision } from '@keyline/shared';
-import {
-  ActionButton,
-  Address,
-  Button,
-  DrawnCheck,
-  EmergencyCard,
-  ErrorState,
-  formatInteger,
-  haptic,
-  KeyCard,
-  Note,
-  Panel,
-  PolicyLine,
-  ProtectionRing,
-  RadioCard,
-  Sheet,
-  SimulatedBadge,
-  Skeleton,
-  StackView,
-  Stepper,
-} from '@keyline/ui';
 import { ArrowSquareOut, CheckCircle, Key } from '@phosphor-icons/react/dist/ssr';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -51,6 +30,27 @@ import {
   registerPasskey,
 } from '@/src/lib/passkey';
 import type { LocalWallet } from '@/src/lib/storage';
+import {
+  ActionButton,
+  Address,
+  Button,
+  DrawnCheck,
+  EmergencyCard,
+  ErrorState,
+  formatInteger,
+  haptic,
+  KeyCard,
+  Note,
+  Panel,
+  PolicyLine,
+  ProtectionRing,
+  RadioCard,
+  SheetV2,
+  SimulatedBadge,
+  Skeleton,
+  StackView,
+  Stepper,
+} from '@/src/ui';
 
 const TOTAL = 6;
 
@@ -639,7 +639,8 @@ function Step3({ wallet, onNext }: { wallet: LocalWallet; onNext: (address: Addr
           onRetry={() => card && register.mutate(card.address)}
         />
       ) : null}
-      <Sheet
+      <SheetV2
+        contained
         open={confirming}
         title={s.confirmTitle}
         onClose={() => {
@@ -668,7 +669,7 @@ function Step3({ wallet, onNext }: { wallet: LocalWallet; onNext: (address: Addr
             {s.confirmNo}
           </Button>
         </div>
-      </Sheet>
+      </SheetV2>
     </>
   );
 }

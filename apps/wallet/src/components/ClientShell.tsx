@@ -1,8 +1,9 @@
 'use client';
 
-import { PhoneFrame } from '@keyline/ui';
 import { type ReactNode, useEffect } from 'react';
+import { PhoneFrame } from '@/src/ui';
 import { bootstrapPersona, personaLabel, usePersona } from '../lib/device';
+import { OfflineBanner } from './OfflineBanner';
 
 /** Phone frame + DeviceBar for the client route group; applies `?device=` once per profile. */
 export function ClientShell({ children }: { children: ReactNode }) {
@@ -15,6 +16,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
   const effective = persona ?? 'lea-phone';
   return (
     <PhoneFrame persona={effective} personaLabel={personaLabel(effective)}>
+      <OfflineBanner />
       {children}
     </PhoneFrame>
   );

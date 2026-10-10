@@ -1,19 +1,6 @@
 'use client';
 
 import type { PolicyDecision } from '@keyline/shared';
-import {
-  ActionButton,
-  Address,
-  AmountField,
-  formatCHF,
-  formatUSDC,
-  Note,
-  Panel,
-  PolicyLine,
-  Skeleton,
-  StackView,
-  TravelRuleLine,
-} from '@keyline/ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -32,6 +19,19 @@ import {
 import { getDeviceLabel } from '@/src/lib/device';
 import { useLocalWallet, useUsdcBalance } from '@/src/lib/hooks';
 import { type LocalWallet, transferStore } from '@/src/lib/storage';
+import {
+  ActionButton,
+  Address,
+  AmountField,
+  formatCHF,
+  formatUSDC,
+  Note,
+  Panel,
+  PolicyLine,
+  Skeleton,
+  StackView,
+  TravelRuleLine,
+} from '@/src/ui';
 
 /** D5 · Back to Swissquote: USDC to the bank deposit address (Lea's own account, verified) — always Tier 1. */
 export default function BackToSwissquotePage() {

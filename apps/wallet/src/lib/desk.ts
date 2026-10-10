@@ -1,8 +1,8 @@
 'use client';
 
 import type { DeskQueueItem, RecoveryRequest } from '@keyline/shared';
-import type { StatementRowStatus } from '@keyline/ui';
 import { useQuery } from '@tanstack/react-query';
+import type { StatementRowStatus } from '@/src/ui';
 import { copy } from '../copy';
 import { api } from './api';
 

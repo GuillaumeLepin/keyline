@@ -1,23 +1,6 @@
 'use client';
 
 import type { RecoveryRequest } from '@keyline/shared';
-import {
-  Address,
-  Button,
-  CountdownRing,
-  Disclosure,
-  ErrorState,
-  formatClock,
-  KeyCard,
-  Note,
-  Panel,
-  SimulatedBadge,
-  Skeleton,
-  StatusSequence,
-  Stepper,
-  TextField,
-  Toggle,
-} from '@keyline/ui';
 import { ArrowSquareOut, Bank, IdentificationCard, Laptop } from '@phosphor-icons/react/dist/ssr';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -40,19 +23,37 @@ import { getDeviceLabel } from '@/src/lib/device';
 import { useRecovery } from '@/src/lib/hooks';
 import { PasskeyUnsupportedError, registerPasskey } from '@/src/lib/passkey';
 import { type PendingRecovery, recoveryStore, walletStore } from '@/src/lib/storage';
+import {
+  Address,
+  Button,
+  CountdownRing,
+  Disclosure,
+  ErrorState,
+  formatClock,
+  KeyCard,
+  Note,
+  Panel,
+  SimulatedBadge,
+  Skeleton,
+  StatusSequence,
+  Stepper,
+  TextField,
+  Toggle,
+} from '@/src/ui';
 
 const TOTAL = 5;
 /**
  * DESIGN.md lists Email · Identity · New key · Recoverers · Waiting period. The bank issues the email code when the
  * recovery is created, and creating it needs the new key — so the key comes first. Same five labels, bank's order.
  */
-const STEP_LABELS = [
-  copy.recover.steps[2],
-  copy.recover.steps[0],
-  copy.recover.steps[1],
-  copy.recover.steps[3],
-  copy.recover.steps[4],
-] as const;
+const stepLabels = () =>
+  [
+    copy.recover.steps[2],
+    copy.recover.steps[0],
+    copy.recover.steps[1],
+    copy.recover.steps[3],
+    copy.recover.steps[4],
+  ] as const;
 
 /** SIMULATED e-ID prefill: Lea's file (SPEC §7). The thief types his own. */
 const LEA_EID: { name: string; dateOfBirth: string; documentNumber: string } = {
@@ -108,7 +109,7 @@ export default function RecoverPage() {
     if (pending.recoveryId && !r) {
       return (
         <>
-          <Stepper current={2} total={TOTAL} label={STEP_LABELS[1]} />
+          <Stepper current={2} total={TOTAL} label={stepLabels()[1]} />
           <Skeleton kind="line" count={2} />
           <Skeleton kind="block" />
         </>
@@ -192,7 +193,7 @@ export default function RecoverPage() {
     case 'cancelled':
       return (
         <>
-          <Stepper current={5} total={TOTAL} label={STEP_LABELS[4]} />
+          <Stepper current={5} total={TOTAL} label={stepLabels()[4]} />
           <ErrorState
             title={copy.recover.cancelledByOwner}
             body={copy.recover.cancelledBody}
@@ -235,7 +236,7 @@ function StepKey({ onCreated }: { onCreated: (patch: Partial<PendingRecovery>) =
   const unsupported = create.error instanceof PasskeyUnsupportedError;
   return (
     <>
-      <Stepper current={1} total={TOTAL} label={STEP_LABELS[0]} />
+      <Stepper current={1} total={TOTAL} label={stepLabels()[0]} />
       <div className="kl-stack">
         <h1 className="kl-title">{s.keyTitle}</h1>
         <p className="kl-lead">{s.keyBody}</p>
@@ -309,7 +310,7 @@ function StepEmail({
 
   return (
     <>
-      <Stepper current={2} total={TOTAL} label={STEP_LABELS[1]} />
+      <Stepper current={2} total={TOTAL} label={stepLabels()[1]} />
       <div className="kl-stack">
         <h1 className="kl-title">{s.emailTitle}</h1>
         <p className="kl-lead">{s.emailBody}</p>
@@ -433,7 +434,7 @@ function StepIdentity({
   if (wrongCode) {
     return (
       <>
-        <Stepper current={3} total={TOTAL} label={STEP_LABELS[2]} />
+        <Stepper current={3} total={TOTAL} label={stepLabels()[2]} />
         <ErrorState
           title={s.codeWrong}
           body={copy.common.errorBody}
@@ -450,7 +451,7 @@ function StepIdentity({
 
   return (
     <>
-      <Stepper current={3} total={TOTAL} label={STEP_LABELS[2]} />
+      <Stepper current={3} total={TOTAL} label={stepLabels()[2]} />
       <div className="kl-stack">
         <p className="kl-eyebrow">
           {s.idEyebrow} <SimulatedBadge />
@@ -556,7 +557,7 @@ function StepRecoverers({ recovery }: { recovery: RecoveryRequest }) {
 
   return (
     <>
-      <Stepper current={4} total={TOTAL} label={STEP_LABELS[3]} />
+      <Stepper current={4} total={TOTAL} label={stepLabels()[3]} />
       <div className="kl-stack">
         <h1 className="kl-title">{title}</h1>
         <p className="kl-lead">{lead}</p>
@@ -716,7 +717,7 @@ function StepWaiting({ recovery, onWelcomeHome }: { recovery: RecoveryRequest; o
     (recovery.onchain.executeAfter ? new Date(recovery.onchain.executeAfter) : undefined);
   return (
     <>
-      <Stepper current={5} total={TOTAL} label={STEP_LABELS[4]} />
+      <Stepper current={5} total={TOTAL} label={stepLabels()[4]} />
       {executeAfter ? (
         <>
           <h1 className="kl-title">{s.waitTitle(formatClock(executeAfter))}</h1>

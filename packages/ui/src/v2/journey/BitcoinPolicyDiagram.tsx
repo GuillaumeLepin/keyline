@@ -37,8 +37,9 @@ const WAIT_X = 150;
 /**
  * The Keyline policy written as a Bitcoin script (Security → Roadmap: Bitcoin; the "Why?" sheet).
  * Two spending branches over one time axis: branch 1 (the owner's key) is usable from now; branch 2
- * (2 of 3 recoverers) only after the waiting period — dashed while it cannot be used. Drawn at
- * 358 px (the phone's content width) so the 12–14 px labels render at their true size. Hairlines,
+ * (2 of 3 recoverers) only after the waiting period — dashed while it cannot be used. Fluid: the
+ * viewBox is 358 wide (the phone's content width, where the 12–14 px labels render at true size) and
+ * the SVG scales to its container (max 400 px, so a wide sheet does not blow the type up). Hairlines,
  * ink, one ring glyph; no gradients. Colours come from tokens, so it follows the theme.
  */
 export function BitcoinPolicyDiagram({ copy }: BitcoinPolicyDiagramProps) {
@@ -50,8 +51,7 @@ export function BitcoinPolicyDiagram({ copy }: BitcoinPolicyDiagramProps) {
     <svg
       className="kl2-bpd"
       viewBox={`0 0 ${W} ${H}`}
-      width={W}
-      height={H}
+      preserveAspectRatio="xMinYMin meet"
       role="img"
       aria-labelledby={`${titleId} ${descId}`}
     >
@@ -111,10 +111,13 @@ export function BitcoinPolicyDiagram({ copy }: BitcoinPolicyDiagramProps) {
       <text className="kl2-bpd__s" x={0} y={240}>
         {copy.axisNow}
       </text>
-      <text className="kl2-bpd__s" x={WAIT_X} y={240} textAnchor="middle">
+      {/* Each tick label starts at its tick, so a long translation ("Fin de la période d’attente") runs
+          right into free space instead of colliding with "Now". */}
+      <text className="kl2-bpd__s" x={WAIT_X} y={240}>
         {copy.axisWait}
       </text>
-      <text className="kl2-bpd__s" x={W} y={240} textAnchor="end">
+      {/* "time" names the arrow: above the axis, left of the arrowhead, never past the right edge. */}
+      <text className="kl2-bpd__s" x={W - 12} y={209} textAnchor="end">
         {copy.axisTime}
       </text>
     </svg>

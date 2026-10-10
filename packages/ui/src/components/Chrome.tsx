@@ -42,17 +42,23 @@ export function DeviceBar({ persona, label }: DeviceBarProps) {
 export type TestnetStripProps = {
   network?: string;
   explorerUrl?: string;
+  /** Translated sentence (whole, with the network name in it); defaults to the English one. */
+  text?: string;
+  /** Translated link label (default "View on Basescan"). */
+  linkLabel?: string;
 };
 
 export function TestnetStrip({
   network = 'Base Sepolia',
   explorerUrl = 'https://sepolia.basescan.org',
+  text,
+  linkLabel = 'View on Basescan',
 }: TestnetStripProps) {
   return (
     <div className="kl-testnet">
-      <span>Test network · {network} — nothing here is real money.</span>
+      <span>{text ?? `Test network · ${network} — nothing here is real money.`}</span>
       <a className="kl-link kl-link--quiet" href={explorerUrl} target="_blank" rel="noreferrer">
-        View on Basescan
+        {linkLabel}
         <ArrowSquareOut size={14} aria-hidden="true" />
       </a>
     </div>

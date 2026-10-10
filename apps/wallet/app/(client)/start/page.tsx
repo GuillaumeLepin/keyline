@@ -1,6 +1,5 @@
 'use client';
 
-import { ActionButton, TextField } from '@keyline/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -8,6 +7,7 @@ import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { copy, copyV2 } from '@/src/copy';
 import { api, isApiError } from '@/src/lib/api';
 import { rememberClaim } from '@/src/lib/handoff';
+import { ActionButton, TextField } from '@/src/ui';
 
 /** B1 · Continue on your phone: the code from the laptop (typed, or `?code=` from the QR) → claim → onboarding v2. */
 export default function StartPage() {

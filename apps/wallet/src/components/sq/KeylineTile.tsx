@@ -1,7 +1,6 @@
 'use client';
 
 import type { Handoff } from '@keyline/shared';
-import { formatUSDC, type HandoffState, HandoffTile, Skeleton } from '@keyline/ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { Address } from 'viem';
@@ -9,6 +8,7 @@ import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { copy, copyJourney } from '@/src/copy';
 import { api } from '@/src/lib/api';
 import { publicClient, readUsdcBalance } from '@/src/lib/chain';
+import { formatUSDC, type HandoffState, HandoffTile, Skeleton } from '@/src/ui';
 
 /**
  * A2 · the Keyline tile. `POST /handoff` → QR + code, polls `GET /handoff/:code` until the phone claims it. Once a

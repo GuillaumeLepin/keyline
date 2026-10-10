@@ -1,7 +1,6 @@
 'use client';
 
 import type { Move, SqAsset, SqPosition } from '@keyline/shared';
-import { ActionButton, Chip, formatCHF, Note, SheetV2, TextField, TravelRuleLine } from '@keyline/ui';
 import { ArrowSquareOut } from '@phosphor-icons/react/dist/ssr';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -10,6 +9,7 @@ import { copy, copyV2 } from '@/src/copy';
 import { api, isApiError } from '@/src/lib/api';
 import { txUrl } from '@/src/lib/chain';
 import { decimalsFor, formatQty } from '@/src/lib/format';
+import { ActionButton, Chip, formatCHF, Note, SheetV2, TextField, TravelRuleLine } from '@/src/ui';
 
 /** The bank's funder ran dry (409/422/503 with a funder/balance code): an honest, specific sentence. */
 function isFunderEmpty(error: unknown): boolean {

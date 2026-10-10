@@ -1,12 +1,12 @@
 'use client';
 
-import { Button, Note, SimulatedBadge, TextField, Toggle } from '@keyline/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { copy } from '@/src/copy';
 import { api } from '@/src/lib/api';
+import { Button, Note, SimulatedBadge, TextField, Toggle } from '@/src/ui';
 
 /**
  * SIMULATED swiyu e-ID (SPEC §4 `POST /mock/eid`). The issuer only echoes a payload; the pass/fail verdict is the

@@ -1,18 +1,6 @@
 'use client';
 
 import type { Alert, PolicyDecision } from '@keyline/shared';
-import {
-  Button,
-  CountdownRing,
-  EmptyState,
-  formatClock,
-  formatInteger,
-  formatRelative,
-  Note,
-  Skeleton,
-  StatusSequence,
-  type StatusStep,
-} from '@keyline/ui';
 import { ArrowSquareOut } from '@phosphor-icons/react/dist/ssr';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
@@ -32,6 +20,18 @@ import {
 import { getDeviceLabel } from '@/src/lib/device';
 import { useAlerts, useLocalWallet, useNow } from '@/src/lib/hooks';
 import type { LocalWallet } from '@/src/lib/storage';
+import {
+  Button,
+  CountdownRing,
+  EmptyState,
+  formatClock,
+  formatInteger,
+  formatRelative,
+  Note,
+  Skeleton,
+  StatusSequence,
+  type StatusStep,
+} from '@/src/ui';
 
 const GRACE_MS = 180_000;
 
