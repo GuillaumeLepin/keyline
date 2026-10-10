@@ -1,17 +1,17 @@
 'use client';
 
 import type { Contact } from '@keyline/shared';
-import { ArrowsDownUp, ClipboardText, Plus, QrCode as QrIcon } from '@phosphor-icons/react/dist/ssr';
+import { ClipboardText, Plus, QrCode as QrIcon } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { getAddress, isAddress } from 'viem';
+import { AmountEntry } from '@/src/components/AmountEntry';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { StackPage } from '@/src/components/StackPage';
-import { useCopy, usePrefs } from '@/src/copy';
-import { env } from '@/src/env';
-import { toChf } from '@/src/i18n/money';
-import { useContacts, useLocalWallet, useUsdcBalance } from '@/src/lib/hooks';
+import { useCopy } from '@/src/copy';
+import { contactLabel } from '@/src/lib/contactLabel';
+import { useContacts, useLocalWallet } from '@/src/lib/hooks';
 import { pendingSendStore } from '@/src/lib/storage';
 import {
   Address,
@@ -19,9 +19,7 @@ import {
   Chip,
   CrossFade,
   EmptyState,
-  formatUSDC,
   Note,
-  NumberTicker,
   Skeleton,
   StatementRow,
   shortAddress,
@@ -93,7 +91,7 @@ export default function SendPage() {
         <RecipientList
           contacts={contacts}
           onPick={(c) => {
-            setRecipient({ address: c.address as `0x${string}`, label: c.label, contact: c });
+            setRecipient({ address: c.address as `0x${string}`, label: contactLabel(c), contact: c });
             go('amount');
           }}
           onNew={() => go('new')}
@@ -184,7 +182,7 @@ function RecipientList({
                   key={c.id}
                   label={
                     <span className="inline-flex items-center gap-1">
-                      {c.label}
+                      {contactLabel(c)}
                       {c.simulated ? <Chip /> : null}
                     </span>
                   }
@@ -313,45 +311,7 @@ function AmountStep({
 }) {
   const t = useCopy();
   const s = t.copyC.send;
-  const money = usePrefs();
-  const ccy = money.prefs.currency;
-  const balance = useUsdcBalance(walletAddress);
-  const [unit, setUnit] = useState<'fiat' | 'usdc'>('fiat');
-  const [raw, setRaw] = useState('');
-  const [touched, setTouched] = useState(false);
-
-  const value = Number.parseFloat(raw.replace(/[’'\s]/g, '').replace(',', '.'));
-  const entered = Number.isFinite(value) && value > 0 ? value : 0;
-  const usdc = unit === 'usdc' ? entered : toChf(ccy, entered) / env.chfPerUsdc;
-  const usdcRounded = Math.round(usdc * 100) / 100;
-  const chf = Math.round(usdcRounded * env.chfPerUsdc * 100) / 100;
-  const available = balance.data;
-  const insufficient = available !== undefined && usdcRounded > available;
-  const empty = entered <= 0;
   const isNew = !recipient.contact?.verifiedOwnership && !recipient.contact?.trusted;
-
-  function toggle() {
-    // Keep the same money when switching units: re-express the current amount in the other unit.
-    if (entered > 0) {
-      const next = unit === 'fiat' ? usdcRounded : money.toDisplay(chf);
-      setRaw(next.toFixed(2));
-    }
-    setUnit(unit === 'fiat' ? 'usdc' : 'fiat');
-  }
-
-  function max() {
-    if (available === undefined) return;
-    setRaw((unit === 'usdc' ? available : money.toDisplay(available * env.chfPerUsdc)).toFixed(2));
-    setUnit(unit);
-  }
-
-  const error =
-    insufficient && available !== undefined
-      ? s.insufficient(formatUSDC(available))
-      : touched && empty
-        ? s.errAmount
-        : undefined;
-
   return (
     <div className="flex flex-1 flex-col gap-4">
       <StatementRow
@@ -365,73 +325,12 @@ function AmountStep({
         chevron={false}
       />
       {isNew ? <Note tone="warn">{s.firstTime}</Note> : null}
-
-      <TextField
-        label={unit === 'fiat' ? s.inFiat(ccy) : s.inUsdc}
-        inputMode="decimal"
-        placeholder="0.00"
-        value={raw}
-        onChange={(e) => {
-          setRaw(e.target.value);
-          setTouched(false);
-        }}
-        onBlur={() => {
-          setTouched(true);
-          if (entered > 0) setRaw(groupAmount(entered));
-        }}
-        onFocus={() => {
-          if (entered > 0) setRaw(String(entered));
-        }}
-        prefix={unit === 'fiat' ? ccy : undefined}
-        suffix={unit === 'usdc' ? 'USDC' : undefined}
-        error={error}
-        className="text-28"
-        data-testid="send-amount"
+      <AmountEntry
+        walletAddress={walletAddress}
+        primaryLabel={s.review}
+        testIdPrefix="send"
+        onSubmit={(v) => onReview(v.amountUsdc, v.amountChf)}
       />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="m-0 text-16 text-ink-2" aria-live="polite" data-testid="send-converted">
-          ≈{' '}
-          {unit === 'fiat' ? (
-            <NumberTicker value={usdcRounded} format={formatUSDC} />
-          ) : (
-            <NumberTicker value={money.toDisplay(chf)} format={money.displayFormat} />
-          )}
-        </p>
-        <button
-          type="button"
-          className="kl2-textbtn inline-flex items-center gap-1"
-          onClick={toggle}
-          data-testid="send-toggle"
-        >
-          <ArrowsDownUp size={16} aria-hidden="true" />
-          {s.switchTo(unit === 'fiat' ? 'USDC' : ccy)}
-        </button>
-      </div>
-      <p className="m-0 flex flex-wrap items-center gap-1 text-12 text-ink-3">
-        {money.rate(env.chfPerUsdc)}
-        <Chip />
-      </p>
-
-      <div className="flex items-center justify-between gap-2 border-line border-t pt-3 text-14">
-        <span className="text-ink-2">
-          {available === undefined
-            ? balance.isError
-              ? t.copy.common.errorTitle
-              : s.balanceLoading
-            : s.available(formatUSDC(available))}
-        </span>
-        <button type="button" className="kl2-textbtn" onClick={max} disabled={available === undefined}>
-          {s.max}
-        </button>
-      </div>
-      {balance.isError ? (
-        <ApiErrorState
-          error={balance.error}
-          body={t.copy.common.errorBody}
-          onRetry={() => balance.refetch()}
-        />
-      ) : null}
-
       <section className="kl-stack gap-1" aria-label={s.asset}>
         <StatementRow
           label={s.asset}
@@ -441,28 +340,6 @@ function AmountStep({
           chevron={false}
         />
       </section>
-
-      <div className="kl-actions mt-auto">
-        <Button
-          variant="primary"
-          full
-          disabled={empty || insufficient}
-          onClick={() => {
-            setTouched(true);
-            if (!empty && !insufficient) onReview(usdcRounded, chf);
-          }}
-          data-testid="send-review"
-        >
-          {s.review}
-        </Button>
-      </div>
     </div>
   );
-}
-
-/** `999999` → `999’999`, `20.5` → `20.50` (Swiss grouping, shown once the field loses focus). */
-function groupAmount(n: number): string {
-  const [int, dec] = n.toFixed(2).split('.');
-  const grouped = (int ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, '’');
-  return dec === '00' ? grouped : `${grouped}.${dec}`;
 }

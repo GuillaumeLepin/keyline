@@ -74,7 +74,7 @@ export function PrefsRoot({ initial, children }: { initial: Prefs; children: Rea
   }, [initial]);
 
   useEffect(() => {
-    document.documentElement.lang = prefs.lang === 'fr' ? 'fr-CH' : 'en-CH';
+    document.documentElement.lang = `${prefs.lang}-CH`;
   }, [prefs.lang]);
 
   const update = useCallback((patch: Partial<Prefs>) => {

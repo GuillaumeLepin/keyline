@@ -63,7 +63,17 @@ const LEA_EID: { name: string; dateOfBirth: string; documentNumber: string } = {
 };
 const GRACE_MS = 180_000;
 
+/** One header for the whole new-phone flow: the way back is always home (the recovery itself survives on the bank). */
 export default function RecoverPage() {
+  return (
+    <>
+      <ScreenHeader title={copy.recover.emailTitle} backHref="/" />
+      <RecoverFlow />
+    </>
+  );
+}
+
+function RecoverFlow() {
   const router = useRouter();
   const [pending, setPending] = useState<PendingRecovery | null | undefined>(undefined);
   const [otp, setOtp] = useState('');
@@ -85,7 +95,6 @@ export default function RecoverPage() {
   if (pending === undefined) {
     return (
       <>
-        <ScreenHeader title={copy.recover.emailTitle} backHref="/" />
         <Skeleton kind="line" count={2} />
         <Skeleton kind="block" />
       </>
@@ -134,19 +143,16 @@ export default function RecoverPage() {
   }
   if (recovery.isError || !r) {
     return (
-      <>
-        <ScreenHeader title={copy.recover.emailTitle} backHref="/" />
-        <ApiErrorState
-          error={recovery.error}
-          body={copy.common.errorBody}
-          onRetry={() => recovery.refetch()}
-          actions={
-            <Button variant="ghost" onClick={startOver}>
-              {copy.recover.startOver}
-            </Button>
-          }
-        />
-      </>
+      <ApiErrorState
+        error={recovery.error}
+        body={copy.common.errorBody}
+        onRetry={() => recovery.refetch()}
+        actions={
+          <Button variant="ghost" onClick={startOver}>
+            {copy.recover.startOver}
+          </Button>
+        }
+      />
     );
   }
 

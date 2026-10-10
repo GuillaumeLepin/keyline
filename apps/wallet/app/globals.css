@@ -34,11 +34,3 @@ body {
   font-size: var(--text-16);
   line-height: var(--leading-16);
 }
-
-/* Contained sheets are portalled to the phone screen (src/ui.tsx). Full-bleed below 768 px the page itself
- * scrolls, so the sheet must sit on the viewport there (requested from design-system for v2.css). */
-@media (max-width: 767px) {
-  .kl2-sheet--contained {
-    position: fixed;
-  }
-}

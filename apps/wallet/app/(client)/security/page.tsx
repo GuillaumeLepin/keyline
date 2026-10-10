@@ -106,7 +106,7 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
   // Each recoverer's word comes from the live read; when the read fails we say so instead of "Pending".
   const keyStatus = (kind: string) =>
     guardians.isError
-      ? { status: 'pending' as const, statusWord: copyC.security.unknown }
+      ? { status: 'pending' as const, unknown: true }
       : { status: has(kind) ? ('active' as const) : ('pending' as const) };
   const alerts = useAlerts(wallet.address);
   const recovering = (alerts.data ?? []).some(
@@ -287,7 +287,7 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
           <StatementRow
             label={s.exportKey}
             meta={s.exportOnLaptop}
-            chevron={false}
+            onClick={() => setExporting(true)}
             icon={<DownloadSimple size={20} aria-hidden="true" />}
           />
         )}
@@ -348,7 +348,17 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
       <ProveSheet wallet={wallet} open={proving} onClose={() => setProving(false)} />
       {safetyKey ? (
         <ExportSheet safetyKey={safetyKey} open={exporting} onClose={() => setExporting(false)} />
-      ) : null}
+      ) : (
+        <SheetV2 contained open={exporting} title={s.exportKey} onClose={() => setExporting(false)}>
+          <div className="kl-stack gap-4">
+            <p className="m-0 text-16 text-ink-2">{s.exportBody}</p>
+            <Note tone="info">{copyGaps.security.exportNoKey}</Note>
+            <Button variant="secondary" full href="/swissquote">
+              {copyC.states.backToSq}
+            </Button>
+          </div>
+        </SheetV2>
+      )}
       <ExitSheet
         wallet={wallet}
         bankGuardians={guardians.data}

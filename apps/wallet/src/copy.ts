@@ -6,6 +6,8 @@
 // - the named exports below (`copy`, `copyV2`, …): live views of the active bundle. <PrefsRoot> sets the
 //   language before any child renders and remounts the tree when it changes, so they are always current.
 //   Never capture them in module-level constants (that would freeze the language at import time).
+
+import * as de from './copy.de';
 import * as en from './copy.en';
 import * as fr from './copy.fr';
 import { getPrefs, type Lang } from './i18n/prefs';
@@ -21,7 +23,7 @@ export type Widen<T> = T extends string
 
 export type CopyBundle = { readonly [K in keyof typeof en]: Widen<(typeof en)[K]> };
 
-const BUNDLES: Record<Lang, CopyBundle> = { en, fr };
+const BUNDLES: Record<Lang, CopyBundle> = { en, fr, de };
 
 export function bundleFor(lang: Lang): CopyBundle {
   return BUNDLES[lang];

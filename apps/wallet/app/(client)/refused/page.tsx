@@ -2,10 +2,11 @@
 
 import { Prohibit } from '@phosphor-icons/react/dist/ssr';
 import { useEffect, useState } from 'react';
-import { copy } from '@/src/copy';
+import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { copy, copyC } from '@/src/copy';
 import { useRecovery } from '@/src/lib/hooks';
 import { type PendingRecovery, recoveryStore } from '@/src/lib/storage';
-import { Button, Panel, SimulatedBadge, Skeleton } from '@/src/ui';
+import { Button, EmptyState, Panel, SimulatedBadge, Skeleton } from '@/src/ui';
 
 /** SPEC F4.2: the identity check failed. No primary action — only the way back. */
 export default function RefusedPage() {
@@ -24,6 +25,20 @@ export default function RefusedPage() {
         <Skeleton kind="line" count={2} />
         <Skeleton kind="block" />
       </>
+    );
+  }
+  // Nothing was refused on this device (opened directly, or already cleared): say so and point to the start.
+  if (pending === null) {
+    return (
+      <EmptyState
+        title={copyC.states.noRecovery}
+        body={copyC.states.noRecoveryBody}
+        action={
+          <Button variant="secondary" href="/recover">
+            {copyC.states.startRecovery}
+          </Button>
+        }
+      />
     );
   }
 
@@ -57,6 +72,13 @@ export default function RefusedPage() {
         ]}
         footnote={reasons.length > 0 ? `${s.reasons}: ${reasons.join(' · ')}` : undefined}
       />
+      {recovery.isError ? (
+        <ApiErrorState
+          error={recovery.error}
+          body={copy.common.errorBody}
+          onRetry={() => recovery.refetch()}
+        />
+      ) : null}
       <div className="kl-actions">
         <Button
           variant="ghost"

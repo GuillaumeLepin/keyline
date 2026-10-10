@@ -5,9 +5,11 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { type Address as Addr, getAddress } from 'viem';
+import { AmountEntry } from '@/src/components/AmountEntry';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { StackPage } from '@/src/components/StackPage';
 import { copy, copyV2 } from '@/src/copy';
-import { env } from '@/src/env';
+import { formatFiat } from '@/src/i18n/money';
 import { api } from '@/src/lib/api';
 import {
   addressUrl,
@@ -22,14 +24,13 @@ import { type LocalWallet, transferStore } from '@/src/lib/storage';
 import {
   ActionButton,
   Address,
-  AmountField,
-  formatCHF,
+  CrossFade,
   formatUSDC,
   Note,
   Panel,
   PolicyLine,
   Skeleton,
-  StackView,
+  StatementRow,
   TravelRuleLine,
 } from '@/src/ui';
 
@@ -54,42 +55,28 @@ function Back({ wallet }: { wallet: LocalWallet }) {
     queryFn: api.sq.depositAddress,
     retry: false,
   });
-  const [chf, setChf] = useState('');
-  const [fieldError, setFieldError] = useState<string | undefined>();
   const [draft, setDraft] = useState<{ amountUsdc: number; amountChf: number } | null>(null);
 
-  function review() {
-    const value = Number.parseFloat(chf);
-    if (!Number.isFinite(value) || value <= 0) {
-      setFieldError(s.errAmount);
-      return;
-    }
-    setFieldError(undefined);
-    const amountUsdc = Number((value / env.chfPerUsdc).toFixed(2));
-    setDraft({ amountUsdc, amountChf: Number(value.toFixed(2)) });
-  }
-
   return (
-    <div className="-mx-4 -mt-6 -mb-8 flex min-h-[calc(100dvh-40px)] flex-1 flex-col md:min-h-0">
-      <StackView
-        screenKey={draft ? 'review' : 'amount'}
-        direction={draft ? 1 : -1}
-        title={draft ? copyV2.back.review.title : s.title}
-        onBack={() => (draft ? setDraft(null) : router.push('/'))}
-        backLabel={copy.common.back}
-        className="flex-1"
-      >
-        <div className="flex min-h-full flex-col gap-6 px-4 pt-6 pb-8">
-          {draft ? (
-            deposit.isPending ? (
-              <Skeleton kind="block" />
-            ) : deposit.isError ? (
-              <ApiErrorState
-                error={deposit.error}
-                body={copy.common.errorBody}
-                onRetry={() => deposit.refetch()}
-              />
-            ) : (
+    <StackPage
+      testId={draft ? 'back-review-step' : 'back-amount-step'}
+      screenKey={draft ? 'review' : 'amount'}
+      direction={draft ? 1 : -1}
+      title={draft ? copyV2.back.review.title : s.title}
+      onBack={() => (draft ? setDraft(null) : router.push('/'))}
+    >
+      {draft ? (
+        <CrossFade stateKey={deposit.isPending ? 'loading' : deposit.isError ? 'error' : 'ready'}>
+          {deposit.isPending ? (
+            <Skeleton kind="block" />
+          ) : deposit.isError ? (
+            <ApiErrorState
+              error={deposit.error}
+              body={copy.common.errorBody}
+              onRetry={() => deposit.refetch()}
+            />
+          ) : (
+            <div className="flex flex-col gap-6">
               <Review
                 wallet={wallet}
                 to={getAddress(deposit.data.address)}
@@ -98,25 +85,22 @@ function Back({ wallet }: { wallet: LocalWallet }) {
                 balanceUsdc={balance.data}
                 onSent={(hash) => router.push(`/activity/${hash}`)}
               />
-            )
-          ) : (
-            <>
-              <div className="kl-stack">
-                <h1 className="kl-title">{s.title}</h1>
-                <p className="kl-lead">{s.body}</p>
-              </div>
-              <AmountField value={chf} onChange={setChf} rate={env.chfPerUsdc} error={fieldError} />
-              <p className="text-14 text-ink-2">
-                {s.available(balance.data === undefined ? '—' : formatUSDC(balance.data))}
-              </p>
-              <div className="kl-actions">
-                <ActionButton full label={s.primary} onClick={review} data-testid="back-review" />
-              </div>
-            </>
+            </div>
           )}
+        </CrossFade>
+      ) : (
+        <div className="flex flex-1 flex-col gap-4">
+          <p className="kl-lead m-0">{s.body}</p>
+          <StatementRow label={s.asset} amount="USDC" amountSub="Base Sepolia" chevron={false} />
+          <AmountEntry
+            walletAddress={wallet.address}
+            primaryLabel={s.primary}
+            testIdPrefix="back"
+            onSubmit={setDraft}
+          />
         </div>
-      </StackView>
-    </div>
+      )}
+    </StackPage>
   );
 }
 
@@ -178,7 +162,7 @@ function Review({
   return (
     <>
       <section className="grid gap-1" data-testid="back-review-screen">
-        <p className="m-0 text-44 font-semibold tracking-[-0.025em]">{formatCHF(amountChf)}</p>
+        <p className="m-0 text-44 font-semibold tracking-[-0.025em]">{formatFiat(amountChf)}</p>
         <p className="m-0 text-16 text-ink-2">{`${formatUSDC(amountUsdc)} ${g.to}`}</p>
         <Address value={to} explorerUrl={addressUrl(to)} />
       </section>

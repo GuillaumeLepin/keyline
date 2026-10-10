@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { useDeskToken } from '@/src/components/DeskShell';
+import { DeskSignedOut } from '@/src/components/DeskSignedOut';
 import { copy } from '@/src/copy';
 import { api } from '@/src/lib/api';
 import { addressUrl, txUrl } from '@/src/lib/chain';
@@ -15,6 +16,7 @@ import {
   Address,
   Button,
   CountdownRing,
+  CrossFade,
   Disclosure,
   EmptyState,
   formatClock,
@@ -35,9 +37,21 @@ export default function DeskRequestPage() {
   const params = useParams<{ id: string }>();
   const { token, ready } = useDeskToken();
   const queue = useDeskQueue(token);
+  if (ready && !token) return <DeskSignedOut />;
   if (!ready || !token || queue.isPending) return <Skeleton kind="block" height={240} />;
   if (queue.isError)
-    return <ApiErrorState error={queue.error} body={copy.common.errorBody} onRetry={() => queue.refetch()} />;
+    return (
+      <ApiErrorState
+        error={queue.error}
+        body={copy.common.errorBody}
+        onRetry={() => queue.refetch()}
+        actions={
+          <Button variant="ghost" href="/desk/queue">
+            {copy.desk.back}
+          </Button>
+        }
+      />
+    );
   const item = queue.data.items.find((i) => i.recovery.id === params.id);
   if (!item) {
     return (
@@ -52,7 +66,11 @@ export default function DeskRequestPage() {
       />
     );
   }
-  return <RequestDetail item={item} token={token} />;
+  return (
+    <CrossFade stateKey="ready">
+      <RequestDetail item={item} token={token} />
+    </CrossFade>
+  );
 }
 
 function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) {

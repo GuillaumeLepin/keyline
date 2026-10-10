@@ -6,8 +6,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import type { Hex } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { Loadable } from '@/src/components/Loadable';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy } from '@/src/copy';
+import { copy, copyC } from '@/src/copy';
 import { api } from '@/src/lib/api';
 import {
   buildOpFromDecision,
@@ -43,33 +44,51 @@ export default function AlertsPage() {
   return (
     <>
       <ScreenHeader title={copy.alerts.title} backHref="/" />
-      {wallet === undefined || (wallet && alerts.isPending) ? (
+      {wallet === undefined ? (
         <Skeleton kind="row" count={2} />
       ) : wallet === null ? (
-        <EmptyState title={copy.alerts.emptyTitle} body={copy.alerts.noWallet} />
-      ) : alerts.isError || !alerts.data ? (
-        <ApiErrorState error={alerts.error} body={copy.common.errorBody} onRetry={() => alerts.refetch()} />
-      ) : alerts.data.length === 0 ? (
-        <EmptyState title={copy.alerts.emptyTitle} body={copy.alerts.emptyBody} />
+        <EmptyState
+          title={copy.alerts.emptyTitle}
+          body={copy.alerts.noWallet}
+          action={
+            <Button variant="secondary" href="/">
+              {copyC.states.goHome}
+            </Button>
+          }
+        />
       ) : (
-        <div className="kl-stack">
-          {alerts.data
-            .filter(
-              (alert) =>
-                // Once a recovery finalized, its "started" card (with Cancel) is replaced by the finalized note.
-                !(
-                  alert.kind === 'recovery-started' &&
-                  alerts.data.some(
-                    (o) =>
-                      o.recoveryRequestId === alert.recoveryRequestId &&
-                      (o.kind === 'recovery-finalized' || o.kind === 'recovery-cancelled'),
-                  )
-                ),
-            )
-            .map((alert) => (
-              <AlertCard key={alert.id} alert={alert} wallet={wallet} />
-            ))}
-        </div>
+        <Loadable
+          query={alerts}
+          skeleton={<Skeleton kind="row" count={2} />}
+          exit={{ label: copyC.states.goHome, href: '/' }}
+          isEmpty={(list) => list.length === 0}
+          empty={{
+            title: copy.alerts.emptyTitle,
+            body: copy.alerts.emptyBody,
+            action: { label: copyC.states.goHome, href: '/' },
+          }}
+        >
+          {(list) => (
+            <div className="kl-stack">
+              {list
+                .filter(
+                  (alert) =>
+                    // Once a recovery finalized, its "started" card (with Cancel) is replaced by the finalized note.
+                    !(
+                      alert.kind === 'recovery-started' &&
+                      list.some(
+                        (o) =>
+                          o.recoveryRequestId === alert.recoveryRequestId &&
+                          (o.kind === 'recovery-finalized' || o.kind === 'recovery-cancelled'),
+                      )
+                    ),
+                )
+                .map((alert) => (
+                  <AlertCard key={alert.id} alert={alert} wallet={wallet} />
+                ))}
+            </div>
+          )}
+        </Loadable>
       )}
     </>
   );

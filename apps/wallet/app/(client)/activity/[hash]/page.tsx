@@ -1,21 +1,21 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { copy, copyC } from '@/src/copy';
 import { formatFiat } from '@/src/i18n/money';
-import { api } from '@/src/lib/api';
+import { api, isApiError } from '@/src/lib/api';
 import { txUrl } from '@/src/lib/chain';
-import { type LocalTransfer, transferStore } from '@/src/lib/storage';
+import { useNow } from '@/src/lib/hooks';
+import { type LocalTransfer, pendingSendStore, transferStore } from '@/src/lib/storage';
 import {
   Address,
   Button,
   Disclosure,
   DrawnCheck,
   EmptyState,
-  ErrorState,
   formatClock,
   formatDateTime,
   formatInteger,
@@ -31,11 +31,13 @@ import {
 
 export default function ActivityPage() {
   const params = useParams<{ hash: string }>();
+  const router = useRouter();
   const hash = params.hash;
   const [local, setLocal] = useState<LocalTransfer | null | undefined>(undefined);
   useEffect(() => setLocal(transferStore.get(hash)), [hash]);
   // A transfer this device already saw confirmed (or failed) needs no polling: its receipt is final.
   const settled = local?.status === 'confirmed' || local?.status === 'failed';
+  const now = useNow(!settled);
 
   const status = useQuery({
     queryKey: ['userop', hash],
@@ -99,8 +101,25 @@ export default function ActivityPage() {
   const steps = receiptSteps(local, current, blockNumber);
   const r = copyC.receipt;
   const a = copyC.activity;
-  const word = failed ? r.failed : confirmed ? copy.home.status.confirmed : r.pending;
+  const word = failed ? r.failed : confirmed ? copy.home.status.confirmed : r.waitingBlock;
+  const reason = failureReason(s) ?? r.unknownReason;
+  // Pending: the inner stroke shortens over ~30 s from "Sent" (a typical inclusion on Base Sepolia), then holds.
+  const sentAt = local?.timeline.sentAt ? new Date(local.timeline.sentAt).getTime() : now;
+  const remaining = Math.max(0.08, 1 - (now - sentAt) / 30_000);
   const isDapp = Boolean(local && local.amountUsdc === 0 && local.summary);
+
+  function retry() {
+    if (!local) return;
+    // Same transfer, fresh policy decision: the review screen re-evaluates and re-signs.
+    pendingSendStore.set({
+      to: local.to as `0x${string}`,
+      toLabel: local.toLabel,
+      knownContact: false,
+      amountChf: local.amountChf,
+      amountUsdc: local.amountUsdc,
+    });
+    router.push('/send/review');
+  }
 
   if (!local)
     return (
@@ -127,8 +146,9 @@ export default function ActivityPage() {
       <section className="grid justify-items-center gap-2 text-center" data-testid="receipt">
         <ProtectionRing
           size={64}
-          state={failed ? 'revoked' : confirmed ? 'success' : 'registering'}
-          registered={current === 'included' ? 3 : 2}
+          state={failed ? 'revoked' : confirmed ? 'success' : 'counting'}
+          lit={[true, true, current === 'included']}
+          progress={remaining}
           label={word}
         >
           {confirmed ? (
@@ -149,10 +169,26 @@ export default function ActivityPage() {
       </section>
 
       <StatusSequence steps={steps} />
-      {failed ? <ErrorState title={copy.activity.failedStep} body={copy.activity.failedBody} /> : null}
+      {!failed && !confirmed ? (
+        <p className="m-0 text-14 text-ink-2" data-testid="receipt-pending">
+          {r.waitingBody}
+        </p>
+      ) : null}
+      {failed ? (
+        <Note tone="danger" title={copy.activity.failedStep}>
+          <span className="grid gap-1" data-testid="receipt-failed">
+            <span>
+              {r.reason}: {reason}
+            </span>
+            <span>{r.failedBody}</span>
+          </span>
+        </Note>
+      ) : null}
       {status.isError && !confirmed && !failed ? (
         <Note tone="info">
-          {copy.common.offlineTitle}{' '}
+          {isApiError(status.error) && status.error.offline
+            ? copy.common.offlineTitle
+            : copy.common.errorTitle}{' '}
           <button type="button" className="kl2-textbtn" onClick={() => status.refetch()}>
             {copy.common.tryAgain}
           </button>
@@ -192,10 +228,15 @@ export default function ActivityPage() {
         </pre>
       </Disclosure>
       <div className="kl-actions">
-        <Button variant="primary" full href="/">
+        {failed && !isDapp ? (
+          <Button variant="primary" full onClick={retry} data-testid="receipt-retry">
+            {r.retry}
+          </Button>
+        ) : null}
+        <Button variant={failed && !isDapp ? 'ghost' : 'primary'} full href="/">
           {r.done}
         </Button>
-        {isDapp ? null : (
+        {isDapp || failed ? null : (
           <Button variant="ghost" full href={`/contacts?add=1&address=${local.to}`}>
             {a.saveContact}
           </Button>
@@ -246,4 +287,14 @@ function receiptSteps(
       meta: meta(t.confirmedAt),
     },
   ];
+}
+
+/** A human reason when the bank or bundler sent one with the failed status; never invented. */
+function failureReason(s: Record<string, unknown> | undefined): string | undefined {
+  if (!s) return undefined;
+  for (const k of ['reason', 'revertReason', 'error', 'message']) {
+    const v = s[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return undefined;
 }

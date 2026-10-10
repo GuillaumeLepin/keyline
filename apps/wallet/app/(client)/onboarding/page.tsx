@@ -34,6 +34,7 @@ import {
   ActionButton,
   Address,
   Button,
+  CrossFade,
   DrawnCheck,
   EmergencyCard,
   ErrorState,
@@ -73,10 +74,12 @@ export default function OnboardingPage() {
   const last = useRef(0);
   if (wallet === undefined || name === undefined || finished) {
     return (
-      <>
-        <Skeleton kind="line" count={2} />
-        <Skeleton kind="block" />
-      </>
+      <CrossFade stateKey="loading">
+        <div className="grid gap-6" aria-busy="true">
+          <Skeleton kind="line" count={2} />
+          <Skeleton kind="block" />
+        </div>
+      </CrossFade>
     );
   }
   const go = (next: number, extra: Partial<LocalWallet> = {}) => patch({ ...extra, onboardingStep: next });
@@ -140,11 +143,21 @@ export default function OnboardingPage() {
   last.current = order;
 
   return (
-    <div className="-mx-4 -mt-6 -mb-8 flex min-h-[calc(100dvh-40px)] flex-1 flex-col md:min-h-0">
-      <StackView screenKey={key} direction={direction} title={copy.brand} className="flex-1">
-        <div className="flex min-h-full flex-col gap-6 px-4 pt-6 pb-8">{body}</div>
-      </StackView>
-    </div>
+    <CrossFade stateKey="ready">
+      <div className="-mx-4 -mt-6 -mb-8 flex min-h-[calc(100dvh-40px)] flex-1 flex-col md:min-h-0">
+        {/* Onboarding is resumable from home (its row there), so the way back is always home — never a step
+            that would re-show the Emergency card or undo a signature. */}
+        <StackView
+          screenKey={key}
+          direction={direction}
+          title={copy.brand}
+          onBack={() => router.push('/')}
+          className="flex-1"
+        >
+          <div className="flex min-h-full flex-col gap-6 px-4 pt-6 pb-8">{body}</div>
+        </StackView>
+      </div>
+    </CrossFade>
   );
 }
 

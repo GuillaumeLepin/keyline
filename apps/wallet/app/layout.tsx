@@ -50,7 +50,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   };
   return (
     <html
-      lang={initial.lang === 'fr' ? 'fr-CH' : 'en-CH'}
+      lang={`${initial.lang}-CH`}
       data-theme={theme === 'light' || theme === 'dark' ? theme : 'system'}
       className={`${hanken.variable} ${jetbrains.variable}`}
       suppressHydrationWarning

@@ -3,7 +3,7 @@
 // currency as the client (no hydration mismatch, no flash). Theme is owned by `useThemePreference` (@keyline/ui);
 // we only mirror it into a cookie so <html data-theme> is right on the first paint.
 
-export const LANGS = ['en', 'fr'] as const;
+export const LANGS = ['en', 'fr', 'de'] as const;
 export type Lang = (typeof LANGS)[number];
 
 export const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;

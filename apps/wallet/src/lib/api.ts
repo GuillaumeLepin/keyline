@@ -272,7 +272,8 @@ export const api = {
   userops: {
     sponsor: (body: SponsorBody) => request('POST', '/userops/sponsor', SponsorResponseSchema, body),
     send: (body: SendUserOpBody) => request('POST', '/userops/send', SendUserOpResponseSchema, body),
-    status: (hash: string) => request('GET', `/userops/${hash}`, UserOpStatusSchema),
+    /** Lenient: a failed op may carry a `reason` / `revertReason` / `error` string from the bank or bundler. */
+    status: (hash: string) => request('GET', `/userops/${hash}`, UserOpStatusSchema.passthrough()),
   },
 
   attestations: {

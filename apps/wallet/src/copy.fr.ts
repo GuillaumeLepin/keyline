@@ -17,7 +17,7 @@
  *   Protected             → Protégé
  *   Review (verb/screen)  → Vérifier / Vérification
  *   Statement             → Relevé
- *   Settings              → Réglages ; Appearance → Apparence (Système · Clair · Sombre)
+ *   Settings              → Réglages ; Appearance → Apparence (Système · Clair · Sombre)
  *   Travel Rule           → Travel Rule (term used by FINMA in French)
  *   SIMULATED             → SIMULÉ
  *   recovery desk         → guichet de récupération
@@ -54,8 +54,8 @@ export const copy: W<'copy'> = {
   },
   simulated: { label: 'SIMULÉ', tooltip: 'Simulé pour le prototype — voir le README' },
   demo: {
-    gracePeriod: 'Délai d’attente accéléré pour la démo : 3 min au lieu de 72 h.',
-    cooling: 'Délai d’attente accéléré pour la démo : 60 s au lieu de 24 h.',
+    gracePeriod: 'Délai d’attente accéléré pour la démo : 3 min au lieu de 72 h.',
+    cooling: 'Délai d’attente accéléré pour la démo : 60 s au lieu de 24 h.',
     city: 'Zurich',
   },
   common: {
@@ -100,7 +100,7 @@ export const copy: W<'copy'> = {
         ['Frais de réseau', 'Payés par Swissquote'],
       ],
       primary: 'Créer avec Face ID / empreinte',
-      signIn: 'Vous avez déjà un Keyline ? Se connecter',
+      signIn: 'Vous avez déjà un Keyline ? Se connecter',
       cancelled:
         'La fenêtre de la clé d’accès a été fermée. Rien n’a été créé — réessayez quand vous le souhaitez.',
       unsupportedTitle: 'Ce navigateur ne peut pas créer de clé d’accès',
@@ -145,7 +145,7 @@ export const copy: W<'copy'> = {
       defaultName: 'Par défaut — recommandé',
       defaultBody:
         'Votre clé de sécurité, votre carte d’urgence et Swissquote. Deux des trois suffisent. Swissquote ne peut jamais agir seule ni avec une autre institution.',
-      defaultWait: 'Délai d’attente : 72 h (démo : 3 min)',
+      defaultWait: 'Délai d’attente : 72 h (démo : 3 min)',
       assistedName: 'Assisté',
       assistedBody:
         'Votre clé de sécurité, Swissquote et un partenaire de récupération indépendant. Pour les clients qui ne veulent pas de papier.',
@@ -371,7 +371,7 @@ export const copy: W<'copy'> = {
     sponsored: 'Frais de réseau payés par Swissquote aujourd’hui',
     sponsoredCount: (n: number, max: number) => `${n} / ${max}`,
     recoveryMode: 'Mode de récupération',
-    recoveryModeValue: 'Par défaut · délai d’attente 72 h (démo : 3 min)',
+    recoveryModeValue: 'Par défaut · délai d’attente 72 h (démo : 3 min)',
     trusted: 'Adresses de confiance',
     devices: 'Appareils',
     thisDevice: '(cet appareil)',
@@ -481,7 +481,7 @@ export const copy: W<'copy'> = {
     errTitle: 'La récupération n’a pas pu commencer',
     errBody: 'La chaîne a rejeté la demande. Rien n’a changé.',
     laptopPrompt: (ago: string) =>
-      `Rétablir l’accès sur un nouveau téléphone ? Demandé ${ago} depuis Zurich.`,
+      `Rétablir l’accès sur un nouveau téléphone ? Demandé ${ago} depuis Zurich.`,
     laptopConfirm: 'Confirmer avec la clé de sécurité',
     laptopRefuse: 'Ce n’est pas moi — refuser',
     idDobPlaceholder: 'JJ.MM.AAAA',
@@ -1097,7 +1097,7 @@ export const copyC: W<'copyC'> = {
         'Carte d’urgence — sur papier, chez vous',
         'Swissquote — après un contrôle d’identité',
       ],
-      wait: 'Délai d’attente : 72 h, public sur le réseau. Votre ancien téléphone peut l’annuler.',
+      wait: 'Délai d’attente : 72 h, public sur le réseau. Votre ancien téléphone peut l’annuler.',
     },
     s3: {
       title: 'Ce que Swissquote ne peut pas faire',
@@ -1215,6 +1215,12 @@ export const copyC: W<'copyC'> = {
     line: (fiat: string, name: string) => `${fiat} à ${name}`,
     done: 'Terminé',
     details: 'Voir le détail',
+    waitingBlock: 'En attente du bloc',
+    waitingBody: 'Envoyé au réseau. Il entre généralement dans un bloc en quelques secondes.',
+    failedBody: 'Rien n’a été facturé. Votre solde est inchangé.',
+    reason: 'Motif',
+    unknownReason: 'Le réseau n’a pas accepté le virement.',
+    retry: 'Vérifier à nouveau',
   },
   activity: {
     title: 'Activité',
@@ -1265,6 +1271,15 @@ export const copyC: W<'copyC'> = {
     notAvailableBody: 'Swissquote est en train d’activer cette fonction. Rien n’a été modifié.',
     goHome: 'Aller à l’accueil',
     backToSq: 'Retour à Swissquote',
+    goBack: 'Revenir',
+    backToStart: 'Retour au début',
+    signIn: 'Se connecter',
+    openQueue: 'Ouvrir la file',
+    portfolio: 'Ouvrir le portefeuille titres',
+    noRecovery: 'Aucune récupération en cours',
+    noRecoveryBody: 'Lancez-en une depuis ce téléphone si vous avez perdu l’accès à l’ancien.',
+    startRecovery: 'Lancer une récupération',
+    sessionExpired: 'Votre session a pris fin. Reconnectez-vous.',
   },
   nav: { home: 'Accueil', settings: 'Réglages', back: 'Retour', close: 'Fermer' },
   ui: {
@@ -1276,6 +1291,7 @@ export const copyC: W<'copyC'> = {
     ringItem: (name: string, state: string) => `${name} : ${state}`,
     recovererAddress: 'Adresse du moyen de récupération',
   },
+  seedContacts: { 'Sanctioned test address': 'Adresse de test sanctionnée' },
   positions: { 'chf-cash': 'Liquidités en francs suisses', 'smi-etf': 'ETF indice SMI' },
   home: {
     rate: (rate: string) => rate,

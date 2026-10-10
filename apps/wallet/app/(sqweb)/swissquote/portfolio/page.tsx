@@ -17,7 +17,9 @@ import { txUrl } from '@/src/lib/chain';
 import { decimalsFor, formatQty, formatValuation } from '@/src/lib/format';
 import {
   BitcoinPolicyDiagram,
+  Button,
   Chip,
+  CrossFade,
   formatCHF,
   formatShortDateTime,
   type Position,
@@ -86,6 +88,11 @@ export default function PortfolioPage() {
               error={positions.error}
               body={copy.common.errorBody}
               onRetry={() => positions.refetch()}
+              actions={
+                <Button variant="ghost" href="/swissquote">
+                  {copyC.states.signIn}
+                </Button>
+              }
             />
           )
         ) : (
@@ -112,7 +119,12 @@ export default function PortfolioPage() {
         )}
 
         {positions.isSuccess ? (
-          <MovesHistory moves={moves.data} pending={moves.isPending} error={moves.error} />
+          <MovesHistory
+            moves={moves.data}
+            pending={positions.isPending || (positions.isSuccess && moves.isPending)}
+            error={moves.error}
+            onRetry={() => moves.refetch()}
+          />
         ) : null}
       </div>
 
@@ -181,10 +193,12 @@ function MovesHistory({
   moves,
   pending,
   error,
+  onRetry,
 }: {
   moves: Move[] | undefined;
   pending: boolean;
   error: unknown;
+  onRetry: () => void;
 }) {
   const g = copyV2.sqWeb.moves;
   return (
@@ -192,43 +206,49 @@ function MovesHistory({
       <h2 id="moves-h" className="text-20 font-semibold">
         {g.title}
       </h2>
-      {pending ? (
-        <Skeleton kind="row" count={2} />
-      ) : error ? (
-        <ApiErrorState error={error} body={copy.common.errorBody} />
-      ) : !moves || moves.length === 0 ? (
-        <p className="text-14 text-ink-3">{g.empty}</p>
-      ) : (
-        <ul className="m-0 list-none p-0">
-          {moves.map((m) => (
-            <li
-              key={m.id}
-              className="flex min-h-14 items-center justify-between gap-4 border-b border-line py-2"
-            >
-              <span className="grid">
-                <span className="text-16">{formatQty(Number(m.amount), decimalsFor(m.asset), m.asset)}</span>
-                <span className="text-12 text-ink-3">
-                  {formatShortDateTime(new Date(m.at))} · {g.status[m.status]}
+      <CrossFade
+        stateKey={pending ? 'loading' : error ? 'error' : !moves || moves.length === 0 ? 'empty' : 'list'}
+      >
+        {pending ? (
+          <Skeleton kind="row" count={2} />
+        ) : error ? (
+          <ApiErrorState error={error} body={copy.common.errorBody} onRetry={onRetry} />
+        ) : !moves || moves.length === 0 ? (
+          <p className="text-14 text-ink-3">{g.empty}</p>
+        ) : (
+          <ul className="m-0 list-none p-0">
+            {moves.map((m) => (
+              <li
+                key={m.id}
+                className="flex min-h-14 items-center justify-between gap-4 border-b border-line py-2"
+              >
+                <span className="grid">
+                  <span className="text-16">
+                    {formatQty(Number(m.amount), decimalsFor(m.asset), m.asset)}
+                  </span>
+                  <span className="text-12 text-ink-3">
+                    {formatShortDateTime(new Date(m.at))} · {g.status[m.status]}
+                  </span>
                 </span>
-              </span>
-              <span className="flex items-center gap-4">
-                <span className="text-14">{formatCHF(Number(m.valueChf))}</span>
-                {m.txHash ? (
-                  <a
-                    className="kl2-link inline-flex items-center gap-1 text-14"
-                    href={m.explorerUrl ?? txUrl(m.txHash)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {copy.common.viewOnBasescan}
-                    <ArrowSquareOut size={14} aria-hidden="true" />
-                  </a>
-                ) : null}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+                <span className="flex items-center gap-4">
+                  <span className="text-14">{formatCHF(Number(m.valueChf))}</span>
+                  {m.txHash ? (
+                    <a
+                      className="kl2-link inline-flex items-center gap-1 text-14"
+                      href={m.explorerUrl ?? txUrl(m.txHash)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {copy.common.viewOnBasescan}
+                      <ArrowSquareOut size={14} aria-hidden="true" />
+                    </a>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CrossFade>
     </section>
   );
 }

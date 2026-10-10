@@ -180,5 +180,6 @@ export function KeyCard(props: ComponentProps<typeof UI.KeyCard>) {
   const t = useCopy();
   const sec = t.copyC.security;
   const word = { active: sec.statusActive, pending: sec.statusPending, revoked: sec.statusRemoved } as const;
-  return <UI.KeyCard statusWord={props.status ? word[props.status] : undefined} {...props} />;
+  const statusWord = props.unknown ? sec.unknown : props.status ? word[props.status] : undefined;
+  return <UI.KeyCard statusWord={statusWord} {...props} />;
 }

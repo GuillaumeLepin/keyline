@@ -20,8 +20,8 @@ const base = {
   testnet: { strip: 'Test network · Base Sepolia — nothing here is real money.', link: 'View on Basescan' },
   simulated: { label: 'SIMULATED', tooltip: 'Mocked for the prototype — see README' },
   demo: {
-    gracePeriod: 'Waiting period accelerated for the demo: 3 min instead of 72 h.',
-    cooling: 'Waiting period accelerated for the demo: 60 s instead of 24 h.',
+    gracePeriod: 'Waiting period accelerated for the demo: 3 min instead of 72 h.',
+    cooling: 'Waiting period accelerated for the demo: 60 s instead of 24 h.',
   },
   common: {
     continue: 'Continue',
@@ -107,7 +107,7 @@ const base = {
       defaultName: 'Default — recommended',
       defaultBody:
         'Your Safety key, your Emergency card and Swissquote. Any 2 of the 3. Swissquote can never act alone or with another institution.',
-      defaultWait: 'Waiting period: 72 h (demo: 3 min)',
+      defaultWait: 'Waiting period: 72 h (demo: 3 min)',
       assistedName: 'Assisted',
       assistedBody:
         'Your Safety key, Swissquote and an independent recovery partner. For clients who don’t want paper.',
@@ -312,7 +312,7 @@ const base = {
     sponsored: 'Network fees paid by Swissquote today',
     sponsoredCount: (n: number, max: number) => `${n} / ${max}`,
     recoveryMode: 'Recovery mode',
-    recoveryModeValue: 'Default · waiting period 72 h (demo: 3 min)',
+    recoveryModeValue: 'Default · waiting period 72 h (demo: 3 min)',
     trusted: 'Trusted addresses',
     devices: 'Devices',
     thisDevice: '(this device)',
@@ -1113,7 +1113,7 @@ export const copyC = {
         'Emergency card — on paper, with you',
         'Swissquote — after an identity check',
       ],
-      wait: 'Waiting period: 72 h, public on the network. Your old phone can cancel it.',
+      wait: 'Waiting period: 72 h, public on the network. Your old phone can cancel it.',
     },
     s3: {
       title: 'What Swissquote can’t do',
@@ -1229,6 +1229,12 @@ export const copyC = {
     line: (fiat: string, name: string) => `${fiat} to ${name}`,
     done: 'Done',
     details: 'See details',
+    waitingBlock: 'Waiting for the block',
+    waitingBody: 'Sent to the network. It usually lands in a block within a few seconds.',
+    failedBody: 'Nothing was charged. Your balance is unchanged.',
+    reason: 'Reason',
+    unknownReason: 'The network didn’t accept the transfer.',
+    retry: 'Review again',
   },
   activity: {
     title: 'Activity',
@@ -1278,6 +1284,15 @@ export const copyC = {
     notAvailableBody: 'Swissquote is still switching this on. Nothing was changed.',
     goHome: 'Go to home',
     backToSq: 'Back to Swissquote',
+    goBack: 'Go back',
+    backToStart: 'Back to start',
+    signIn: 'Sign in',
+    openQueue: 'Open the queue',
+    portfolio: 'Open the portfolio',
+    noRecovery: 'No recovery in progress',
+    noRecoveryBody: 'Start one from this phone if you lost access to your old one.',
+    startRecovery: 'Start a recovery',
+    sessionExpired: 'Your session ended. Sign in again.',
   },
   nav: { home: 'Home', settings: 'Settings', back: 'Back', close: 'Close' },
   ui: {
@@ -1290,6 +1305,8 @@ export const copyC = {
     recovererAddress: 'Recoverer address',
   },
   /** Swissquote position names by ledger id (the mock ledger sends English names). */
+  /** Seeded demo contacts, by their seed label (the bank stores English labels). */
+  seedContacts: { 'Sanctioned test address': 'Sanctioned test address' } as Record<string, string>,
   positions: { 'chf-cash': 'Swiss franc cash', 'smi-etf': 'SMI index ETF' },
   home: {
     rate: (rate: string) => rate,

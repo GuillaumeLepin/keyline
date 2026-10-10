@@ -11,6 +11,7 @@ import { StackPage } from '@/src/components/StackPage';
 import { useCopy } from '@/src/copy';
 import { api } from '@/src/lib/api';
 import { addressUrl } from '@/src/lib/chain';
+import { contactLabel } from '@/src/lib/contactLabel';
 import { useContacts } from '@/src/lib/hooks';
 import {
   ActionButton,
@@ -102,7 +103,7 @@ function ContactList({
       key={x.id}
       label={
         <span className="inline-flex items-center gap-1">
-          {x.label}
+          {contactLabel(x)}
           {x.simulated ? <Chip /> : null}
         </span>
       }
@@ -303,7 +304,7 @@ function ContactDetail({
     <div className="flex flex-1 flex-col gap-4" data-testid="contact-detail">
       <div>
         <p className="m-0 flex items-center gap-2 text-28 font-semibold tracking-[-0.015em]">
-          {contact.label}
+          {contactLabel(contact)}
           {contact.simulated ? <Chip /> : null}
         </p>
         <p className="m-0 text-12 text-ink-3">
@@ -364,7 +365,7 @@ function ContactDetail({
 
       <div className="kl-actions mt-auto">
         <Button variant="primary" full onClick={() => router.push(`/send?to=${contact.address}`)}>
-          {c.send(contact.label)}
+          {c.send(contactLabel(contact))}
         </Button>
         <Button
           variant="danger-text"
@@ -378,7 +379,7 @@ function ContactDetail({
 
       <SheetV2
         open={confirmDelete}
-        title={c.deleteTitle(contact.label)}
+        title={c.deleteTitle(contactLabel(contact))}
         onClose={() => setConfirmDelete(false)}
         contained
       >
