@@ -1,9 +1,10 @@
 'use client';
 
 import { X } from '@phosphor-icons/react/dist/ssr';
-import { AnimatePresence, motion, type PanInfo, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, type PanInfo } from 'motion/react';
 import { type ReactNode, useEffect, useId, useRef } from 'react';
 import { FADE, INSTANT, SPRING } from './motion';
+import { useReducedMotion } from './reduced-motion';
 
 export type SheetV2Props = {
   open: boolean;
@@ -29,7 +30,7 @@ export function SheetV2({
   contained = false,
   closeLabel = 'Close',
 }: SheetV2Props) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotion();
   const panel = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
   const titleId = useId();

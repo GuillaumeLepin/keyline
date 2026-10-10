@@ -1,15 +1,9 @@
 'use client';
 
-import {
-  animate,
-  type MotionValue,
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useTransform,
-} from 'motion/react';
+import { animate, type MotionValue, motion, useMotionValue, useTransform } from 'motion/react';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { DRAW, DURATION, EASE_STANDARD, FADE, INSTANT, SPRING } from './motion';
+import { useReducedMotion } from './reduced-motion';
 import { arcAngles, arcPath, circlePath, RECOVERER_LABEL, RECOVERERS, ringSpec } from './ring-geometry';
 
 export type ProtectionRingState = 'empty' | 'registering' | 'protected' | 'counting' | 'success' | 'revoked';
@@ -123,7 +117,7 @@ export function ProtectionRing({
   detail,
   className,
 }: ProtectionRingProps) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotion();
   const s = ringSpec(size);
   const closed = state === 'protected' || state === 'success';
 
@@ -261,7 +255,7 @@ export function ProtectionRing({
 
 /** The success check, drawn in 220 ms. Used inside the ring (receipt) and by ActionButton. */
 export function DrawnCheck({ size = 24, className }: { size?: number; className?: string }) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotion();
   return (
     <svg
       width={size}

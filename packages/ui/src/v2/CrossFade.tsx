@@ -1,8 +1,9 @@
 'use client';
 
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { FADE, INSTANT } from './motion';
+import { useReducedMotion } from './reduced-motion';
 
 export type CrossFadeProps = {
   /** Change this key to cross-fade (e.g. 'loading' → 'ready'). */
@@ -16,7 +17,7 @@ export type CrossFadeProps = {
  * in 180 ms, so the layout never jumps. Skeletons must already have the content's exact shape.
  */
 export function CrossFade({ stateKey, children, className }: CrossFadeProps) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotion();
   return (
     <div className={['kl2-xfade', className ?? ''].filter(Boolean).join(' ')}>
       <AnimatePresence initial={false}>

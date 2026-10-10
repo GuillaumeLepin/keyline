@@ -213,6 +213,14 @@
 .kl2-sheet--contained {
   position: absolute;
 }
+/* Below 768 px the PhoneFrame is full-bleed and the page itself scrolls, so a contained sheet in the phone
+ * screen sits on the viewport (moved from apps/wallet/app/globals.css, Phase C). From 768 px up it stays
+ * contained by the drawn phone. */
+@media (max-width: 767px) {
+  .kl-phone__screen .kl2-sheet--contained {
+    position: fixed;
+  }
+}
 .kl2-sheet__scrim {
   position: absolute;
   inset: 0;
@@ -413,13 +421,16 @@
   letter-spacing: 0;
   text-transform: none;
   white-space: normal;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity var(--duration-fade) var(--ease-standard);
+  /* Hidden = not laid out: an invisible 240 px tooltip next to a chip near the right edge used to widen
+   * the page at 390 px (Phase C, Swissquote web: 499 px scroll width). Tooltips are not in the §6
+   * motion table, so they appear without a fade. */
+  display: none;
 }
 .kl2-chip:hover .kl2-chip__tip,
 .kl2-chip__mark:focus + .kl2-chip__tip {
-  opacity: 1;
+  display: block;
+  max-width: min(240px, calc(100vw - 32px));
 }
 
 /* ---------- ThemeSwitch (segmented) ---------- */
@@ -669,7 +680,10 @@
 /* ---------- PositionsTable ---------- */
 .kl2-ptable-wrap {
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  /* Size from the container, never from the table: the narrow layout below keys off this width. */
+  container-type: inline-size;
 }
 .kl2-ptable {
   width: 100%;
@@ -745,6 +759,93 @@
   font-weight: 600;
   border-bottom: 0;
   border-top: 1px solid var(--ink);
+}
+
+/* Narrow (< 560 px, a phone opening Swissquote web): each position collapses to two lines —
+ * name | value, code | quantity — with its action on a third line, right-aligned. Price is dropped
+ * (value / quantity). No horizontal scroll. Phase C. */
+@container (max-width: 559px) {
+  .kl2-ptable,
+  .kl2-ptable tbody,
+  .kl2-ptable tfoot {
+    display: block;
+  }
+  .kl2-ptable thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .kl2-ptable tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-4);
+    align-items: baseline;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .kl2-ptable th,
+  .kl2-ptable td,
+  .kl2-ptable tbody td,
+  .kl2-ptable tbody th[scope="row"] {
+    display: block;
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+  .kl2-ptable tbody th[scope="row"] {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    white-space: normal;
+  }
+  .kl2-ptable tbody td:nth-child(4) {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: var(--text-16);
+    line-height: var(--leading-16);
+  }
+  .kl2-ptable tbody td:nth-child(2) {
+    grid-column: 2;
+    grid-row: 2;
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
+    color: var(--ink-3);
+  }
+  .kl2-ptable tbody td:nth-child(3) {
+    display: none;
+  }
+  .kl2-ptable tbody td:nth-child(5) {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    width: auto;
+    justify-self: end;
+  }
+  .kl2-ptable tbody td:nth-child(5):empty {
+    display: none;
+  }
+  .kl2-ptable .kl2-ptable__group {
+    display: block;
+    padding: var(--space-4) 0 var(--space-2);
+  }
+  .kl2-ptable .kl2-ptable__group th {
+    height: auto;
+    padding: 0;
+  }
+  .kl2-ptable .kl2-ptable__foot tr {
+    border-bottom: 0;
+    border-top: 1px solid var(--ink);
+    padding: var(--space-4) 0;
+  }
+  .kl2-ptable .kl2-ptable__foot th,
+  .kl2-ptable .kl2-ptable__foot td {
+    height: auto;
+    border: 0;
+  }
+  .kl2-ptable .kl2-ptable__foot td:empty {
+    display: none;
+  }
 }
 
 /* ---------- WebShell (simulated Swissquote web) ---------- */
@@ -849,6 +950,33 @@
   flex: 1;
   padding-top: var(--space-8);
   padding-bottom: var(--space-12);
+}
+
+/* Narrow (phone opening Swissquote web): 16 px gutters; the client block takes its own full-width line
+ * (name left, Sign out right) instead of floating right under the nav; the nav scrolls in place. */
+@media (max-width: 599px) {
+  .kl2-web__inner {
+    padding: 0 var(--gutter-phone);
+  }
+  .kl2-web__head-inner {
+    column-gap: var(--space-6);
+    row-gap: 0;
+  }
+  .kl2-web__client {
+    width: 100%;
+    justify-content: space-between;
+    min-height: 48px;
+    border-top: 1px solid var(--line);
+  }
+  .kl2-web__who {
+    text-align: left;
+  }
+  .kl2-web__main {
+    padding-top: var(--space-6);
+  }
+  .kl2-tile {
+    padding: var(--space-4);
+  }
 }
 
 /* ---------- HandoffTile (true object) ---------- */

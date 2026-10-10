@@ -1,9 +1,10 @@
 'use client';
 
 import { CaretLeft } from '@phosphor-icons/react/dist/ssr';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { FADE, INSTANT, SPRING } from './motion';
+import { useReducedMotion } from './reduced-motion';
 
 export type StackViewProps = {
   /** Identity of the current screen; changing it slides. */
@@ -41,7 +42,7 @@ export function StackView({
   children,
   className,
 }: StackViewProps) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotion();
   return (
     <div className={['kl2-stack', className ?? ''].filter(Boolean).join(' ')}>
       <header className="kl2-stack__head">

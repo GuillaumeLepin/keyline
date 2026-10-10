@@ -897,6 +897,9 @@
 .kl-key__status--revoked {
   color: var(--ink-3);
 }
+.kl-key__status--unknown {
+  color: var(--ink-3);
+}
 .kl-key--pending {
   border-bottom-style: dashed;
 }

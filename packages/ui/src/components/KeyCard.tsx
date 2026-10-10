@@ -1,4 +1,4 @@
-import { CheckCircle, Clock, XCircle } from '@phosphor-icons/react/dist/ssr';
+import { CheckCircle, Clock, Question, XCircle } from '@phosphor-icons/react/dist/ssr';
 import type { ReactNode } from 'react';
 
 export type KeyCardStatus = 'active' | 'pending' | 'revoked';
@@ -16,11 +16,16 @@ export type KeyCardProps = {
   status?: KeyCardStatus;
   /** Overrides the status word (e.g. "Confirmed 14:30:12", "Waiting for your laptop"). */
   statusWord?: string;
+  /** The status could not be read: neutral ink-3 + question mark (never the pending amber); pair with
+   * `statusWord` ("Unknown" / "Inconnu"). Overrides `status` styling. */
+  unknown?: boolean;
   /** Inline badges after the name (e.g. <SimulatedBadge/>). */
   nameTrailing?: ReactNode;
   /** Optional action rendered under the text (a Button or a link). */
   action?: ReactNode;
 };
+
+const UNKNOWN = { word: 'Unknown', icon: <Question size={14} aria-hidden="true" /> };
 
 const statusDefaults: Record<KeyCardStatus, { word: string; icon: ReactNode }> = {
   active: { word: 'Active', icon: <CheckCircle size={14} aria-hidden="true" /> },
@@ -37,15 +42,16 @@ export function KeyCard({
   icon,
   status = 'active',
   statusWord,
+  unknown = false,
   nameTrailing,
   action,
 }: KeyCardProps) {
-  const s = statusDefaults[status];
+  const s = unknown ? UNKNOWN : statusDefaults[status];
   return (
     <div
       className={[
         'kl-key',
-        status === 'pending' ? 'kl-key--pending' : '',
+        status === 'pending' && !unknown ? 'kl-key--pending' : '',
         status === 'revoked' ? 'kl-key--revoked' : '',
       ]
         .filter(Boolean)
@@ -63,7 +69,7 @@ export function KeyCard({
           {cannot ? <span className="kl-key__cannot">{cannot}</span> : null}
         </span>
       </div>
-      <span className={`kl-key__status kl-key__status--${status}`}>
+      <span className={`kl-key__status kl-key__status--${unknown ? 'unknown' : status}`}>
         {s.icon}
         {statusWord ?? s.word}
       </span>

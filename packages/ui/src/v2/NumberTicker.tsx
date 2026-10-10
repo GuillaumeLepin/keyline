@@ -1,7 +1,8 @@
 'use client';
 
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { FADE, INSTANT, SPRING } from './motion';
+import { useReducedMotion } from './reduced-motion';
 import { digitOffsetPercent, tickerCells } from './ticker';
 
 export type NumberTickerProps = {
@@ -18,7 +19,7 @@ const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
  * Separators and currency codes never move. Screen readers get the final string only.
  */
 export function NumberTicker({ value, format, className }: NumberTickerProps) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotion();
   const text = format(value);
   if (reduce) {
     return <span className={['kl2-tick', className ?? ''].filter(Boolean).join(' ')}>{text}</span>;

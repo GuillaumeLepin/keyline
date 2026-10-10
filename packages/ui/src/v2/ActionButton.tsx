@@ -1,10 +1,11 @@
 'use client';
 
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { type ButtonHTMLAttributes, type ReactNode, useEffect, useRef } from 'react';
 import { haptic } from './haptics';
 import { FADE, INSTANT, SPRING } from './motion';
 import { DrawnCheck } from './ProtectionRing';
+import { useReducedMotion } from './reduced-motion';
 
 /** `error` is a colour change only (no shake, no motion); pair it with a sentence next to the button. */
 export type ActionStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -44,7 +45,7 @@ export function ActionButton({
   type = 'button',
   ...rest
 }: ActionButtonProps) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotion();
   const prev = useRef(status);
   useEffect(() => {
     if (status === 'success' && prev.current !== 'success') haptic('success');
