@@ -166,3 +166,21 @@ Mock: `/mock/inbox`, `/mock/eid` with `SimulatedBadge`.
 ## 9. Out of scope (say so, don't build)
 
 Bitcoin, real KYC/e-ID, push/email delivery, fiat on/off-ramp, swaps, staking, multi-chain, mainnet, HSM, real partner organisation, mobile native app, hardware-wallet Safety key (documented production path), reproducible builds / escrowed domain (documented).
+
+## 10. v2 journey (10 Oct 2026) — supersedes F1 steps 1–2 and 7 where they differ
+
+### F0 Swissquote web (Lea · laptop; everything here is SIMULATED except on-chain transfers)
+1. `/swissquote` login (Lea pre-filled, one click) → bank web session (`sq_web` httpOnly cookie, separate from the wallet session).
+2. `/swissquote/portfolio`: cash, positions table (CHF cash 12'480.35; SMI index ETF 120 @ 128.40; BTC 0.42 @ 88'400; ETH 3.15 @ 3'120; USDC 2'400 @ 0.80; EURC 1'500 @ 0.94 — static, SIMULATED), Keyline tile.
+3. Keyline tile → `POST /handoff` (web session) → `{ code (6 digits), expiresAt (10 min), qrUrl }`; tile shows QR + code and polls `GET /handoff/:code`.
+4. "Move to Keyline" per row → sheet (amount, CHF value, Travel Rule line "No ownership check needed: this wallet is verified as yours.") → `POST /sq/moves { asset: 'USDC'|'EURC'|'ETH', amount }` → funder sends on-chain to Lea's attested Keyline Safe; SIMULATED ledger debit. BTC row disabled with a "Why?" sheet (copy in DESIGN.md v2).
+5. Safety key: when the phone reaches onboarding step "Safety key", the laptop page shows "Make this computer your Safety key?" (polls `GET /sq/safety-key-request`) → confirm → viem key in this profile's IndexedDB → `POST /sq/safety-key { address }` (web session) registers guardian `safety-key` for Lea's pending wallet. `/pair` redirects to `/swissquote`.
+
+### F1 v2 onboarding (Lea · phone)
+`/start` (enter code or scan) → `POST /handoff/:code/claim` → "Hi Lea" (client from the web session; no form) → phone key (passkey) → Safety key (confirm on the laptop) → Emergency card (unchanged: shown once, printable, never stored, cannot spend) → recovery mode → **Protect** (one batched userOp; the protection ring draws its three arcs on the receipt) → ownership proof (ERC-1271) → "Move your first funds" (points to the laptop's "Move to Keyline").
+
+### Home v2 and Back to Swissquote
+Home: protection ring indicator, total in CHF, per-asset rows (USDC, EURC, ETH read from chain), statement, section "In your Swissquote account" (read-only from `GET /sq/positions`, SIMULATED). "Back to Swissquote" → amount → review (Tier 1 always, recipient "Your Swissquote account · verified", Travel Rule line) → sponsored transfer to the bank deposit address → SIMULATED ledger credit on inclusion. Security → "Roadmap: Bitcoin".
+
+### Bank additions (§4)
+`POST /sq/login` · `POST /sq/logout` · `GET /sq/me` · `GET /sq/positions` (ledger + positions, SIMULATED) · `POST /handoff` · `GET /handoff/:code` · `POST /handoff/:code/claim` · `GET /sq/safety-key-request` · `POST /sq/safety-key` · `POST /sq/moves` · `GET /sq/moves` · `GET /sq/deposit-address` (= funder address; whitelisted as Lea's own account). Policy: a transfer to the deposit address is `kind: 'to-own-account'`, Tier 1, reason "Your Swissquote account · verified".
