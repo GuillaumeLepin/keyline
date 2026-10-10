@@ -278,20 +278,9 @@ export const createChainDeps = (config: BankConfig): ChainDeps => {
       (
         await publicClient.readContract({ address: wallet, abi: safeOwnersAbi, functionName: 'getOwners' })
       ).map((o) => getAddress(o)),
-    findCancelTx: async (wallet, fromBlock) => {
-      const latest = await publicClient.getBlockNumber();
-      const from = fromBlock ?? (latest > 5_000n ? latest - 5_000n : 0n);
-      const logs = await publicClient.getContractEvents({
-        address: module,
-        abi: chain.socialRecoveryModuleAbi,
-        eventName: 'RecoveryCanceled',
-        args: { wallet },
-        fromBlock: from,
-        toBlock: latest,
-      });
-      const last = logs.at(-1);
-      return last ? (last.transactionHash as Hex) : null;
-    },
+    // @keyline/chain pages eth_getLogs in ≤ 200-block windows (sepolia.base.org caps the range).
+    findCancelTx: (wallet, fromBlock) =>
+      chain.findCancelTx({ client: publicClient, wallet, module, fromBlock: fromBlock ?? undefined }),
     sqGuardian: createGuardianClient(config.SQ_GUARDIAN_URL, 'swissquote'),
     sponsor: (pk, userOp) => chain.sponsor(pk, userOp, requireUrl()),
     sendUserOp: (pk, userOp) => chain.sendUserOp(pk, userOp, requireUrl().bundlerUrl),
