@@ -1,7 +1,9 @@
 // Wave 0 live routes: health, events, auth (passkeys), contacts, dapps, mock inbox.
 import {
   ContactSchema,
+  ContactVerifyResponseSchema,
   CreateContactBodySchema,
+  DeleteContactResponseSchema,
   EventsResponseSchema,
   HealthSchema,
   InboxResponseSchema,
@@ -11,6 +13,7 @@ import {
   RegisterOptionsBodySchema,
   RegisterVerifyBodySchema,
   RegisterVerifyResponseSchema,
+  UpdateContactBodySchema,
 } from '@keyline/shared';
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
 import type { FastifyInstance } from 'fastify';
@@ -19,7 +22,7 @@ import { z } from 'zod';
 import { clientOf, onboardingClaimsOf, SESSION_COOKIE } from '../auth';
 import type { BankConfig } from '../config';
 import { type Db, nowIso } from '../db';
-import { validationError } from '../errors';
+import { notFound, validationError } from '../errors';
 import type { EventStore } from '../events';
 import { SPONSORED_DAILY_CAP } from '../policy/engine';
 import type { Repo } from '../repo';
@@ -38,6 +41,7 @@ type Deps = {
 
 const AddressParam = z.object({ address: z.string().regex(/^0x[0-9a-fA-F]{40}$/) });
 const EmailParam = z.object({ email: z.string().email() });
+const ContactIdParam = z.object({ id: z.string().regex(/^ct_[0-9a-fA-F]{40}$/) });
 
 export const registerCoreRoutes = (
   app: FastifyInstance,
@@ -164,6 +168,79 @@ export const registerCoreRoutes = (
       .contacts(client.clientId)
       .find((c) => c.address.toLowerCase() === address.toLowerCase());
     return reply.status(201).send(ContactSchema.parse(created));
+  });
+
+  // ---- contact management (Phase C contacts screen) ----
+  const ownedContact = (clientId: string, id: string) => {
+    const contact = repo.contacts(clientId).find((c) => c.id === id);
+    if (!contact) throw notFound('Contact');
+    return contact;
+  };
+
+  app.patch('/contacts/:id', { config: { client: true } }, async (req) => {
+    const { id } = ContactIdParam.parse(req.params);
+    const body = UpdateContactBodySchema.parse(req.body ?? {});
+    const client = clientOf(req);
+    const contact = ownedContact(client.clientId, id);
+    db.prepare(
+      'UPDATE contacts SET label = COALESCE(?, label), trusted = COALESCE(?, trusted) WHERE client_id = ? AND address = ?',
+    ).run(
+      body.label ?? null,
+      body.trusted === undefined ? null : body.trusted ? 1 : 0,
+      client.clientId,
+      contact.address,
+    );
+    events.recordEvent('contact.updated', undefined, {
+      clientId: client.clientId,
+      contactId: id,
+      address: contact.address,
+      label: body.label,
+      trusted: body.trusted,
+    });
+    return ContactSchema.parse(ownedContact(client.clientId, id));
+  });
+
+  app.delete('/contacts/:id', { config: { client: true } }, async (req) => {
+    const { id } = ContactIdParam.parse(req.params);
+    const client = clientOf(req);
+    const contact = ownedContact(client.clientId, id);
+    db.prepare('DELETE FROM contacts WHERE client_id = ? AND address = ?').run(
+      client.clientId,
+      contact.address,
+    );
+    // Seeded contacts (incl. the sanctioned test address) come back on the next demo reset / restart seed.
+    events.recordEvent('contact.deleted', undefined, {
+      clientId: client.clientId,
+      contactId: id,
+      address: contact.address,
+      label: contact.label,
+    });
+    return DeleteContactResponseSchema.parse({ ok: true, id });
+  });
+
+  /** SIMULATED: the counterparty's VASP confirms its client owns this address (Travel Rule ownership proof). */
+  app.post('/contacts/:id/verify', { config: { client: true, idempotent: true } }, async (req) => {
+    const { id } = ContactIdParam.parse(req.params);
+    const client = clientOf(req);
+    const contact = ownedContact(client.clientId, id);
+    db.prepare('UPDATE contacts SET verified_ownership = 1 WHERE client_id = ? AND address = ?').run(
+      client.clientId,
+      contact.address,
+    );
+    events.recordEvent('contact.verified', undefined, {
+      clientId: client.clientId,
+      contactId: id,
+      address: contact.address,
+      label: contact.label,
+      method: 'counterparty-vasp-simulated',
+      simulated: true,
+    });
+    return ContactVerifyResponseSchema.parse({
+      verifiedOwnership: true,
+      method: 'counterparty-vasp-simulated',
+      simulated: true,
+      contact: ownedContact(client.clientId, id),
+    });
   });
 
   app.get('/mock/inbox/:email', async (req) => {

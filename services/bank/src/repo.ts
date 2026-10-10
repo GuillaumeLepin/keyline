@@ -29,6 +29,7 @@ type ContactRow = {
   first_seen_at: string;
   verified_ownership: number;
   simulated: number;
+  trusted?: number;
 };
 type DappRow = {
   id: string;
@@ -53,13 +54,18 @@ export const rowToWallet = (r: WalletRow): Wallet =>
     attested: r.attested === 1,
   });
 
+/** Stable contact id (contacts are unique per (client, address)). */
+export const contactIdOf = (address: string): string => `ct_${address.toLowerCase().replace(/^0x/, '')}`;
+
 export const rowToContact = (r: ContactRow): Contact =>
   ContactSchema.parse({
+    id: contactIdOf(r.address),
     clientId: r.client_id,
     label: r.label,
     address: r.address,
     firstSeenAt: r.first_seen_at,
     verifiedOwnership: r.verified_ownership === 1,
+    trusted: r.trusted === 1,
     simulated: r.simulated === 1 ? true : undefined,
   });
 

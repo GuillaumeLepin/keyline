@@ -101,11 +101,15 @@ export const AttestationSchema = z.object({
 export type Attestation = z.infer<typeof AttestationSchema>;
 
 export const ContactSchema = z.object({
+  /** Stable id: `ct_` + the lowercase address without 0x (unique per client). Used by PATCH/DELETE /contacts/:id. */
+  id: z.string().regex(/^ct_[0-9a-f]{40}$/),
   clientId: z.string().min(1),
   label: z.string().min(1),
   address: Address,
   firstSeenAt: IsoDate,
   verifiedOwnership: z.boolean(),
+  /** The client marked this contact as trusted (contacts screen). Seeded Lukas Meier = true. */
+  trusted: z.boolean().default(false),
   /** Present (and true) only on the seeded sanctioned test contact. */
   simulated: z.literal(true).optional(),
 });
@@ -780,6 +784,25 @@ export const CreateContactBodySchema = z.object({
   requestId: z.string().min(1).optional(),
 });
 export type CreateContactBody = z.infer<typeof CreateContactBodySchema>;
+
+/** PATCH /contacts/:id — at least one field. Returns the updated Contact. */
+export const UpdateContactBodySchema = z
+  .object({ label: z.string().trim().min(1).max(64).optional(), trusted: z.boolean().optional() })
+  .refine((b) => b.label !== undefined || b.trusted !== undefined, 'label or trusted is required');
+export type UpdateContactBody = z.infer<typeof UpdateContactBodySchema>;
+
+/** DELETE /contacts/:id */
+export const DeleteContactResponseSchema = z.object({ ok: z.literal(true), id: z.string().min(1) });
+export type DeleteContactResponse = z.infer<typeof DeleteContactResponseSchema>;
+
+/** POST /contacts/:id/verify — SIMULATED ownership proof from the counterparty's VASP (Travel Rule). */
+export const ContactVerifyResponseSchema = z.object({
+  verifiedOwnership: z.literal(true),
+  method: z.literal('counterparty-vasp-simulated'),
+  simulated: z.literal(true),
+  contact: ContactSchema,
+});
+export type ContactVerifyResponse = z.infer<typeof ContactVerifyResponseSchema>;
 
 export const DeskQueueItemSchema = z.object({
   recovery: RecoveryRequestSchema,

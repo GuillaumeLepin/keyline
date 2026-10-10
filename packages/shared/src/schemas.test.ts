@@ -173,11 +173,32 @@ const fixtures: Record<string, [z.ZodType, unknown]> = {
   ContactSchema: [
     S.ContactSchema,
     {
+      id: `ct_${addr2.slice(2)}`,
       clientId: 'SQ-48213-LK',
       label: 'Lukas Meier',
       address: addr2,
       firstSeenAt: at,
       verifiedOwnership: true,
+      trusted: true,
+    },
+  ],
+  UpdateContactBodySchema: [S.UpdateContactBodySchema, { trusted: true }],
+  DeleteContactResponseSchema: [S.DeleteContactResponseSchema, { ok: true, id: `ct_${addr2.slice(2)}` }],
+  ContactVerifyResponseSchema: [
+    S.ContactVerifyResponseSchema,
+    {
+      verifiedOwnership: true,
+      method: 'counterparty-vasp-simulated',
+      simulated: true,
+      contact: {
+        id: `ct_${addr2.slice(2)}`,
+        clientId: 'SQ-48213-LK',
+        label: 'Marta Rossi',
+        address: addr2,
+        firstSeenAt: at,
+        verifiedOwnership: true,
+        trusted: false,
+      },
     },
   ],
   DappSchema: [
@@ -632,6 +653,20 @@ describe('shared schemas', () => {
     ]);
     const missing = exported.filter((k) => !primitiveEnums.has(k) && !(k in fixtures));
     expect(missing).toEqual([]);
+  });
+
+  it('contacts: trusted defaults to false, an empty PATCH is refused, ids are ct_<address>', () => {
+    const c = S.ContactSchema.parse({
+      id: `ct_${addr2.slice(2)}`,
+      clientId: 'C',
+      label: 'x',
+      address: addr2,
+      firstSeenAt: at,
+      verifiedOwnership: false,
+    });
+    expect(c.trusted).toBe(false);
+    expect(S.UpdateContactBodySchema.safeParse({}).success).toBe(false);
+    expect(S.ContactSchema.safeParse({ ...c, id: 'c1' }).success).toBe(false);
   });
 
   it('rejects a recovery status outside the SPEC enum', () => {

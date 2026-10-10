@@ -101,6 +101,12 @@ export const openDb = (path: string): Db => {
   db.pragma('foreign_keys = ON');
   db.transaction(() => {
     for (const sql of MIGRATIONS) db.exec(sql);
+    // Phase C: contacts.trusted (ALTER is not idempotent in SQLite — check the column first).
+    const cols = db.prepare('PRAGMA table_info(contacts)').all() as { name: string }[];
+    if (!cols.some((c) => c.name === 'trusted')) {
+      db.exec('ALTER TABLE contacts ADD COLUMN trusted INTEGER NOT NULL DEFAULT 0');
+      db.exec("UPDATE contacts SET trusted = 1 WHERE label = 'Lukas Meier'");
+    }
   })();
   return db;
 };

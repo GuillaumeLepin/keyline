@@ -1,5 +1,6 @@
 import type { Contact, Dapp, Screening, Simulation } from '@keyline/shared';
 import { describe, expect, it } from 'vitest';
+import { contactIdOf } from '../repo';
 import {
   COOLING_MS,
   evaluate,
@@ -47,18 +48,22 @@ const dangerSim = simulation({
 });
 const contacts: Contact[] = [
   {
+    id: contactIdOf(lukas),
     clientId: 'SQ-48213-LK',
     label: 'Lukas Meier',
     address: lukas,
     firstSeenAt: at.toISOString(),
     verifiedOwnership: true,
+    trusted: true,
   },
   {
+    id: contactIdOf(marta),
     clientId: 'SQ-48213-LK',
     label: 'Marta Rossi',
     address: marta,
     firstSeenAt: at.toISOString(),
     verifiedOwnership: false,
+    trusted: false,
   },
 ];
 const allowlist: Dapp[] = [

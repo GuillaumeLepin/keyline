@@ -18,10 +18,10 @@ export const LEA = {
 } as const;
 
 export const SEEDED_CONTACTS = [
-  { label: 'Lukas Meier', verifiedOwnership: true, simulated: false },
-  { label: 'Marta Rossi', verifiedOwnership: false, simulated: false },
+  { label: 'Lukas Meier', verifiedOwnership: true, simulated: false, trusted: true },
+  { label: 'Marta Rossi', verifiedOwnership: false, simulated: false, trusted: false },
   // The screening module flags this address with simulatedHit: true (docs/MOCKS.md).
-  { label: 'Sanctioned test address', verifiedOwnership: false, simulated: true },
+  { label: 'Sanctioned test address', verifiedOwnership: false, simulated: true, trusted: false },
 ] as const;
 
 const AllowlistFile = z.object({ dapps: z.array(DappSchema) });
@@ -56,7 +56,7 @@ export const seed = (db: Db, events: EventStore): { seededNow: boolean } => {
 
     const hasContact = db.prepare('SELECT 1 FROM contacts WHERE client_id = ? AND label = ?');
     const insertContact = db.prepare(
-      `INSERT INTO contacts (client_id, label, address, first_seen_at, verified_ownership, simulated) VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO contacts (client_id, label, address, first_seen_at, verified_ownership, simulated, trusted) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const c of SEEDED_CONTACTS) {
       if (hasContact.get(LEA.id, c.label)) continue;
@@ -67,6 +67,7 @@ export const seed = (db: Db, events: EventStore): { seededNow: boolean } => {
         at,
         c.verifiedOwnership ? 1 : 0,
         c.simulated ? 1 : 0,
+        c.trusted ? 1 : 0,
       );
       seededNow = true;
     }
