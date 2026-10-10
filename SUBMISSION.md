@@ -32,7 +32,7 @@ FINMA Guidance 02/2019 requires proof that an external wallet belongs to the cli
 
 ## Business case
 
-Swissquote's crypto income fell from CHF 85.7 m (2025) to CHF 14.6 m in H1 2026 with volatility. 18 % of Swiss residents hold crypto; self-custody clients must leave today. Keyline keeps them, adds non-cyclical revenue (swap fee, staking, Protected tier; about CHF 2.25 m, illustrative) and removes custody insurance, key-theft liability and manual ownership checks.
+Swissquote's crypto income fell from CHF 85.7 m (2025) to CHF 14.6 m in H1 2026 with volatility. 18 % of Swiss residents hold crypto; self-custody clients must leave today. Keyline's first value is retention: it keeps them, with "In your Swissquote account" on every wallet open and "Move to Keyline" / "Back to Swissquote" as bank actions. It captures ETH, stablecoin and DeFi activity now, adds non-cyclical revenue (swap fee, staking, Protected tier; about CHF 2.25 m, illustrative) and removes custody insurance, key-theft liability and manual ownership checks. Bitcoin, assumed to be clients' largest crypto holding, stays visible but not movable in v1: Keyline moves an asset only when it can give it the same protection, and Bitcoin self-custody (threshold key or timelocked script) is the roadmap item that unlocks the larger pool.
 
 ## Bonus topics tackled
 

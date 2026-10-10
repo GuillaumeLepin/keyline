@@ -1,6 +1,6 @@
 # Business case
 
-Owner: `docs-submission`. Written 6 Oct 2026. Numbers are Swissquote's own published figures where available; third-party figures are named. The revenue arithmetic is illustrative and every assumption behind it is listed in section 6.
+Owner: `docs-submission`. Written 6 Oct 2026; order of the case and Bitcoin position updated 10 Oct 2026 for the v2 journey (`docs/SPEC.md` §10). Numbers are Swissquote's own published figures where available; third-party figures are named. The revenue arithmetic is illustrative and every assumption behind it is listed in section 6.
 
 ## 1. The numbers
 
@@ -22,7 +22,11 @@ Owner: `docs-submission`. Written 6 Oct 2026. Numbers are Swissquote's own publi
 
 ## 2. The paragraph
 
-Swissquote earned CHF 85.7 m from crypto in 2025 but only CHF 14.6 m in H1 2026, because that income follows trading volatility. Meanwhile 18 % of Swiss residents hold crypto, trust matters more to them than price, and the post-FTX habit is to move coins off platforms. A Swissquote client who wants self-custody or DeFi today has to leave: the wallet FAQ (<https://www.swissquote.com/en-ch/private/trade/products/cryptocurrencies/wallet>) states that withdrawals to exchanges are not supported and that external wallets must be whitelisted with screenshots; Yuh allows no transfers out. Keyline keeps that client one tap from their Swissquote account, with recovery, screening and plain-language transaction review that no stand-alone wallet offers, and without Swissquote taking custody. The revenue it adds does not depend on volatility: an in-wallet swap fee, non-custodial staking at the existing reward share, and a monthly tier that covers gas sponsorship and recovery. The larger value is retention and acquisition: every 1 % of crypto activity that stays in the ecosystem is about CHF 0.86 m a year at 2025 levels, and at PostFinance 56 % of crypto clients were new to investing.
+Swissquote earned CHF 85.7 m from crypto in 2025 but only CHF 14.6 m in H1 2026, because that income follows trading volatility. Meanwhile 18 % of Swiss residents hold crypto, trust matters more to them than price, and the post-FTX habit is to move coins off platforms. A Swissquote client who wants self-custody or DeFi today has to leave: the wallet FAQ (<https://www.swissquote.com/en-ch/private/trade/products/cryptocurrencies/wallet>) states that withdrawals to exchanges are not supported and that external wallets must be whitelisted with screenshots; Yuh allows no transfers out. Keyline's first value is retention: it gives that client self-custody one tap from their Swissquote account, with recovery, screening and plain-language transaction review that no stand-alone wallet offers, and without Swissquote taking custody. Every 1 % of crypto activity that stays in the ecosystem is about CHF 0.86 m a year at 2025 levels. Version 1 also captures the ETH, stablecoin and DeFi activity that today happens outside the bank, and earns revenue that does not depend on volatility: an in-wallet swap fee, non-custodial staking at the existing reward share, and a monthly tier that covers gas sponsorship and recovery. The larger pool is Bitcoin. We assume it is the crypto asset Swissquote clients hold most (a working assumption: Swissquote publishes no breakdown by asset), and v1 shows it but does not move it. Bitcoin self-custody under the same policy, as a threshold key or a miniscript timelocked script, is the roadmap item that unlocks that pool (`docs/STRATEGY.md` §10). Acquisition comes on top: at PostFinance 56 % of crypto clients were new to investing.
+
+### Why Bitcoin is not in v1
+
+Keyline moves an asset only when it can give it the same protection as the rest of the wallet: the phone signs, and any 2 of the 3 recoverers can restore access after a waiting period. On Ethereum that protection comes from the Safe account and its recovery module. Bitcoin has neither, so it needs a different tool: a 2-of-3 threshold key, or a miniscript script in which the phone key spends and, after a timelock, 2 of the 3 recoverers can move the coins to a new key. Both are known designs; neither is built in this prototype. Until then a client's Bitcoin stays in their Swissquote account, where it is today, and Keyline shows it there, read-only. We would rather say "not yet" than move an asset with weaker protection.
 
 ## 3. Revenue lines, illustrative
 
@@ -38,7 +42,12 @@ This is small next to CHF 85.7 m of trading income. It is also non-cyclical, and
 
 ## 4. Retention, acquisition, cost
 
-Retention. Each 1 % of 2025 crypto income is CHF 0.86 m. Assets in Keyline stay visible in the client's Swissquote dashboard (the attestation binds the address to the client file), so the client keeps one view of their wealth and the bank keeps the relationship.
+Retention. Each 1 % of 2025 crypto income is CHF 0.86 m. Assets in Keyline stay visible in the client's Swissquote dashboard (the attestation binds the address to the client file), so the client keeps one view of their wealth and the bank keeps the relationship. The v2 design builds the reverse view and the money paths into the product (`docs/SPEC.md` §10, `docs/DECISIONS.md` #26–#27):
+
+- Every time the wallet opens, home shows a section "In your Swissquote account" with the client's bank positions, including the Bitcoin that stays there.
+- Money enters the wallet through "Move to Keyline" on Swissquote web, and leaves through "Back to Swissquote", a transfer to the client's own verified account that is always Tier 1. Both are bank actions: the wallet has no generic top-up, and the easiest way out leads back to Swissquote, not to an exchange.
+
+When Bitcoin self-custody ships, the same two actions carry it.
 
 Acquisition. The PostFinance figure suggests crypto is an entry product for people who have never invested. A wallet that a non-specialist can recover without a seed phrase lowers the barrier that 19 % of users cite.
 
@@ -65,4 +74,5 @@ Cost. Wallet ownership checks become automatic: no screenshots, no Satoshi test,
 6. Gas cost per transaction is an estimate from current L2 fees and would change with network conditions; the prototype pays nothing because the Candide testnet sponsor is free.
 7. "Swissquote clients must leave to self-custody" is based on the public wallet FAQ as of Oct 2026; product terms can change.
 8. Legal conclusions in `docs/LEGAL.md` are a team reading; a FINMA no-action letter would be sought before any launch, and the business case assumes that answer is favourable.
-9. Nothing in this document was validated with Swissquote staff.
+9. Bitcoin being the crypto asset Swissquote clients hold most is a working assumption. Swissquote does not publish crypto holdings by asset and no figure for it is cited here. The v1 case (retention, ETH, stablecoins, DeFi) does not depend on it; the size of the Bitcoin roadmap opportunity does.
+10. Nothing in this document was validated with Swissquote staff.
