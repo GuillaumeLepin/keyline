@@ -62,3 +62,4 @@ export {
   UNLIMITED_ALLOWANCE_THRESHOLD,
   worstRisk,
 } from './simulate.js';
+export * from './stage-truth.js';

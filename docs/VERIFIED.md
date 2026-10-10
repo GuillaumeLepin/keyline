@@ -262,3 +262,26 @@ Isolated stack (:3100/:4100/:4101), CDP virtual authenticators, every EOA at 0 E
 | `attacker.spec.ts` | 6 of 6 | Safe `0xBDAF4F0F2Ec55Bd0A8E1Cc6AFc7aF7fFd1bfD58c`: refused at identity, `/alerts` shows the refusal, desk override → `awaiting-guardians`, module `pending = false`, approvals 0 before override, owners unchanged |
 | `fraud-cancel.spec.ts` | 4 of 4 | override + Emergency card → executed (`0x814a452a…0d8d2ce0`) → owner cancel from `/alerts`, sponsored (`0xd1175115…7003812d`) → `pending = false`, owners unchanged |
 | Video | `docs/demo.webm` (5:16, new phone), `docs/demo-phone.webm`, `docs/demo-laptop.webm` (not committed) | run 3 |
+
+## 18. Chain reads — `findCancelTx` fix (plus `readStageTruth`, `isOwner`, kept from the abandoned Stage experiment, unused by the app) (account-chain, 10 Oct 2026)
+
+Code: `packages/chain/src/stage-truth.ts` (exported from `@keyline/chain`), live tests `packages/chain/src/stage-truth.test.ts` (10/10, whole chain suite 56/56; typecheck + biome clean).
+
+| Claim | Verified value | How |
+|---|---|---|
+| `https://sepolia.base.org` caps `eth_getLogs` | **200 blocks** (`-32614 eth_getLogs is limited to a 200 range`); 1 000 / 5 000 / 10 000 all refused | direct probe, 10 Oct 2026 |
+| Root cause of `findCancelTx` → null in every QA cancel | the bank asked that RPC for one 5 000-block range → error → `.catch(() => null)` | same probe; the event name/topic were right |
+| Log-capable public fallback | `https://base-sepolia-rpc.publicnode.com`: 20 000-block range OK (~0.9 s), CORS `access-control-allow-origin: *`; drpc free = refuses, thirdweb = 1 000 max, tenderly / blockpi down | probe of 6 public RPCs |
+| Fallback policy | ranges < 200 blocks (every warm poll) stay on the caller's RPC (~150 ms vs 0.9–2.5 s on publicnode); wider ranges switch to publicnode after the first range-cap error on chain 84532; `logsClient` overrides | `getLogsWithFallback` |
+| `0xd1175115…7003812d` is the owner cancel of Safe **`0x3da1a223423177d0dd7472e77b67a0d9d7e673b4`** (execute `0x814a452a…`), not of `0x6b80…55aa` | block 47 750 772, `RecoveryCanceled(wallet=0x3da1…)` | receipt logs |
+| Owner cancel of `0x6b808d4F174E044Ed041f68e368c5e1a96fF55aa` | `0xb5a56d02c538ccaad501df3f61a0a6d3690b49a0f49ad9f6a51c8fbbbb7fc924` (block 47 751 424; execute `0x77843fd4…` at 47 751 414) | module logs, topic1 = wallet |
+| `findCancelTx` now finds both cancels and returns null for a never-cancelled Safe | ✓ (`0xb5a56d02…`, `0xd1175115…`, `null` for `0x8241…`) | live test through `sepolia.base.org` (exercises the fallback) |
+| Story Safe `0x824192a3907a1CF42Ecc4cB655dA62c32147A6C2` | deployed, owners `[0x1993F68A47Dd89de40ee0872753c08De9368eAB5]`, 3 guardians, threshold 2, grace 180 s, no pending recovery; recent txs newest-first: `recovery-finalize 0x09568d0e…`, `recovery-execute 0xb6356f10…`, `signer-deploy 0x3257b622…`, then `protect 0x8d4ec748…` | live test (window 47 751 800–47 752 100) |
+| Old phone proxy `0x2Da4C93a1b0a08E9E8319688faA90a750ed7beA2` (added in protect `0x8d4ec748…`) | `isOwner` = **false**; new proxy `0x1993…eAB5` = **true**; undeployed address = false | Safe `isOwner(address)` |
+| Timings (Base Sepolia, laptop on home Wi-Fi) | warm poll **228–366 ms** (assert < 1.5 s); cold first read with 20 000-block lookback **2.9–4.2 s** (once per wallet per page load); `isOwner` 120–150 ms; `findCancelTx` over 20 000 blocks 2.1–2.8 s | `stage-truth timings` line printed by the test |
+
+Event → kind mapping (3 `eth_getLogs` per 5 000-block chunk, up to 4 chunks in parallel, stop when 3 txs found):
+`address=[wallet, SafeWebAuthnSignerFactory]` (Safe events; factory `Created`, kept only if the proxy is a current or pending owner → `signer-deploy`) ·
+`address=[module, USDC], topic1=wallet` (`RecoveryExecuted/Finalized/Canceled` → `recovery-*`, `GuardianAdded` → `protect`, USDC `Transfer` from wallet → `transfer`) ·
+`address=[USDC, EntryPoint], topic2=wallet` (USDC `Transfer` to wallet → `transfer`, `AccountDeployed` → `protect`, `UserOperationEvent` → `other` unless another log says more). Priority per tx: cancel > finalize > execute > protect > signer-deploy > transfer > other.
+State is one Multicall3 call (`getOwners`, `getGuardians`, `threshold`, `getRecoveryRequest`, USDC `balanceOf`) + `eth_getCode`, in parallel with the log scan; per-wallet scan cache in memory (re-scans the last 20 blocks each poll).
