@@ -43,7 +43,8 @@ export function ringSpec(size: number): RingSpec {
   const stroke = strokeFor(size);
   const r = (size - stroke) / 2;
   const innerEdge = r - stroke / 2;
-  // 4° at ≥ 64 px; widened at small sizes so the three recoverers still read as three.
+  // 4° at ≥ 64 px; widened at small sizes so the three recoverers still read as three
+  // (24 px → exactly 10°, 110° arcs: the approved indicator rule, pinned by a test).
   const minDeg = Math.ceil((MIN_INNER_GAP_PX / innerEdge) * (180 / Math.PI));
   const gapDeg = Math.max(BASE_GAP_DEG, minDeg);
   const arcDeg = (360 - 3 * gapDeg) / 3;

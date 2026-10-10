@@ -2,7 +2,8 @@
 
 import { ThemeSwitch, useThemePreference } from '@keyline/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { page } from './copy';
+import { journeyLab, page } from './copy';
+import { JourneyLab } from './JourneyLab';
 import { MotionLab } from './MotionLab';
 import { CountdownMock } from './mocks/Countdown';
 import { HomeMock } from './mocks/Home';
@@ -43,6 +44,7 @@ export default function DesignV2Page() {
           <nav className="dz-top__nav" aria-label="Sections">
             <a href="#ring">{page.nav.ring}</a>
             <a href="#screens">{page.nav.screens}</a>
+            <a href="#journey">{page.nav.journey}</a>
             <a href="#motion">{page.nav.motion}</a>
             <a href="#tokens">{page.nav.tokens}</a>
           </nav>
@@ -125,6 +127,14 @@ export default function DesignV2Page() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section id="journey" className="dz-sec" aria-labelledby="journey-h">
+          <h2 id="journey-h" className="dz-h2">
+            {journeyLab.title}
+          </h2>
+          <p className="dz-lead">{journeyLab.lead}</p>
+          <JourneyLab />
         </section>
 
         <section id="motion" className="dz-sec" aria-labelledby="motion-h">

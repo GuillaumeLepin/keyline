@@ -19,8 +19,8 @@
   --on-ink: #ffffff; /* text on --ink */
 
   /* Accent — Swissquote-adjacent orange-red. Never for body text. */
-  --accent: #fa5b35; /* focus rings, active step, countdown ring, links on dark */
-  --accent-text: #c8371a; /* links and accent words on light (5.2:1 on paper) */
+  --accent: #fa5b35; /* focus rings, active step, the ring. Never links (links are ink, underlined). */
+  --accent-text: #c8371a; /* legacy accent words on light (4.8:1 on paper); not used for links since v2 */
 
   /* Status — always paired with an icon AND a word */
   --ok: #1f7a4d;
@@ -134,7 +134,8 @@
 }
 
 /* Dark — designed, not inverted: warm graphite paper, hairlines lifted, accent lifted in luminance,
- * a faint glow on the ring only. Ratios: scripts/contrast.ts (dark pairs). Keep the two blocks below
+ * a faint glow on the ring only. Danger is a cooler crimson (hue ≈ 351°) so it never reads as the
+ * orange accent (hue ≈ 12°); scripts/contrast.ts asserts ≥ 20° of hue between them. Ratios: scripts/contrast.ts (dark pairs). Keep the two blocks below
  * identical (tokens.test.ts asserts it). */
 [data-theme="dark"] {
   color-scheme: dark;
@@ -153,9 +154,9 @@
   --ok-bg: #14261c;
   --pending: #e3a548;
   --pending-bg: #2a2114;
-  --danger: #f27a6a;
-  --danger-bg: #2e1814;
-  --danger-bar: #f27a6a;
+  --danger: #f06b80;
+  --danger-bg: #2e1419;
+  --danger-bar: #f06b80;
   --laptop-bar: #b8b4ab;
   --newphone-bar: #5cc28e;
   --simulated-bg: #2a2114;
@@ -188,9 +189,9 @@
     --ok-bg: #14261c;
     --pending: #e3a548;
     --pending-bg: #2a2114;
-    --danger: #f27a6a;
-    --danger-bg: #2e1814;
-    --danger-bar: #f27a6a;
+    --danger: #f06b80;
+    --danger-bg: #2e1419;
+    --danger-bar: #f06b80;
     --laptop-bar: #b8b4ab;
     --newphone-bar: #5cc28e;
     --simulated-bg: #2a2114;

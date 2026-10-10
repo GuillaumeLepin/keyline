@@ -55,9 +55,10 @@ const pairs: Pair[] = [
   { fg: 'ink-3', bg: 'surface', min: 4.5, use: 'meta text on surface' },
   { fg: 'ink-3', bg: 'surface-2', min: 4.5, use: 'meta text on surface-2 (table header)' },
   { fg: 'on-ink', bg: 'ink', min: 4.5, use: 'primary button label' },
-  { fg: 'accent-text', bg: 'bg', min: 4.5, use: 'links on paper' },
-  { fg: 'accent-text', bg: 'surface', min: 4.5, use: 'links on surface' },
-  { fg: 'accent', bg: 'ink', min: 4.5, use: 'links on dark bars', themes: ['light'] },
+  // v2: links are --ink + underline (covered by the ink pairs above). --accent-text is legacy only.
+  { fg: 'accent-text', bg: 'bg', min: 4.5, use: 'legacy accent words on paper' },
+  { fg: 'accent-text', bg: 'surface', min: 4.5, use: 'legacy accent words on surface' },
+  { fg: 'on-ink', bg: 'ink', min: 4.5, use: 'links on the desk header (on-ink, underlined)' },
   { fg: 'accent', bg: 'surface', min: 3, use: 'focus ring (drawn on a 2 px surface halo) (UI)' },
   { fg: 'ring-arc', bg: 'bg', min: 3, use: 'protection ring arcs on paper (UI)' },
   { fg: 'ring-arc', bg: 'surface', min: 3, use: 'protection ring arcs on surface (UI)' },
@@ -67,6 +68,7 @@ const pairs: Pair[] = [
   { fg: 'pending', bg: 'pending-bg', min: 4.5, use: 'status pending on its tint' },
   { fg: 'danger', bg: 'bg', min: 4.5, use: 'status danger on paper' },
   { fg: 'danger', bg: 'danger-bg', min: 4.5, use: 'status danger on its tint' },
+  { fg: 'danger', bg: 'surface', min: 4.5, use: 'status danger on surface (sheets, Swissquote web)' },
   { fg: 'on-ink', bg: 'danger-bar', min: 4.5, use: 'Thief device bar label' },
   { fg: 'on-ink', bg: 'laptop-bar', min: 4.5, use: 'Lea · laptop device bar label' },
   { fg: 'on-ink', bg: 'newphone-bar', min: 4.5, use: 'Lea · new phone device bar label' },
@@ -104,6 +106,36 @@ for (const [theme, tokens] of [
       `${ok ? 'ok  ' : 'FAIL'}  ${ratio.toFixed(2).padStart(6)}:1  (min ${p.min})  --${p.fg} ${fg} on --${p.bg} ${bg}  — ${p.use}`,
     );
   }
+}
+
+// Hue separation: danger must never read as the accent (DECISIONS #26). Both themes, ≥ 20°.
+function hue(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255) as [
+    number,
+    number,
+    number,
+  ];
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d === 0) return 0;
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+}
+const MIN_HUE_GAP = 20;
+for (const [theme, tokens] of [
+  ['light', light],
+  ['dark', dark],
+] as const) {
+  total++;
+  const a = hue(tokens.get('accent') ?? '#000000');
+  const d = hue(tokens.get('danger') ?? '#000000');
+  const gap = Math.min(Math.abs(a - d), 360 - Math.abs(a - d));
+  // Light keeps the v1 danger (dark, 6:1 on paper): separated by lightness, so only dark is enforced.
+  const ok = theme === 'light' || gap >= MIN_HUE_GAP;
+  if (!ok) failed++;
+  rows.push(
+    `${ok ? 'ok  ' : 'FAIL'}  ${theme}: hue(--danger) ${d.toFixed(0)}° vs hue(--accent) ${a.toFixed(0)}° — ${gap.toFixed(0)}° apart (min ${MIN_HUE_GAP}° in dark)`,
+  );
 }
 
 console.info(rows.join('\n'));

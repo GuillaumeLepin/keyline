@@ -34,6 +34,12 @@ describe('protection ring geometry', () => {
     expect(s.gapDeg).toBeGreaterThan(4);
   });
 
+  it('uses exactly 10° gaps and 110° arcs on the 24 px ring (DECISIONS #26)', () => {
+    const s = ringSpec(RING_SIZES.indicator);
+    expect(s.gapDeg).toBe(10);
+    expect(s.arcDeg).toBe(110);
+  });
+
   it('orders the arcs clockwise from 12 o’clock: Safety key, Emergency card, Swissquote', () => {
     expect(RECOVERERS).toEqual(['safety-key', 'emergency-card', 'swissquote']);
     const a = arcAngles(4);

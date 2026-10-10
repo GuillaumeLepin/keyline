@@ -6,8 +6,9 @@
 export const page = {
   title: 'Keyline — design v2',
   thesis: 'A Swiss bank document that moves like a watch.',
-  status: 'Proposal for approval. Nothing in the app has changed; the v1 kitchen sink is at /design/v1.',
-  nav: { ring: 'Ring', motion: 'Motion', screens: 'Screens', tokens: 'Tokens' },
+  status:
+    'Approved (DECISIONS #26–#28). Phase B: links are ink, dark danger is a cooler crimson, journey primitives below. The v1 kitchen sink is at /design/v1.',
+  nav: { ring: 'Ring', journey: 'Journey', motion: 'Motion', screens: 'Screens', tokens: 'Tokens' },
   theme: 'Appearance',
   ring: {
     title: 'The protection ring',
@@ -200,4 +201,114 @@ export const countdown = {
   confirmedAt: (t: string) => `Confirmed ${t}`,
   watch: 'Watch on Basescan',
   done: 'Ready to finish',
+} as const;
+
+// ---- Phase B journey copy, mirrored verbatim from docs/DESIGN.md Appendix V2 (copy.ts keys). ----
+// The wallet's copy.ts owns the product strings; these copies feed the /design journey lab only.
+
+export const sqWebShell = {
+  brand: 'Swissquote',
+  prototype: 'Prototype of Swissquote web — simulated',
+  navLabel: 'Swissquote',
+  signOut: 'Sign out',
+} as const;
+
+export const sqNav = [
+  { label: 'Portfolio', href: '#journey', current: true },
+  { label: 'Trade', href: '#journey' },
+  { label: 'Payments', href: '#journey' },
+  { label: 'Documents', href: '#journey' },
+];
+
+export const sqPositionsCopy = {
+  caption: 'Positions',
+  position: 'Position',
+  quantity: 'Quantity',
+  price: 'Price',
+  value: 'Value',
+  action: 'Keyline',
+  total: 'Total value',
+} as const;
+
+export const sqTileCopy = {
+  eyebrow: 'Keyline',
+  title: 'A wallet only you can spend from',
+  body: 'Your phone holds the key. Any 2 of your 3 recoverers can restore access: your Safety key, your Emergency card and Swissquote. Swissquote can’t move your money, alone or with anyone.',
+  start: 'Set up Keyline on my phone',
+  scan: 'Scan with your phone’s camera, or open keyline.app/start and type this code:',
+  qrLabel: 'QR code to continue on your phone',
+  expiresIn: (clock: string) => `Code expires in ${clock}`,
+  waiting: 'Waiting for your phone',
+  expired: 'Code expired',
+  renew: 'Show a new code',
+  claimed: 'Phone connected',
+  claimedBody: 'Continue on your phone. This page updates by itself.',
+  protectedTitle: 'Protected · 2 of 3 recoverers',
+};
+
+export const sqSafetyKeyCopy = {
+  context: 'Request from your phone',
+  title: 'Make this computer your Safety key?',
+  body: 'Your phone is setting up Keyline. This computer keeps a second key in this browser. It co-approves large transfers and can help restore access if you lose your phone.',
+  canTitle: 'It can',
+  can: ['Approve large transfers with your phone', 'Help restore access, with one other recoverer'],
+  cannotTitle: 'It can’t',
+  cannot: ['Spend on its own', 'Be used from another computer'],
+  confirm: 'Make this computer my Safety key',
+  decline: 'Not now',
+  confirmed: 'Safety key added',
+  doneTitle: 'This computer is your Safety key',
+  doneBody: 'Continue on your phone. Keep this browser profile: clearing its data removes the key.',
+  alreadyTitle: 'This computer is already your Safety key',
+  alreadyBody: 'Nothing to do here. Continue on your phone.',
+  errorTitle: 'The Safety key wasn’t added.',
+  errorBody: 'Nothing changed on your wallet. Try again.',
+  retry: 'Try again',
+} as const;
+
+export const btcPolicyCopy = {
+  title: 'The same protection, written as a Bitcoin script',
+  description:
+    'Two ways to spend. Your key can spend at any time. After the waiting period, any 2 of your 3 recoverers (Safety key, Emergency card, Swissquote) can move the Bitcoin to a new key.',
+  branch1: 'Your key, now',
+  branch1Code: 'pk(owner)',
+  or: 'or',
+  branch2: 'After the waiting period:',
+  branch2Count: '2 of 3 recoverers',
+  recoverers: 'Safety key · Emergency card · Swissquote',
+  branch2Code: 'and(older(waiting), thresh(2, …))',
+  axisNow: 'Now',
+  axisWait: 'Waiting period ends',
+  axisTime: 'time',
+} as const;
+
+export const journeyLab = {
+  title: 'Journey primitives',
+  lead: 'Phase B building blocks for the Swissquote web → phone journey. Every state, both themes. Data is static.',
+  webShell: 'WebShell + PositionsTable',
+  tile: 'HandoffTile',
+  confirm: 'ConfirmPrompt',
+  assets: 'AssetRow',
+  travel: 'TravelRuleLine',
+  diagram: 'BitcoinPolicyDiagram',
+  states: {
+    idle: 'Idle',
+    starting: 'Starting',
+    waiting: 'Waiting',
+    expired: 'Expired',
+    claimed: 'Claimed',
+    protected: 'Protected',
+    ask: 'Ask',
+    confirming: 'Confirming',
+    done: 'Done',
+    already: 'Already',
+    error: 'Error',
+  },
+  btcWhyTitle: 'Why can’t I move Bitcoin?',
+  btcWhy:
+    'Keyline moves an asset only when it can give it the same protection: your key, two of three recoverers, a public waiting period. For Bitcoin that needs a different key design (a threshold key or a timelocked script), which is on our roadmap. Until then your Bitcoin stays in your Swissquote account.',
+  btcReason: 'Not movable yet',
+  move: 'Move to Keyline',
+  back: 'Back to Swissquote',
+  balance: 'Wallet balance',
 } as const;

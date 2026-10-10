@@ -1,8 +1,8 @@
 # Keyline — Design specification v2
 
-Owner: `design-system` agent. **Status: Phase A — proposal for approval (10 Oct 2026).** Nothing in the shipped app has changed. The proposal is visible at `/design` (theme switch, ring, motion, five hero screens); the v1 kitchen sink moved to `/design/v1`. Proof: `docs/design-v2/` (video + 6 screenshots).
+Owner: `design-system` agent. **Status: Phase B — approved (DECISIONS #26–#28, 10 Oct 2026).** Applied in `packages/ui`: dark `--danger` is a cooler crimson, links are ink + underline everywhere, the 24 px ring uses 10° gaps (pinned by a test). Journey primitives (§10.1) are on `/design#journey` in every state, both themes; the v1 kitchen sink is at `/design/v1`. The copy for the v2 journey is **Appendix V2** (keyed for `copy.ts`, EN; FR/DE in Phase C).
 
-How to read this file: §1–§10 are the v2 rules and replace v1 where they disagree. §11 is the full v2 screen inventory (Phase B builds from it). **Appendix V1** is the previous specification, kept verbatim: its screen specs and its copy (Appendix A → `apps/wallet/src/copy.ts`) remain the source of truth for every screen until Phase B rebuilds that screen; the parts v2 supersedes are listed at the top of the appendix.
+How to read this file: §1–§10 are the v2 rules (§10.1: journey primitives) and replace v1 where they disagree. §11 is the full v2 screen inventory (Phase B builds from it). **Appendix V1** is the previous specification, kept verbatim: its screen specs and its copy (Appendix A → `apps/wallet/src/copy.ts`) remain, except where Appendix V2 replaces a string, the source of truth for every screen until Phase B rebuilds that screen; the parts v2 supersedes are listed at the top of the appendix.
 
 Engineers build screens only from `packages/ui` primitives and the copy in this file. If a string is missing, ask; do not invent it.
 
@@ -35,11 +35,13 @@ Rules: weights 400 and 600 only. Tracking tightens as size grows (above). Headin
 
 One accent, used for exactly three things: **focus**, **the active thing** (current step, active tab underline on desk) and **the ring**. Links are ink, underlined. Status colours are semantic and separate; each always comes with an icon and a word. Banned: gradients, glassmorphism, backdrop blur, glows (except the one ring glow in dark, below), purple/indigo/violet, emoji, stock imagery, 3D.
 
+**Danger never reads as the accent** (DECISIONS #26.1): in dark, `--danger` is a cooler crimson (hue ≈ 351°) against the orange accent (hue ≈ 12°); the contrast script fails if they come closer than 20° of hue. In light the v1 danger is kept: it is far darker than the accent, so lightness separates them. Destructive states still carry an icon and a word, and the revoked ring is still dashed.
+
 A theme setting offers **System / Light / Dark** (`ThemeSwitch`, stored per device). Tokens: `[data-theme="light"|"dark"|"system"]` on the app root; `system` follows `prefers-color-scheme`. Light values are v1 and unchanged.
 
 ### 3.1 Light (v1 values, unchanged) and dark (designed, not inverted)
 
-Ratios measured by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). **61/61 pairs pass** (31 light + 30 dark). Text ≥ 4.5:1, marks and UI edges ≥ 3:1.
+Ratios measured by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). **66/66 pairs pass** (33 light + 33 dark incl. the danger/accent hue check). Text ≥ 4.5:1, marks and UI edges ≥ 3:1.
 
 | Token | Light | Dark | Role | Light ratio | Dark ratio |
 |---|---|---|---|---|---|
@@ -53,13 +55,13 @@ Ratios measured by `pnpm --filter @keyline/ui contrast` (WCAG 2.x). **61/61 pair
 | `--ink-3` | `#6B6B68` | `#9C988E` | meta text | 4.95 bg · 4.57 surface-2 | 6.45 · 5.39 |
 | `--on-ink` | `#FFFFFF` | `#141311` | text on ink | 18.42 | 15.87 |
 | `--accent` | `#FA5B35` | `#FF7452` | focus ring (on its 2 px halo), active marks | 3.18 surface | 6.46 surface |
-| `--accent-text` | `#C8371A` | `#FF8A6B` | v1 links only (v2 links are ink) | 4.84 bg | 8.05 bg |
+| `--accent-text` | `#C8371A` | `#FF8A6B` | legacy accent words only — **no link uses it** (`.kl-link` is ink since Phase B) | 4.84 bg | 8.05 bg |
 | `--ring-arc` *(new)* | `#EC502B` | `#FF7452` | ring arcs, countdown stroke | **3.38 bg** · 3.65 surface | 6.96 · 6.46 |
 | `--ring-track` *(new)* | = `--line` | = `--line` | ring at rest | — | — |
 | `--ring-glow` *(new)* | `none` | `drop-shadow(0 0 3px rgba(255,116,82,.35))` | the only glow, ring only | — | — |
 | `--ok` / `--ok-bg` | `#1F7A4D` / `#E8F3EC` | `#5CC28E` / `#14261C` | success | 4.92 · 4.67 tint | 8.45 · 7.22 |
 | `--pending` / `--pending-bg` | `#9A5B00` / `#FBF1E0` | `#E3A548` / `#2A2114` | waiting | 5.02 · 4.85 | 8.61 · 7.35 |
-| `--danger` / `--danger-bg` | `#B42318` / `#FBE9E7` | `#F27A6A` / `#2E1814` | refusal, irreversible | 6.08 · 5.61 | 6.87 · 6.18 |
+| `--danger` / `--danger-bg` | `#B42318` / `#FBE9E7` | **`#F06B80` / `#2E1419`** (was `#F27A6A` / `#2E1814`) | refusal, irreversible | 6.08 · 5.61 · 6.57 surface | 6.30 · 5.79 · 5.84 surface; on-ink on it 6.30 |
 | `--simulated-text` | `#7A4B00` | `#E9B866` | chip label | 6.86 bg · 7.41 surface | 10.18 · 9.44 |
 | `--simulated-border` | `#B07A1E` | `#A97B2F` | chip dashed border | 3.42 | 4.19 |
 | `--scrim` *(new)* | `rgba(20,20,20,.32)` | `rgba(0,0,0,.56)` | behind sheets | — | — |
@@ -127,7 +129,7 @@ The 200 px ring, exactly as rendered (state `registering`, 2 of 3; Safety key an
 | `success` | closed ring in `--ok` | drawn check in `--ok` | receipt (64 px), restored |
 | `revoked` | three **dashed** arcs in `--danger` | — | recovery cancelled, protection removed |
 
-`lit` overrides "first *n*" when the confirmed recoverers are not a prefix (a recovery confirmed by Safety key + Swissquote). Revoked is dashed, not just recoloured: in dark, `--danger` and `--accent` are close in hue, and "broken" must read without colour.
+`lit` overrides "first *n*" when the confirmed recoverers are not a prefix (a recovery confirmed by Safety key + Swissquote). Revoked is dashed, not just recoloured: "broken" must read without colour (and in dark `--danger` is now 21° of hue away from the accent, see §3).
 
 Accessible name: a sentence per state (`Protected · 2 of 3 recoverers can restore access`), plus a hidden per-recoverer list (`Safety key: yes, Emergency card: not yet, Swissquote: not yet`). The SVG is `aria-hidden`.
 
@@ -205,7 +207,25 @@ Styles in `@keyline/ui/v2.css` (prefix `kl2-`). v1 primitives are unchanged; in 
 | `contrastRatio`, `luminance` | — | shared by the contrast script and `/design` |
 | motion constants | `SPRING`, `FADE`, `DRAW`, `DURATION`, `EASE_STANDARD`, `dampingRatio` | §6 |
 
+### 10.1 Journey primitives (Phase B, SPEC §10) — `packages/ui/src/v2/journey/`
+
+Strings are always passed in (typed `…Copy` objects); the objects in Appendix V2 match these types exactly. Styles in `v2.css` (the wallet must import `@keyline/ui/v2.css`).
+
+| Primitive | Props | Notes |
+|---|---|---|
+| `AssetRow` | `name`, `symbol`, `quantity` (formatted, no symbol), `value?` (formatted CHF), `valueChip?`, `action?: RowActionProps`, `loading?` | 56 px statement row; quantity + symbol over CHF value, right-aligned tabular; action on its own right-aligned line |
+| `RowAction` | `label`, `onClick?`, `disabledReason?`, `onWhy?`, `whyLabel?` (`Why?`), `ariaLabel?`, `busy?`, `icon?` | ink underlined text button, 44 px; with `disabledReason` the label greys (`aria-disabled`, reason read by screen readers) and `Why?` opens the explanation |
+| `PositionsTable` | `groups: {id, label, rows: Position[]}[]`, `copy: PositionsTableCopy`, `total?`, `loading?`; `Position = {id, name, code, quantity, price?, value, action?}` | Swissquote-statement table: uppercase group rows, 56 px rows, hairlines, right-aligned tabular numbers, action slot, total footer; scrolls inside its own container |
+| `WebShell` | `copy: WebShellCopy`, `nav: {label, href, current?}[]`, `client?`, `account?`, `onSignOut?`, `linkAs?` (e.g. `next/link`), `children` | simulated Swissquote web: 32 px strip `Prototype of Swissquote web — simulated` + the one `SIMULATED` chip for the whole area; 64 px header: text wordmark, nav (active = ink underline), client + account right. Renders `<main>`. |
+| `HandoffTile` | `state: idle\|starting\|waiting\|expired\|claimed\|protected`, `copy: HandoffTileCopy`, `code?`, `qrValue?`, `expiresAt?` (epoch ms), `onStart?`, `onRenew?`, `onExpire?`, `registered?: 0–3`, `children?` (protected) | true object; 64 px ring (empty → registering mirrors the phone → protected); QR (`QrCode`) + code in two mono groups (`482 137`, read digit by digit) + `Code expires in m:ss` (ticks each second, `onExpire` once) |
+| `ConfirmPrompt` | `state: ask\|confirming\|error\|done\|already`, `copy: ConfirmPromptCopy`, `onConfirm`, `onDecline?` | the laptop's one-confirmation panel: key mark, can / can't lists, one primary (`ActionButton`, loading in `confirming`), quiet `Not now` |
+| `TravelRuleLine` | `text?` (default `TRAVEL_RULE_OWN_WALLET`) | shield icon in `--ok` + sentence, 14 px ink-2 |
+| `BitcoinPolicyDiagram` | `copy: BitcoinPolicyCopy` | SVG at 358 px (true size on a phone): branch 1 `Your key, now` / `pk(owner)` solid from now; `or`; branch 2 `After the waiting period: 2 of 3 recoverers`, ring glyph, `and(older(waiting), thresh(2, …))`, dashed until the waiting period ends then solid; time axis. Tokens only, no gradients; `<title>` + `<desc>` |
+| helpers | `splitCode6`, `formatCode6`, `spokenCode6`, `expiryClock` | pure, tested (`handoff.test.ts`) |
+
 ## 11. Screen inventory v2 (Phase B builds from this)
+
+**Phase B: where a row below disagrees with Appendix V2, Appendix V2 wins** (notably: no `Top up` on home (D1, D4 removed); A3 uses the human's verbatim text; A5 says *computer*; F6 uses `BitcoinPolicyDiagram`).
 
 `[P]` = the one primary. `SIM` = carries the `SIMULATED` chip. Device: Phone (390 px) or Laptop. EN titles and primary actions are final; body copy marked *draft* is for review. Every screen also has the three global states — **loading** (skeleton in the content's exact shape, cross-fades in), **error** (`Something didn’t work` / screen-specific sentence / `Try again`), **offline bank** (`Swissquote isn’t reachable` / `Your keys and your money are unaffected…`) — not repeated below. Screens marked *v1* keep their v1 spec (Appendix V1 §10) and only take the v2 primitives, theme and motion.
 
@@ -215,9 +235,9 @@ Styles in `@keyline/ui/v2.css` (prefix `kl2-`). v1 primitives are unchanged; in 
 |---|---|---|---|
 | A1 | Sign in | default · wrong password · loading | `Sign in to Swissquote` · [P] `Sign in` · error `That doesn’t match our records.` · note `Swissquote web is simulated for the prototype.` |
 | A2 | Portfolio | default (Keyline not set up) · handoff (QR + code) · code expired · phone connected · Keyline protected (tile shows 64 px ring closed + wallet balance) | `Portfolio` · `Valuation 10 Oct 2026, 17:30` SIM · columns `Position · Quantity · Price · Value` · groups `Cash · Securities · Crypto` · tile eyebrow `Keyline`, title `A wallet only you can spend from`, body `Your phone holds the key. Any 2 of your 3 recoverers can restore access: your Safety key, your Emergency card and Swissquote. Swissquote can’t move your money, alone or with anyone.` · [P] `Set up Keyline on my phone` → `Scan with your phone’s camera, or open keyline.app/start and type this code:` `482 137` · `Code expires in 4:52` · `Waiting for your phone` · expired: `Code expired` + `Show a new code` |
-| A3 | “Why?” sheet (BTC) | open | `Why can’t I move Bitcoin?` · `Keyline only moves an asset it can protect the same way as the rest of your wallet: your phone signs, and any 2 of your 3 recoverers can restore access after a waiting period.` · `Bitcoin can do this too, but it needs a different tool: a threshold key or a timelocked script. That is on our roadmap.` · `Until then your Bitcoin stays in your Swissquote account, where it is today.` · link `Roadmap: Bitcoin` |
+| A3 | “Why?” sheet (BTC) | open | `Why can’t I move Bitcoin?` · the human's text, verbatim, in Appendix V2 `btcWhy` · `BitcoinPolicyDiagram` · link `Roadmap: Bitcoin` |
 | A4 | Move to Keyline (ETH, USDC, EURC rows) | amount · review · moving · moved · policy refused | `Move ETH to Keyline` · `Amount` · `From Swissquote account · To your Keyline wallet (verified as yours)` · [P] `Move to Keyline` · done `Moved. It appears in Keyline within a minute.` · BTC row: action disabled + `Why?` |
-| A5 | This laptop becomes your Safety key | ask · confirming · done · already a Safety key | `Make this laptop your Safety key?` · *draft* `It co-approves large transfers and can help restore access. It can’t spend alone.` · [P] `Make this laptop my Safety key` · done `This laptop is your Safety key. The old pairing code no longer works.` |
+| A5 | This computer becomes your Safety key | ask · confirming · error · done · already (`ConfirmPrompt`) | `Make this computer your Safety key?` · [P] `Make this computer my Safety key` · copy: Appendix V2 `sqSafetyKeyCopy` |
 
 ### B. Handoff — Phone
 
@@ -241,10 +261,10 @@ Styles in `@keyline/ui/v2.css` (prefix `kl2-`). v1 primitives are unchanged; in 
 
 | # | Screen | States | Title · [P] · key copy |
 |---|---|---|---|
-| D1 | Home | default · empty statement · amount changing (ticker) · alert banner · no key on this device · not yet protected | header `Keyline` + 24 px ring `Protected` (→ Security) + settings · `Balance` · `CHF 96.00` · `120.00 USDC` · `1 USDC = CHF 0.80` SIM · [P] `Send` · `Receive` · `Top up` · `Statement` / `All` · section `In your Swissquote account` SIM (read-only rows, `Open`) · `Test network · Base Sepolia — nothing here is real money.` |
+| D1 | Home | default · empty statement · amount changing (ticker) · alert banner · no key on this device · not yet protected | header `Keyline` + 24 px ring `Protected` (→ Security) + settings · `Balance` · `CHF 96.00` · `120.00 USDC` · `1 USDC = CHF 0.80` SIM · per-asset `AssetRow`s (USDC, EURC, ETH) · [P] `Send` · `Receive` · `Back to Swissquote` · `Statement` / `All` · section `In your Swissquote account` SIM (read-only rows, `Open`) · `Test network · Base Sepolia — nothing here is real money.` |
 | D2 | Protection sheet (tap the ring) | protected · counting (recovery running) | `Protected · 2 of 3 recoverers` · 64 px ring · three recoverer rows · link `Security` |
 | D3 | Receive (sheet) | default · copied | `Receive` · QR + `Address` · `Only send USDC on Base Sepolia to this address.` |
-| D4 | Top up (sheet) | amount · sending · done | `Top up from my Swissquote account` · `Swissquote account balance: CHF 4’210.35` SIM · [P] `Top up` · `Accepted instantly: this wallet is verified as yours.` |
+| D4 | ~~Top up~~ | removed (DECISIONS #26.6) | money comes in via `Move to Keyline` on Swissquote web |
 | D5 | Back to Swissquote | amount · review · sent | `Back to Swissquote` · *draft* `Sends to your own Swissquote account, verified as yours.` · [P] `Review` |
 | D6 | Send | recipient · amount · new address · errors | *v1* · [P] `Review` |
 | D7 | **Review** | ok · step-up · cooling · block · dApp danger · loading · success | `Review` · `CHF 20.00` · `25.00 USDC to Lukas Meier` · `Approved · Within your CHF 1’000 daily limit.` · panel `What will happen` · `This can’t be undone.` · [P] `Confirm with Face ID` (success morph → D8) · v1 verdict strings |
@@ -314,7 +334,7 @@ Count: 50 screens, ≈ 150 states including the global loading / error / offline
 ## 12. Review checklist v2
 
 - One primary per screen; verb phrase; 48 px; `ActionButton` when async.
-- Accent only on focus, the active step and the ring; links in ink.
+- Accent only on focus, the active step and the ring; links in ink, underlined (`.kl-link`, `.kl2-link`, `.kl2-textbtn`); in dark, danger is crimson, never orange.
 - Lists use the 56 px row; card styling only on true objects.
 - Every simulated group has one `Chip`; every status has icon + word; every waiting period shows its exact end time and the demo caption.
 - Amount 44/48 tabular; titles balanced; text ≤ 65 ch.
@@ -322,6 +342,304 @@ Count: 50 screens, ≈ 150 states including the global loading / error / offline
 - Only the motions in §6; each has a reduced-motion fallback.
 - No shadow except sheets; radii 6/10; no gradient, blur, purple, emoji, stock imagery.
 - Focus visible; targets ≥ 44 px; nothing clipped or horizontally scrolling at 390 px.
+
+---
+
+# Appendix V2 — journey copy (Phase B, keyed for `apps/wallet/src/copy.ts`)
+
+EN only; FR/DE come in Phase C, so every string is whole (no fragments glued together except formatted values passed into functions). This block **supersedes** `copyV2` and closes `copyGapsV2` in `apps/wallet/src/copy.ts` (the wallet-client's gap strings were reviewed: kept as written unless changed below). The five primitive objects (`sqWebShell`, `sqPositionsCopy`, `sqTileCopy`, `sqSafetyKeyCopy`, `btcPolicyCopy`) are typed by `@keyline/ui` (`WebShellCopy`, `PositionsTableCopy`, `HandoffTileCopy`, `ConfirmPromptCopy`, `BitcoinPolicyCopy`) and are mirrored verbatim in `apps/wallet/app/design/copy.ts`.
+
+Changes from the Phase A inventory (§11): the BTC "Why?" text is the human's, verbatim; the laptop prompt says *computer* (`Make this computer your Safety key?`); `The old pairing code no longer works` is gone (`/pair` redirects); home has no `Top up` (DECISIONS #26.6); Roadmap: Bitcoin uses `BitcoinPolicyDiagram`.
+
+```ts
+import type {
+  BitcoinPolicyCopy, ConfirmPromptCopy, HandoffTileCopy, PositionsTableCopy, WebShellCopy,
+} from '@keyline/ui';
+import { TRAVEL_RULE_OWN_WALLET } from '@keyline/ui'; // 'No ownership check needed: this wallet is verified as yours.'
+
+// ---------- primitive copy (typed by @keyline/ui) ----------
+export const sqWebShell: WebShellCopy = {
+  brand: 'Swissquote',
+  prototype: 'Prototype of Swissquote web — simulated',
+  navLabel: 'Swissquote',
+  signOut: 'Sign out',
+};
+
+export const sqPositionsCopy: PositionsTableCopy = {
+  caption: 'Positions',
+  position: 'Position',
+  quantity: 'Quantity',
+  price: 'Price',
+  value: 'Value',
+  action: 'Keyline',
+  total: 'Total value',
+};
+
+export const sqTileCopy: HandoffTileCopy = {
+  eyebrow: 'Keyline',
+  title: 'A wallet only you can spend from',
+  body: 'Your phone holds the key. Any 2 of your 3 recoverers can restore access: your Safety key, your Emergency card and Swissquote. Swissquote can’t move your money, alone or with anyone.',
+  start: 'Set up Keyline on my phone',
+  scan: 'Scan with your phone’s camera, or open keyline.app/start and type this code:',
+  qrLabel: 'QR code to continue on your phone',
+  expiresIn: (clock: string) => `Code expires in ${clock}`,
+  waiting: 'Waiting for your phone',
+  expired: 'Code expired',
+  renew: 'Show a new code',
+  claimed: 'Phone connected',
+  claimedBody: 'Continue on your phone. This page updates by itself.',
+  protectedTitle: 'Protected · 2 of 3 recoverers',
+};
+
+export const sqSafetyKeyCopy: ConfirmPromptCopy = {
+  context: 'Request from your phone',
+  title: 'Make this computer your Safety key?',
+  body: 'Your phone is setting up Keyline. This computer keeps a second key in this browser. It co-approves large transfers and can help restore access if you lose your phone.',
+  canTitle: 'It can',
+  can: ['Approve large transfers with your phone', 'Help restore access, with one other recoverer'],
+  cannotTitle: 'It can’t',
+  cannot: ['Spend on its own', 'Be used from another computer'],
+  confirm: 'Make this computer my Safety key',
+  decline: 'Not now',
+  confirmed: 'Safety key added',
+  doneTitle: 'This computer is your Safety key',
+  doneBody: 'Continue on your phone. Keep this browser profile: clearing its data removes the key.',
+  alreadyTitle: 'This computer is already your Safety key',
+  alreadyBody: 'Nothing to do here. Continue on your phone.',
+  errorTitle: 'The Safety key wasn’t added.',
+  errorBody: 'Nothing changed on your wallet. Try again.',
+  retry: 'Try again',
+};
+
+export const btcPolicyCopy: BitcoinPolicyCopy = {
+  title: 'The same protection, written as a Bitcoin script',
+  description:
+    'Two ways to spend. Your key can spend at any time. After the waiting period, any 2 of your 3 recoverers (Safety key, Emergency card, Swissquote) can move the Bitcoin to a new key.',
+  branch1: 'Your key, now',
+  branch1Code: 'pk(owner)',
+  or: 'or',
+  branch2: 'After the waiting period:',
+  branch2Count: '2 of 3 recoverers',
+  recoverers: 'Safety key · Emergency card · Swissquote',
+  branch2Code: 'and(older(waiting), thresh(2, …))',
+  axisNow: 'Now',
+  axisWait: 'Waiting period ends',
+  axisTime: 'time',
+};
+
+// ---------- screens ----------
+export const copyV2 = {
+  sqWeb: {
+    nav: { portfolio: 'Portfolio', trade: 'Trade', payments: 'Payments', documents: 'Documents' },
+    account: (n: string) => `Account ${n}`, // 'Account 4821 3307'
+    signIn: {
+      title: 'Sign in to Swissquote',
+      lead: 'Lea’s details are filled in for the prototype. One click signs in.',
+      username: 'Username',
+      usernameValue: 'lea.keller',
+      password: 'Password',
+      primary: 'Sign in',
+      error: 'That doesn’t match our records.',
+      note: 'Swissquote web is simulated for the prototype.',
+    },
+    signedOut: 'You are signed out.',
+    notAvailable: 'Not part of the prototype.', // Trade, Payments, Documents
+    portfolio: {
+      title: 'Portfolio',
+      valuation: (when: string) => `Valuation ${when}`, // + <Chip/>
+      cash: 'Cash',
+      invested: 'Invested',
+      total: 'Total value',
+      groups: { cash: 'Cash', securities: 'Securities', crypto: 'Crypto' },
+      chf: 'Swiss franc',
+      move: 'Move to Keyline',
+      moveAria: (asset: string) => `Move ${asset} to Keyline`,
+      why: 'Why?',
+      btcReason: 'Not movable yet',
+    },
+    tileProtected: {
+      balance: 'In your Keyline wallet',
+      note: 'Read from the network. Only your phone can spend it.',
+    },
+    move: {
+      title: (asset: string) => `Move ${asset} to Keyline`,
+      amount: 'Amount',
+      max: 'Max',
+      available: (qty: string) => `Available ${qty}`,
+      value: (chf: string) => `Value ${chf}`, // + <Chip/> (simulated price)
+      from: 'From',
+      fromValue: 'Your Swissquote account',
+      to: 'To',
+      toValue: 'Your Keyline wallet · verified as yours',
+      travelRule: TRAVEL_RULE_OWN_WALLET,
+      fee: 'Network fee',
+      feeValue: 'Paid by Swissquote',
+      primary: 'Move to Keyline',
+      moving: 'Moving to your Keyline wallet',
+      done: 'Moved. It appears in Keyline within a minute.',
+      viewTx: 'View on Basescan',
+      errAmount: 'Enter an amount above zero, up to what is available.',
+      funderEmpty:
+        'Swissquote’s test account has no funds for this asset right now. Nothing was moved and nothing was debited.',
+      noWallet: 'Set up Keyline on your phone first. Moves go only to a wallet verified as yours.',
+      errorTitle: 'Nothing was moved',
+      errorBody: 'The transfer didn’t go through and nothing was debited. Try again.',
+    },
+    moves: {
+      title: 'Moves to Keyline',
+      empty: 'No moves yet.',
+      status: { pending: 'Pending', sent: 'Sent', confirmed: 'Confirmed', failed: 'Failed' },
+    },
+    approvals: 'Approvals',
+  },
+
+  // A3 — the human's text, verbatim. Shown on Swissquote web (sheet) and linked from Security.
+  btcWhy: {
+    title: 'Why can’t I move Bitcoin?',
+    body: [
+      'Keyline moves an asset only when it can give it the same protection: your key, two of three recoverers, a public waiting period. For Bitcoin that needs a different key design (a threshold key or a timelocked script), which is on our roadmap. Until then your Bitcoin stays in your Swissquote account.',
+    ],
+    link: 'Roadmap: Bitcoin',
+    close: 'Close',
+  },
+
+  // B1 — /start on the phone
+  start: {
+    title: 'Continue on your phone',
+    body: 'Type the 6-digit code shown on your laptop.',
+    field: '6-digit code',
+    scanned: 'Code from your laptop',
+    primary: 'Continue',
+    wrong: 'That code doesn’t match. Check your laptop and try again.',
+    expired: 'Code expired. Show a new one on your laptop.',
+    noHandoff: 'Start on Swissquote web on your laptop: choose “Set up Keyline on my phone”, then type the code here.',
+  },
+
+  onboarding: {
+    stepper: (n: number, label: string) => `Step ${n} of 6 · ${label}`,
+    hi: {
+      title: (first: string) => `Hi ${first}`, // 'Hi Lea' — from the web session, no form
+      body: 'Keyline is a wallet only you can spend from. Swissquote helps you get back in if you lose your phone — it can’t move your money.',
+      signedInAs: (name: string, account: string) => `Connected to Swissquote as ${name} · ${account}`,
+      primary: 'Create my Keyline',
+    },
+    key: { step: 'Create your key', title: 'A key that stays on this phone', primary: 'Create with Face ID / fingerprint' },
+    safetyKey: {
+      step: 'Safety key',
+      title: 'Your laptop becomes your Safety key',
+      body: 'Confirm on your laptop. Nothing to type.',
+      waiting: 'Waiting for your laptop',
+      confirmed: 'Confirmed on your laptop',
+      primary: 'Continue',
+      skip: 'Skip for now — add it later',
+    },
+    emergency: { step: 'Emergency card' },
+    recovery: { step: 'How recovery works' },
+    protect: {
+      step: 'Protect my wallet',
+      title: 'One signature protects your wallet',
+      titleDone: 'Protected',
+      body: 'Your wallet is created on Base and your three recoverers are written into it. Swissquote pays the network fee.',
+      bodyDone:
+        'Your phone key signs. Any 2 of your 3 recoverers can restore access. Swissquote can’t move your money, alone or with anyone.',
+      rows: [
+        { name: 'Safety key', where: 'On your laptop' },
+        { name: 'Emergency card', where: 'On paper, with you' },
+        { name: 'Swissquote', where: 'Swiss data centre' },
+      ],
+      ringSub: 'recoverers added',
+      ringCount: (n: number) => `${n} of 3`,
+      waiting: 'Waiting',
+      adding: 'Adding',
+      added: 'Added',
+      primary: 'Protect my wallet',
+      continue: 'Continue',
+      fee: 'Network fee paid by Swissquote',
+      signed: 'Signed',
+      sent: 'Sent',
+      block: (n: string) => `In block ${n}`,
+      errorTitle: 'The wallet wasn’t created',
+      errorBody: 'Nothing was charged. The network didn’t accept the request — try again.',
+    },
+    proof: { step: 'Prove it’s yours', primary: 'Sign the proof', next: 'Continue' },
+    firstFunds: {
+      title: 'Move your first funds',
+      body: 'Open Swissquote on your laptop and choose “Move to Keyline” next to USDC, EURC or ETH. It arrives here within a minute.',
+      waiting: 'Waiting for your first funds',
+      arrived: (amount: string) => `${amount} arrived`,
+      primary: 'Go to my wallet',
+    },
+  },
+
+  // D1 — no "Top up": money comes in via Move to Keyline, goes out via Back to Swissquote.
+  home: {
+    protected: 'Protected',
+    settings: 'Settings',
+    balance: 'Balance',
+    totalNote: 'Total in CHF', // + <Chip/> (simulated rates)
+    assets: 'Assets',
+    assetsEmpty: 'Nothing here yet. Move funds from Swissquote on your laptop.',
+    send: 'Send',
+    sendOnlyUsdc: 'Send works with USDC in this prototype.',
+    receive: 'Receive',
+    backToSq: 'Back to Swissquote',
+    statement: 'Statement',
+    all: 'All',
+    sq: 'In your Swissquote account', // + <Chip/> once, at the header
+    sqNote: 'Read only. Swissquote web is simulated.',
+    sqOpen: 'Open Swissquote',
+    protectionTitle: 'Protected · 2 of 3 recoverers',
+    testnet: 'Test network · Base Sepolia — nothing here is real money.',
+  },
+
+  // D5 — Back to Swissquote → review → receipt. Always Tier 1.
+  back: {
+    title: 'Back to Swissquote',
+    body: 'Sends to your own Swissquote account, verified as yours.',
+    asset: 'Asset',
+    amount: 'Amount',
+    max: 'Max',
+    available: (qty: string) => `Available ${qty}`,
+    errAmount: 'Enter an amount above zero, up to what is available.',
+    primary: 'Review',
+    review: {
+      title: 'Review',
+      to: 'to your Swissquote account',
+      recipient: 'Your Swissquote account · verified',
+      policy: { word: 'Approved', reason: 'Your own account.' },
+      travelRule: 'No ownership check needed: this account is verified as yours.',
+      panel: 'What will happen',
+      rows: { send: 'You send', to: 'To', fee: 'Network fee', feeValue: 'Paid by Swissquote', balance: 'Your balance' },
+      footnote: 'This can’t be undone.',
+      cta: 'Confirm with Face ID',
+    },
+    receipt: {
+      title: 'Sent to Swissquote',
+      line: (amount: string) => `${amount} to your Swissquote account`,
+      steps: ['Signed', 'Sent', 'In block', 'Credited'],
+      creditPending: 'Swissquote credits your account when the transfer is in a block.',
+      credited: 'Credited to your Swissquote account', // + <Chip/> (simulated ledger)
+      done: 'Done',
+    },
+  },
+
+  // F6 — Security → Roadmap: Bitcoin
+  security: {
+    roadmapRow: 'Roadmap: Bitcoin',
+    roadmapRowMeta: 'Not in this prototype',
+    bitcoin: {
+      title: 'Roadmap: Bitcoin',
+      body: 'Bitcoin can be protected the same way with a script: your key spends at any time; after a public waiting period, 2 of your 3 recoverers can move it to a new key.',
+      // diagram: <BitcoinPolicyDiagram copy={btcPolicyCopy} />
+      why: 'Keyline moves an asset only when it can give it the same protection: your key, two of three recoverers, a public waiting period. For Bitcoin that needs a different key design (a threshold key or a timelocked script), which is on our roadmap. Until then your Bitcoin stays in your Swissquote account.',
+      notHere: 'Not in this prototype.',
+    },
+  },
+
+  theme: { legend: 'Appearance', system: 'System', light: 'Light', dark: 'Dark' },
+} as const;
+```
+
 
 ---
 

@@ -19,7 +19,8 @@
 }
 
 .kl-link {
-  color: var(--accent-text);
+  /* v2: links are ink + underline everywhere; the accent is for focus, the active step and the ring. */
+  color: var(--ink);
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
@@ -1323,7 +1324,7 @@
 }
 .kl-desk__operator a,
 .kl-desk__operator button {
-  color: var(--accent);
+  color: var(--on-ink);
   background: none;
   border: 0;
   font: inherit;

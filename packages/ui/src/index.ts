@@ -69,6 +69,46 @@ export { CHIP_SIMULATED_TOOLTIP, Chip, type ChipProps } from './v2/Chip';
 export { CrossFade, type CrossFadeProps } from './v2/CrossFade';
 export { contrastRatio, luminance } from './v2/color';
 export { type HapticKind, haptic } from './v2/haptics';
+// ---- v2 journey primitives (DESIGN.md v2 §10.1, SPEC §10) ----
+export { AssetRow, type AssetRowProps } from './v2/journey/AssetRow';
+export {
+  type BitcoinPolicyCopy,
+  BitcoinPolicyDiagram,
+  type BitcoinPolicyDiagramProps,
+} from './v2/journey/BitcoinPolicyDiagram';
+export {
+  ConfirmPrompt,
+  type ConfirmPromptCopy,
+  type ConfirmPromptProps,
+  type ConfirmPromptState,
+} from './v2/journey/ConfirmPrompt';
+export {
+  type HandoffState,
+  HandoffTile,
+  type HandoffTileCopy,
+  type HandoffTileProps,
+} from './v2/journey/HandoffTile';
+export { expiryClock, formatCode6, splitCode6, spokenCode6 } from './v2/journey/handoff';
+export {
+  type Position,
+  type PositionGroup,
+  PositionsTable,
+  type PositionsTableCopy,
+  type PositionsTableProps,
+} from './v2/journey/PositionsTable';
+export { RowAction, type RowActionProps } from './v2/journey/RowAction';
+export {
+  TRAVEL_RULE_OWN_WALLET,
+  TravelRuleLine,
+  type TravelRuleLineProps,
+} from './v2/journey/TravelRuleLine';
+export {
+  type WebLinkProps,
+  type WebNavItem,
+  WebShell,
+  type WebShellCopy,
+  type WebShellProps,
+} from './v2/journey/WebShell';
 export { DRAW, DURATION, dampingRatio, EASE_STANDARD, FADE, SPRING } from './v2/motion';
 export { NumberTicker, type NumberTickerProps } from './v2/NumberTicker';
 export { ProtectionCountdown, type ProtectionCountdownProps } from './v2/ProtectionCountdown';

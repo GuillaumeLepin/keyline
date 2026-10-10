@@ -254,3 +254,13 @@ Gates after the fixes: `pnpm --filter @keyline/ui typecheck` ✓ · `test` ✓ 1
 
 - `pnpm screenshots` fixtures have drifted (owner `qa-demo`, `e2e/screenshots.spec.ts`): `NOW` is pinned to 6 Oct but the browser clock is not, so every policy decision is already expired; `send-review-step-up`, `send-review-block` and `onboarding-5-protect-refused` time out (decision parse/fixture missing), `send-review-cooling` hits `no fixture for GET /policy/dec_…`, and after R-8 `send-review-approve` no longer shows `Approved` (it waits for it). Fix: fake the page clock to `NOW` (`page.clock.setFixedTime`) or build fixtures from `Date.now()`. The review captures are not trustworthy until then.
 - The desk request (R-2, R-11, R-12), recover waiting/finished (R-5, W2-5), alerts (R-3) and approve-confirmed (R-10) fixes were verified in code and on the live queue only; they need the next `pnpm e2e` run to re-shoot `attacker-06/08`, `fraud-02/03`, `story-13/14/15`.
+
+## Phase B (10 Oct 2026) — approved decisions applied in `packages/ui`
+
+Visible changes on existing screens (intentional, DECISIONS #26):
+- Every `.kl-link` (v1 screens: onboarding, security, recover, alerts, activity, desk request) is now **ink + underline**, no longer `--accent-text` orange-red. Desk header operator links/buttons are `--on-ink` underlined instead of accent.
+- Dark theme only: `--danger` `#F27A6A` → `#F06B80`, `--danger-bg` `#2E1814` → `#2E1419`, `--danger-bar` follows (Thief bar, danger buttons, policy block, revoked ring). Light unchanged.
+- 24 px ring: 10° gaps / 110° arcs, now pinned by a test (geometry was already computing this).
+- Accent remains on: focus ring, stepper current dot, StatusSequence active dot, CountdownRing / ProtectionRing, desk nav active underline.
+
+Checked on `/design` (port 3200, light + dark): WebShell + PositionsTable, HandoffTile (6 states), ConfirmPrompt (5 states), AssetRow (incl. disabled + Why?, loading), TravelRuleLine, BitcoinPolicyDiagram, BTC Why sheet. Fixed while looking: table row header used `display:grid` on a `<th>` (broke the row hairline); action text button overflowed the table's scroll container by 8 px; diagram guide line crossed labels; list bullets stripped by preflight; status icons shrinking.
