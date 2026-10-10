@@ -150,8 +150,11 @@ export type Dapp = z.infer<typeof DappSchema>;
  *   single call itself; `calls` may be empty and is ignored. Always Tier 1, always sponsored (F4b).
  * - `dapp`: a dApp's request — `dappId` + the calls it asked for. Every `call.to` must be one of the dApp's
  *   allowlisted `contracts` (policy/allowlist.json), otherwise `block` ("Unknown dApp — request a review").
+ * - `to-own-account`: one USDC `transfer` to the bank deposit address (GET /sq/deposit-address) — "Back to Swissquote".
+ *   A `transfer` whose recipient is the deposit address is reclassified to this kind. Always Tier 1, sponsored,
+ *   no screening (own account); credited to the SIMULATED Swissquote ledger on inclusion (event `sq.credit`).
  */
-export const PolicyKindSchema = z.enum(['protect', 'transfer', 'cancel-recovery', 'dapp']);
+export const PolicyKindSchema = z.enum(['protect', 'transfer', 'cancel-recovery', 'dapp', 'to-own-account']);
 export type PolicyKind = z.infer<typeof PolicyKindSchema>;
 
 export const PolicyRequestSchema = z.object({
@@ -642,7 +645,7 @@ export const MeResponseSchema = z.object({
   }),
   wallet: WalletSchema.nullable(),
   /** How the caller was authenticated: passkey session, or the DEMO_FAST_MODE X-Device-Label header. */
-  auth: z.enum(['session', 'device-label']),
+  auth: z.enum(['session', 'device-label', 'onboarding-token']),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 

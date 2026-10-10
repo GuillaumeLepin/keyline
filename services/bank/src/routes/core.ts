@@ -16,7 +16,7 @@ import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simp
 import type { FastifyInstance } from 'fastify';
 import { getAddress } from 'viem';
 import { z } from 'zod';
-import { clientOf, SESSION_COOKIE } from '../auth';
+import { clientOf, onboardingClaimsOf, SESSION_COOKIE } from '../auth';
 import type { BankConfig } from '../config';
 import { type Db, nowIso } from '../db';
 import { validationError } from '../errors';
@@ -62,13 +62,20 @@ export const registerCoreRoutes = (
   // ---- passkeys ----
   app.post('/auth/passkey/register/options', async (req) => {
     const { deviceLabel } = RegisterOptionsBodySchema.parse(req.body ?? {});
-    return webauthn.registrationOptions(deviceLabel);
+    // SPEC §10: with X-Onboarding-Token (from a claimed handoff) the passkey is bound to that client; else Lea.
+    const onboarding = onboardingClaimsOf(req);
+    return webauthn.registrationOptions(deviceLabel, onboarding?.cid);
   });
 
   app.post('/auth/passkey/register/verify', async (req) => {
     const { credential, deviceLabel } = RegisterVerifyBodySchema.parse(req.body);
     // The zod schema is a loose wire check; the library does the real validation of the attestation.
-    const passkey = await webauthn.verifyRegistration(credential as RegistrationResponseJSON, deviceLabel);
+    const onboarding = onboardingClaimsOf(req);
+    const passkey = await webauthn.verifyRegistration(
+      credential as RegistrationResponseJSON,
+      deviceLabel,
+      onboarding?.cid,
+    );
     return RegisterVerifyResponseSchema.parse({ passkey });
   });
 

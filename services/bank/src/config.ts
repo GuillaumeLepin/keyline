@@ -10,6 +10,8 @@ export const EnvSchema = z.object({
   CHAIN_ID: z.coerce.number().int().positive().default(84532),
   RPC_URL: z.string().url(),
   USDC_ADDRESS: Address,
+  /** Circle EURC on Base Sepolia (6 decimals, DECISIONS #27). */
+  EURC_ADDRESS: Address.default('0x808456652fdb597867f38412077A9182bf77359F'),
   RECOVERY_MODULE_ADDRESS: Address,
   DEMO_FAST_MODE: z
     .preprocess(emptyToUndefined, z.enum(['true', 'false']).optional())

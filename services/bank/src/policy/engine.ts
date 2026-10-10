@@ -33,6 +33,10 @@ export const REASON_SPONSORSHIP_EXHAUSTED = 'Free transactions used up today —
 export const REASON_UNKNOWN_DAPP = 'Unknown dApp — request a review';
 export const REASON_UNLIMITED_APPROVAL = 'Unlimited approvals need your Safety key';
 export const REASON_PROTOTYPE = 'Policy-layer enforcement in the prototype (simulated)';
+/** SPEC §10 "Back to Swissquote" — the review shows these verbatim. */
+export const REASON_OWN_ACCOUNT = 'Your Swissquote account · verified';
+export const REASON_OWN_ACCOUNT_TRAVEL_RULE = 'No ownership check needed: this wallet is verified as yours.';
+export const OWN_ACCOUNT_LABEL = 'Your Swissquote account';
 
 export type PolicyInput = {
   id: string;
@@ -90,6 +94,16 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
 
   if (input.kind === 'protect') {
     reasons.push('Protecting your wallet · network fee paid by Swissquote');
+  } else if (input.kind === 'to-own-account') {
+    // SPEC §10: Tier 1 regardless of amount, no screening (own account). A revert still blocks — nothing fake.
+    if (!ctx.simulation.ok) {
+      verdict = 'block';
+      reasons.push(
+        `This transaction would fail${ctx.simulation.revertReason ? `: ${ctx.simulation.revertReason}` : ''} · nothing was sent`,
+      );
+    } else {
+      reasons.push(REASON_OWN_ACCOUNT, REASON_OWN_ACCOUNT_TRAVEL_RULE);
+    }
   } else if (input.kind === 'cancel-recovery') {
     // F4b: the owner stops a recovery they did not start. Never gated — the attacker's clock is running.
     reasons.push('Cancelling a recovery you did not start · network fee paid by Swissquote');
@@ -163,7 +177,7 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
       reasons.push(`Indicative rate 1 USDC = CHF ${(ctx.fx ?? FX).rate.toFixed(2)} (simulated)`);
   }
 
-  if (verdict !== 'block') {
+  if (verdict !== 'block' && !(input.kind === 'to-own-account' && sponsored)) {
     reasons.push(
       sponsored
         ? `Network fee paid by Swissquote · ${remainingToday - 1} of ${SPONSORED_DAILY_CAP} free transactions left today`
@@ -201,7 +215,7 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
     suggestedCap: ctx.suggestedCap,
     dappId: input.dappId,
     deviceLabel: input.deviceLabel,
-    recipientLabel: contact?.label,
+    recipientLabel: input.kind === 'to-own-account' ? OWN_ACCOUNT_LABEL : contact?.label,
     recipientAddress: input.recipientAddress,
   };
 };

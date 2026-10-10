@@ -80,6 +80,15 @@ export const registerPolicyRoutes = (
 ): void => {
   const usdc = getAddress(config.USDC_ADDRESS);
   const recoveryModule = getAddress(config.RECOVERY_MODULE_ADDRESS);
+  const depositAddress = getAddress(config.addresses.funder);
+  const ownAccountScreening = (): Screening => ({
+    counterparty: depositAddress,
+    listsChecked: ['OFAC-SDN', 'SECO'],
+    hit: false,
+    simulatedHit: false,
+    simulated: true,
+    note: 'Not screened: your own Swissquote account (bank deposit address)',
+  });
 
   const ownedDecision = (req: Parameters<typeof clientOf>[0], id: string): StoredDecision => {
     const d = loadDecision(store, events, id);
@@ -176,6 +185,7 @@ export const registerPolicyRoutes = (
     let callData: Hex;
     let chfValue = 0;
     let counterparties: Address[] = [walletAddress];
+    let kind = body.kind;
 
     if (body.kind === 'protect') {
       if (wallet.status !== 'pending') throw conflict('This wallet is already protected');
@@ -194,7 +204,7 @@ export const registerPolicyRoutes = (
       const data = encodeFunctionData({ abi: socialRecoveryModuleAbi, functionName: 'cancelRecovery' });
       calls = [{ to: recoveryModule, value: '0', data }];
       callData = encodeCallData([callToMetaTransaction(calls[0] as Call)]);
-    } else if (body.kind === 'transfer') {
+    } else if (body.kind === 'transfer' || body.kind === 'to-own-account') {
       if (wallet.status === 'pending') throw conflict('Protect your wallet before sending');
       if (body.calls.length !== 1) throw validationError('A transfer is exactly one call (USDC transfer)');
       const call = body.calls[0] as Call;
@@ -205,6 +215,13 @@ export const registerPolicyRoutes = (
         throw validationError('recipientAddress does not match the transfer recipient');
       counterparties = [transfer.to];
       chfValue = usdcToChf(transfer.amount);
+      // SPEC §10 "Back to Swissquote": a transfer to the bank deposit address is the client's own account.
+      const toOwnAccount = isAddressEqual(transfer.to, depositAddress);
+      if (body.kind === 'to-own-account' && !toOwnAccount)
+        throw validationError('kind "to-own-account" must send to GET /sq/deposit-address', {
+          depositAddress,
+        });
+      kind = toOwnAccount ? 'to-own-account' : 'transfer';
       calls = [{ to: usdc, value: '0', data: call.data }];
       callData = encodeCallData([callToMetaTransaction(call)]);
     } else {
@@ -226,7 +243,7 @@ export const registerPolicyRoutes = (
     const decision = evaluate(
       {
         id,
-        kind: body.kind,
+        kind,
         walletAddress,
         calls,
         chfValue,
@@ -240,7 +257,8 @@ export const registerPolicyRoutes = (
         sponsoredToday: store.sponsoredTodayForClient(client.clientId),
         contacts: repo.contacts(client.clientId),
         allowlist: repo.dapps(),
-        screening: screenAll(counterparties),
+        // Own account: no counterparty to screen (the deposit address is Swissquote's).
+        screening: kind === 'to-own-account' ? ownAccountScreening() : screenAll(counterparties),
         simulation,
         callsHash: callsHashOf(callData),
         suggestedCap: suggestedCapFor(calls, simulation),
@@ -249,7 +267,7 @@ export const registerPolicyRoutes = (
     store.saveDecision(decision, body);
     events.recordEvent('policy.decided', wallet.address, {
       decisionId: id,
-      kind: body.kind,
+      kind,
       dappId: body.dappId,
       verdict: decision.verdict,
       tier: decision.tier,

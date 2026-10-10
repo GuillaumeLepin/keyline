@@ -108,6 +108,14 @@ export type ChainDeps = RecoveryChainDeps & {
   funderBalances: () => Promise<FunderBalances>;
   /** Funder EOA → wallet ERC-20 transfer. Returns the real tx hash or throws. */
   funderTransferUsdc: (to: Address, amount: bigint) => Promise<Hex>;
+  /** SPEC §10 moves: funder ERC-20 balance (USDC / EURC). */
+  funderTokenBalance: (token: Address) => Promise<bigint>;
+  /** SPEC §10 moves: funder EOA → `to` ERC-20 `transfer` (USDC / EURC). Real tx hash or throws. */
+  funderTransferErc20: (token: Address, to: Address, amount: bigint) => Promise<Hex>;
+  /** SPEC §10 moves: funder EOA → `to` native ETH. Real tx hash or throws. */
+  funderTransferEth: (to: Address, amount: bigint) => Promise<Hex>;
+  /** Receipt of a plain transaction: 'pending' while not mined. */
+  txStatus: (hash: Hex) => Promise<'pending' | 'confirmed' | 'failed'>;
 };
 
 /** Relayer EOA balance at which a plain EOA transaction is preferred over the sponsored relayer Safe. */
@@ -318,6 +326,29 @@ export const createChainDeps = (config: BankConfig): ChainDeps => {
         }),
       ]);
       return { eth, usdc: usdcBal, address: funder.account.address };
+    },
+    funderTokenBalance: (token) =>
+      publicClient.readContract({
+        address: token,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [funder.account.address],
+      }),
+    funderTransferErc20: (token, to, amount) =>
+      funder.client.writeContract({
+        address: token,
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [to, amount],
+      }),
+    funderTransferEth: (to, amount) => funder.client.sendTransaction({ to, value: amount }),
+    txStatus: async (hash) => {
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash });
+        return receipt.status === 'success' ? 'confirmed' : 'failed';
+      } catch {
+        return 'pending'; // not mined yet (TransactionReceiptNotFoundError) or RPC hiccup: ask again later
+      }
     },
     funderTransferUsdc: (to, amount) =>
       funder.client.writeContract({

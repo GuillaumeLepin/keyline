@@ -8,6 +8,7 @@ import {
   userOpToJson,
 } from '@keyline/chain';
 import {
+  type PolicyDecision,
   SendUserOpBodySchema,
   SendUserOpResponseSchema,
   SponsorBodySchema,
@@ -16,24 +17,73 @@ import {
   type UserOpStatusValue,
 } from '@keyline/shared';
 import type { FastifyInstance } from 'fastify';
-import { type Address, getAddress, type Hex, isAddressEqual, keccak256 } from 'viem';
+import { type Address, formatUnits, getAddress, type Hex, isAddressEqual, keccak256 } from 'viem';
 import { z } from 'zod';
+import { parseErc20Transfer } from '../chain/decode';
 import { fromChainUserOp, toChainUserOp } from '../chain/userop-codec';
 import type { BankConfig } from '../config';
+import { type Db, nowIso } from '../db';
 import type { ChainDeps } from '../deps';
 import { conflict, notFound, policyRefused, upstream } from '../errors';
 import type { EventStore } from '../events';
 import { loadDecision } from '../policy/decisions';
 import type { Repo } from '../repo';
+import type { SqLedger } from '../sq/ledger';
 import type { Store } from '../store';
 
-type Deps = { config: BankConfig; events: EventStore; repo: Repo; store: Store; chain: ChainDeps };
+type Deps = {
+  config: BankConfig;
+  events: EventStore;
+  repo: Repo;
+  store: Store;
+  chain: ChainDeps;
+  ledger: SqLedger;
+  db: Db;
+};
 const HashParam = z.object({ hash: z.string().regex(/^0x[0-9a-fA-F]{64}$/) });
 
 export const registerUserOpRoutes = (
   app: FastifyInstance,
-  { config, events, repo, store, chain }: Deps,
+  { config, events, repo, store, chain, ledger, db }: Deps,
 ): void => {
+  const usdc = getAddress(config.USDC_ADDRESS);
+  /** SPEC §10: a "Back to Swissquote" userOp was included → credit the SIMULATED ledger once (event `sq.credit`). */
+  const creditOwnAccount = (
+    row: { user_op_hash: string; wallet_address: string },
+    decision: PolicyDecision,
+    txHash: string | undefined,
+  ) => {
+    const transfer = decision.calls[0] ? parseErc20Transfer(decision.calls[0], usdc) : null;
+    const wallet = repo.walletByAddress(row.wallet_address);
+    if (!transfer || !wallet) return;
+    const amount = formatUnits(transfer.amount, 6);
+    const valueChf = ledger.valueChf(wallet.clientId, 'USDC', transfer.amount);
+    const inserted = insertCredit.run(
+      row.user_op_hash,
+      wallet.clientId,
+      wallet.address,
+      'USDC',
+      amount,
+      valueChf,
+      txHash ?? null,
+      nowIso(),
+    );
+    if (inserted.changes !== 1) return; // already credited
+    ledger.seed(wallet.clientId);
+    ledger.credit(wallet.clientId, 'USDC', transfer.amount, 'back-to-swissquote', row.user_op_hash);
+    events.recordEvent('sq.credit', wallet.address, {
+      asset: 'USDC',
+      amount,
+      valueChf,
+      userOpHash: row.user_op_hash,
+      txHash,
+      ledgerSimulated: true,
+    });
+  };
+  const insertCredit = db.prepare(
+    `INSERT OR IGNORE INTO sq_credits (user_op_hash, client_id, wallet_address, asset, amount, value_chf, tx_hash, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
   const passkeyAccount = (wallet: Address) => {
     const key = store.passkeyKeyForWallet(wallet);
     if (!key) throw conflict('Wallet has no owner passkey');
@@ -151,6 +201,8 @@ export const registerUserOpRoutes = (
           decisionId: row.decision_id,
         });
         const decision = row.decision_id ? store.decision(row.decision_id) : null;
+        if (status === 'included' && decision?.kind === 'to-own-account')
+          creditOwnAccount(row, decision, txHash);
         if (status === 'included' && decision?.kind === 'protect' && txHash) {
           store.markWalletDeployed(row.wallet_address, txHash);
           store.markGuardiansAdded(row.wallet_address, txHash);

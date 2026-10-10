@@ -9,6 +9,7 @@ import { type Db, openDb } from './db';
 import { type ChainDeps, createChainDeps } from './deps';
 import { errorHandler } from './errors';
 import { createEventStore } from './events';
+import { createGuardianRegistrar } from './guardians';
 import { registerIdempotency } from './idempotency';
 import { createRecoveryService, type RecoveryService } from './recovery-service';
 import { createRecoveryStore } from './recovery-store';
@@ -18,12 +19,14 @@ import { registerCoreRoutes } from './routes/core';
 import { registerDeskRoutes } from './routes/desk';
 import { registerPolicyRoutes } from './routes/policy';
 import { registerRecoveryRoutes } from './routes/recoveries';
+import { registerSqRoutes } from './routes/sq';
 import { registerStubs } from './routes/stubs';
 import { registerTopupRoutes } from './routes/topups';
 import { registerUserOpRoutes } from './routes/userops';
 import { registerWalletRoutes } from './routes/wallets';
 import { createScreening, type ScreeningService } from './screening';
-import { sanctionedSeedAddress, seed } from './seed';
+import { LEA, sanctionedSeedAddress, seed } from './seed';
+import { createSqLedger } from './sq/ledger';
 import { createStore } from './store';
 import { createWebAuthnService } from './webauthn';
 
@@ -74,7 +77,13 @@ export const buildApp = async (
   await app.register(cors, {
     origin: [config.WALLET_ORIGIN, 'http://localhost:3000'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Idempotency-Key', 'X-Operator-Token', 'X-Device-Label'],
+    allowedHeaders: [
+      'Content-Type',
+      'Idempotency-Key',
+      'X-Operator-Token',
+      'X-Device-Label',
+      'X-Onboarding-Token',
+    ],
     exposedHeaders: ['Idempotent-Replayed'],
   });
   await app.register(cookie);
@@ -86,6 +95,9 @@ export const buildApp = async (
   // Seed first: the screening module binds the seeded 'Sanctioned test address' contact at startup.
   const { seededNow } = seed(db, events);
   if (seededNow) app.log.info({ clientId: 'SQ-48213-LK' }, 'demo seed applied');
+  // SPEC §10 F0.2: the SIMULATED Swissquote portfolio (idempotent, never resets an existing ledger).
+  const ledger = createSqLedger(db);
+  ledger.seed(LEA.id);
   const sanctioned = sanctionedSeedAddress(db);
   const screening =
     opts.screening ??
@@ -101,11 +113,21 @@ export const buildApp = async (
   registerCoreRoutes(app, { config, db, events, repo, webauthn, store });
   registerWalletRoutes(app, { config, db, events, repo, store, chain });
   registerPolicyRoutes(app, { config, db, events, repo, store, chain, screening });
-  registerUserOpRoutes(app, { config, events, repo, store, chain });
+  registerUserOpRoutes(app, { config, events, repo, store, chain, ledger, db });
   registerAttestationRoutes(app, { config, db, events, repo, chain });
   registerTopupRoutes(app, { config, db, events, repo, store, chain });
   registerRecoveryRoutes(app, { config, events, repo, store, recoveries, chain, service });
   registerDeskRoutes(app, { events, repo, recoveries, chain, service });
+  registerSqRoutes(app, {
+    config,
+    db,
+    events,
+    repo,
+    store,
+    chain,
+    ledger,
+    addGuardian: createGuardianRegistrar({ config, events, repo, store, chain }),
+  });
   registerStubs(app);
 
   app.decorate('db', db);

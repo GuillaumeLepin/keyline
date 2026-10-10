@@ -60,6 +60,41 @@ Decisions expire after 10 minutes and are single-use once a userOp was sent with
 Still `501 not-implemented-yet` (Wave 2/3): `POST /policy/:id/step-up`, `/recoveries*`, `POST /contacts`,
 `GET /desk/queue`, `POST /mock/eid`.
 
+## v2 journey (SPEC §10) — Swissquote web, handoff, laptop Safety key, moves
+
+Everything below is SIMULATED except the on-chain transfers (see `docs/MOCKS.md`). Two separate cookies: `sq_web`
+(Swissquote web, 2 h) and `keyline_session` (wallet passkey session). Schemas: `packages/shared/src/sq.ts`.
+
+```
+Laptop (Swissquote web, cookie sq_web)
+  POST /sq/login { username: 'lea.keller' }       → SqSession          (no password; also 'lea', email, client id)
+  GET  /sq/me                                     → SqSession · POST /sq/logout → { ok: true }
+  GET  /sq/positions                              → SqPositionsResponse (sq_web OR wallet session / X-Device-Label)
+  POST /handoff                                   → Handoff (201 new, 200 = this session's open code) · 10 min
+  GET  /handoff/:code                             → Handoff (status open|claimed|expired; client + walletAddress
+                                                    only for the session that opened it)
+  GET  /sq/safety-key-request                     → { walletAddress|null, status: none|waiting|done, requestedAt?, safetyKeyAddress? }
+  POST /sq/safety-key { address }                 → Guardian (same registrar as the old /pairings claim)
+  POST /sq/moves { asset: USDC|EURC|ETH, amount } → Move (201; idempotent with Idempotency-Key / requestId)
+  GET  /sq/moves                                  → { moves: Move[] } (follows receipts: sent → confirmed|failed)
+Phone
+  POST /handoff/:code/claim                       → { client, onboardingToken, expiresAt } (no session; single use)
+  then send `X-Onboarding-Token: <onboardingToken>` (30 min) on POST /auth/passkey/register/options|verify and
+  POST /wallets (and any client route during onboarding) → passkey + wallet bound to that client, handoff.walletAddress set
+  GET  /sq/deposit-address                        → { address (= funder), label: 'Your Swissquote account', verified: true }
+  POST /policy/evaluate { kind: 'transfer' | 'to-own-account', calls: [USDC transfer to the deposit address] }
+                                                  → kind 'to-own-account', Tier 1 approve at any amount, sponsored, not screened
+  GET  /userops/:hash (included)                  → SIMULATED ledger credit once, event `sq.credit`
+```
+
+Moves refuse unless the client's newest wallet is deployed **and** attested (403 "This wallet hasn't proven ownership
+yet"); then the SIMULATED ledger is checked (403), the funder's real ETH / token balance is checked (502 with the real
+numbers), the ledger is debited, the funder sends (ERC-20 `transfer` for USDC / EURC `EURC_ADDRESS`, native for ETH) and a
+failed send is refunded (502, move recorded as `failed`). BTC, CHF cash and the ETF are `movable: false`; only BTC carries
+`notMovableReason: 'bitcoin-roadmap'`. Events: `sq.login`, `sq.logout`, `handoff.opened`, `handoff.claimed`,
+`handoff.wallet-bound`, `guardian.paired` (`via: 'sq-web'`), `sq.move.sent|failed|confirmed`, `sq.credit`.
+The old `/pairings*` and `POST /topups` endpoints still work (old E2E) but the v2 UI does not use them.
+
 ## Layout
 
 | File | Role |

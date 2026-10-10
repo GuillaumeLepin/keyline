@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { GuardianIdentitySchema, GuardianRecoveryRequestSchema, IdentityVerdictSchema } from './guardian';
 import * as S from './schemas';
+import * as Q from './sq';
 
 const addr = '0x0000000000000000000000000000000000000001';
 const addr2 = '0x00000000000000000000000000000000000000a2';
@@ -489,6 +490,117 @@ const fixtures: Record<string, [z.ZodType, unknown]> = {
     { kind: 'swissquote', guardianAddress: addr2, chainId: 84532 },
   ],
 };
+
+// SPEC §10 (sq.ts) — one fixture per exported schema, same coverage rule.
+const sqClient = { id: 'SQ-48213-LK', firstName: 'Lea', name: 'Lea Keller', email: 'lea.keller@example.ch' };
+const sqPosition: z.input<typeof Q.SqPositionSchema> = {
+  id: 'btc',
+  name: 'Bitcoin',
+  symbol: 'BTC',
+  kind: 'crypto',
+  quantity: '0.42',
+  priceChf: '88400.00',
+  valueChf: '37128.00',
+  movable: false,
+  notMovableReason: 'bitcoin-roadmap',
+  simulated: true,
+};
+const move: z.input<typeof Q.MoveSchema> = {
+  id: 'mov_1',
+  asset: 'USDC',
+  amount: '100',
+  valueChf: '80.00',
+  walletAddress: addr,
+  txHash: hash,
+  status: 'sent',
+  explorerUrl: `https://sepolia.basescan.org/tx/${hash}`,
+  ledgerSimulated: true,
+  at,
+};
+const sqFixtures: Record<string, [z.ZodTypeAny, unknown]> = {
+  DecimalString: [Q.DecimalString, '12480.35'],
+  SqClientSchema: [Q.SqClientSchema, sqClient],
+  SqLoginBodySchema: [Q.SqLoginBodySchema, { username: 'lea.keller' }],
+  SqSessionSchema: [Q.SqSessionSchema, { client: sqClient, expiresAt: at, simulated: true }],
+  SqAssetSchema: [Q.SqAssetSchema, 'EURC'],
+  SqPositionKindSchema: [Q.SqPositionKindSchema, 'security'],
+  SqPositionSchema: [Q.SqPositionSchema, sqPosition],
+  SqPositionsResponseSchema: [
+    Q.SqPositionsResponseSchema,
+    {
+      client: sqClient,
+      cashChf: '12480.35',
+      investedChf: '65694.00',
+      totalChf: '78174.35',
+      valuedAt: at,
+      positions: [sqPosition, { ...sqPosition, id: 'chf-cash', kind: 'cash', notMovableReason: undefined }],
+      simulated: true,
+    },
+  ],
+  HandoffStatusSchema: [Q.HandoffStatusSchema, 'claimed'],
+  HandoffSchema: [
+    Q.HandoffSchema,
+    {
+      code: '048213',
+      expiresAt: at,
+      status: 'claimed',
+      qrUrl: 'http://localhost:3000/start?code=048213',
+      client: sqClient,
+      claimedAt: at,
+    },
+  ],
+  ClaimHandoffResponseSchema: [
+    Q.ClaimHandoffResponseSchema,
+    { client: sqClient, onboardingToken: 'eyJ.x.y', expiresAt: at },
+  ],
+  SafetyKeyRequestStatusSchema: [Q.SafetyKeyRequestStatusSchema, 'waiting'],
+  SafetyKeyRequestSchema: [
+    Q.SafetyKeyRequestSchema,
+    { walletAddress: addr, status: 'waiting', requestedAt: at },
+  ],
+  SafetyKeyBodySchema: [Q.SafetyKeyBodySchema, { address: addr2 }],
+  MoveBodySchema: [Q.MoveBodySchema, { asset: 'ETH', amount: '0.001' }],
+  MoveStatusSchema: [Q.MoveStatusSchema, 'confirmed'],
+  MoveSchema: [Q.MoveSchema, move],
+  MovesResponseSchema: [Q.MovesResponseSchema, { moves: [move] }],
+  DepositAddressResponseSchema: [
+    Q.DepositAddressResponseSchema,
+    { address: addr2, label: 'Your Swissquote account', verified: true },
+  ],
+  SqCreditSchema: [
+    Q.SqCreditSchema,
+    { asset: 'USDC', amount: '10', valueChf: '8.00', userOpHash: hash, txHash: hex32, ledgerSimulated: true },
+  ],
+};
+
+describe('sq schemas (SPEC §10)', () => {
+  for (const [name, [schema, fixture]] of Object.entries(sqFixtures)) {
+    it(`${name} accepts its fixture`, () => {
+      const result = schema.safeParse(fixture);
+      if (!result.success) throw new Error(`${name}: ${result.error.message}`);
+      expect(result.success).toBe(true);
+    });
+  }
+
+  it('every schema exported from sq.ts has a fixture', () => {
+    const exported = Object.keys(Q).filter((k) => k.endsWith('Schema') || k === 'DecimalString');
+    expect(exported.filter((k) => !(k in sqFixtures))).toEqual([]);
+  });
+
+  it('BTC is not movable and only carries the roadmap reason', () => {
+    expect(Q.SqPositionSchema.safeParse({ ...sqPosition, notMovableReason: 'other' }).success).toBe(false);
+    expect(Q.MoveBodySchema.safeParse({ asset: 'BTC', amount: '0.1' }).success).toBe(false);
+  });
+
+  it('rejects a non-decimal amount and a non-6-digit handoff code', () => {
+    expect(Q.MoveBodySchema.safeParse({ asset: 'USDC', amount: '-1' }).success).toBe(false);
+    expect(Q.MoveBodySchema.safeParse({ asset: 'USDC', amount: '1e3' }).success).toBe(false);
+    expect(
+      Q.HandoffSchema.safeParse({ code: '12345', expiresAt: at, status: 'open', qrUrl: 'http://x/start' })
+        .success,
+    ).toBe(false);
+  });
+});
 
 describe('shared schemas', () => {
   for (const [name, [schema, fixture]] of Object.entries(fixtures)) {

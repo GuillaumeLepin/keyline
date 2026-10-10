@@ -84,9 +84,11 @@ export const createStore = (db: Db) => {
     'UPDATE policy_decisions SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL',
   );
   // Daily spend = CHF value of the decisions actually relayed today (UTC) — one userops row per /userops/send.
+  // Moving funds back to the client's own Swissquote account (SPEC §10) does not count against the limit.
   const dailySpent = db.prepare(
     `SELECT COALESCE(SUM(d.chf_value), 0) AS total FROM userops u JOIN policy_decisions d ON d.id = u.decision_id
-     WHERE lower(u.wallet_address) = lower(?) AND u.status != 'failed' AND u.created_at >= ?`,
+     WHERE lower(u.wallet_address) = lower(?) AND u.status != 'failed' AND u.created_at >= ?
+       AND COALESCE(json_extract(d.decision_json, '$.kind'), '') != 'to-own-account'`,
   );
   const updateDecisionStmt = db.prepare(
     'UPDATE policy_decisions SET decision_json = ?, verdict = ?, expires_at = ? WHERE id = ?',

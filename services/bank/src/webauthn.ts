@@ -92,16 +92,23 @@ export const createWebAuthnService = (db: Db, config: BankConfig, events: EventS
     kind: 'registration' | 'authentication',
     challenge: string,
     deviceLabel?: string,
+    clientId: string = LEA.id,
   ) => {
     purgeExpired.run(nowIso());
     const expiresAt = new Date(Date.now() + config.challengeTtlSeconds * 1000).toISOString();
-    insertChallenge.run(newId('chal'), kind, challenge, LEA.id, deviceLabel ?? null, expiresAt);
+    insertChallenge.run(newId('chal'), kind, challenge, clientId, deviceLabel ?? null, expiresAt);
   };
 
   /** Single-use + TTL check. The challenge string is what the browser signed (base64url, from clientDataJSON). */
   const takeChallenge = (kind: 'registration' | 'authentication', challenge: string) => {
     const row = findChallenge.get(challenge, kind) as
-      | { id: string; device_label: string | null; expires_at: string; used_at: string | null }
+      | {
+          id: string;
+          client_id: string | null;
+          device_label: string | null;
+          expires_at: string;
+          used_at: string | null;
+        }
       | undefined;
     if (!row) throw unauthorized('Unknown challenge');
     if (row.used_at) throw unauthorized('Challenge already used');
@@ -118,8 +125,12 @@ export const createWebAuthnService = (db: Db, config: BankConfig, events: EventS
   };
 
   return {
-    async registrationOptions(deviceLabel: string): Promise<PublicKeyCredentialCreationOptionsJSON> {
-      const existing = (listPasskeys.all(LEA.id) as PasskeyRow[]).map((r) => ({
+    /** `clientId` comes from a handoff onboarding token (SPEC §10); Lea is the fallback (old flows / E2E). */
+    async registrationOptions(
+      deviceLabel: string,
+      clientId: string = LEA.id,
+    ): Promise<PublicKeyCredentialCreationOptionsJSON> {
+      const existing = (listPasskeys.all(clientId) as PasskeyRow[]).map((r) => ({
         id: r.credential_id,
         transports: JSON.parse(r.transports) as WebAuthnCredential['transports'],
       }));
@@ -139,13 +150,20 @@ export const createWebAuthnService = (db: Db, config: BankConfig, events: EventS
         // ES256 only: the Safe WebAuthn signer verifies P-256 through the RIP-7212 precompile.
         supportedAlgorithmIDs: [-7],
       });
-      storeChallenge('registration', options.challenge, deviceLabel);
+      storeChallenge('registration', options.challenge, deviceLabel, clientId);
       return options;
     },
 
-    async verifyRegistration(credential: RegistrationResponseJSON, deviceLabel: string): Promise<Passkey> {
+    async verifyRegistration(
+      credential: RegistrationResponseJSON,
+      deviceLabel: string,
+      expectedClientId?: string,
+    ): Promise<Passkey> {
       const challenge = challengeFromClientData(credential.response.clientDataJSON);
-      takeChallenge('registration', challenge);
+      const challengeRow = takeChallenge('registration', challenge);
+      const clientId = challengeRow.client_id ?? LEA.id;
+      if (expectedClientId && expectedClientId !== clientId)
+        throw unauthorized('This passkey challenge was issued for another client');
       // The library reports a bad attestation by throwing a plain Error; surface it as 401, not 500.
       const verification = await verifyRegistrationResponse({
         response: credential,
@@ -168,7 +186,7 @@ export const createWebAuthnService = (db: Db, config: BankConfig, events: EventS
       const createdAt = nowIso();
       insertPasskey.run(
         info.credential.id,
-        LEA.id,
+        clientId,
         Buffer.from(info.credential.publicKey),
         pubKeyX,
         pubKeyY,
@@ -178,7 +196,7 @@ export const createWebAuthnService = (db: Db, config: BankConfig, events: EventS
         createdAt,
       );
       events.recordEvent('passkey.registered', undefined, {
-        clientId: LEA.id,
+        clientId,
         credentialId: info.credential.id,
         deviceLabel,
         deviceType: info.credentialDeviceType,

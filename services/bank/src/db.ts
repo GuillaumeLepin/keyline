@@ -67,6 +67,26 @@ const MIGRATIONS = [
     amount_chf REAL NOT NULL, tx_hash TEXT NOT NULL, created_at TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS decisions_wallet_idx ON policy_decisions(wallet_address, created_at)`,
   `CREATE INDEX IF NOT EXISTS sponsorships_wallet_idx ON sponsorships(wallet_address, created_at)`,
+  // ---- SPEC §10 (v2): SIMULATED Swissquote ledger, handoff codes, moves, credits ----
+  `CREATE TABLE IF NOT EXISTS sq_positions (
+    client_id TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, symbol TEXT NOT NULL, kind TEXT NOT NULL,
+    decimals INTEGER NOT NULL, quantity TEXT NOT NULL, price_chf TEXT NOT NULL, sort INTEGER NOT NULL,
+    updated_at TEXT NOT NULL, PRIMARY KEY (client_id, id))`,
+  `CREATE TABLE IF NOT EXISTS sq_ledger (
+    id TEXT PRIMARY KEY, client_id TEXT NOT NULL, position_id TEXT NOT NULL, delta TEXT NOT NULL,
+    quantity_after TEXT NOT NULL, reason TEXT NOT NULL, ref TEXT, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS handoffs (
+    code TEXT PRIMARY KEY, client_id TEXT NOT NULL, session_id TEXT NOT NULL, status TEXT NOT NULL,
+    created_at TEXT NOT NULL, expires_at TEXT NOT NULL, claimed_at TEXT, wallet_address TEXT)`,
+  `CREATE TABLE IF NOT EXISTS sq_moves (
+    id TEXT PRIMARY KEY, client_id TEXT NOT NULL, wallet_address TEXT NOT NULL, asset TEXT NOT NULL,
+    amount TEXT NOT NULL, value_chf TEXT NOT NULL, tx_hash TEXT, status TEXT NOT NULL, error TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS sq_credits (
+    user_op_hash TEXT PRIMARY KEY, client_id TEXT NOT NULL, wallet_address TEXT NOT NULL, asset TEXT NOT NULL,
+    amount TEXT NOT NULL, value_chf TEXT NOT NULL, tx_hash TEXT, created_at TEXT NOT NULL)`,
+  `CREATE TRIGGER IF NOT EXISTS sq_ledger_no_update BEFORE UPDATE ON sq_ledger
+    BEGIN SELECT RAISE(ABORT, 'sq_ledger is append-only'); END`,
   // Append-only guarantee enforced in the database itself, not only by the TS module surface.
   `CREATE TRIGGER IF NOT EXISTS events_no_update BEFORE UPDATE ON events
     BEGIN SELECT RAISE(ABORT, 'events is append-only'); END`,
