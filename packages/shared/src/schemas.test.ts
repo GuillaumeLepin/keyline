@@ -400,7 +400,14 @@ const fixtures: Record<string, [z.ZodType, unknown]> = {
   SendUserOpResponseSchema: [S.SendUserOpResponseSchema, { userOpHash: hash }],
   UserOpStatusSchema: [
     S.UserOpStatusSchema,
-    { userOpHash: hash, status: 'confirmed', txHash: hash, blockNumber: 12 },
+    {
+      userOpHash: hash,
+      status: 'failed',
+      txHash: hash,
+      blockNumber: 12,
+      reason: 'Not enough funds in your wallet for this transfer.',
+      code: 'ERC20InsufficientBalance',
+    },
   ],
   CreateRecoveryBodySchema: [
     S.CreateRecoveryBodySchema,

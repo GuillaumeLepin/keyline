@@ -21,6 +21,12 @@ import { type Address, formatUnits, getAddress, type Hex, isAddressEqual, keccak
 import { z } from 'zod';
 import { parseErc20Transfer } from '../chain/decode';
 import { fromChainUserOp, toChainUserOp } from '../chain/userop-codec';
+import {
+  decodeRevertReason,
+  type FailureReason,
+  GENERIC_REVERT,
+  mapBundlerError,
+} from '../chain/userop-errors';
 import type { BankConfig } from '../config';
 import { type Db, nowIso } from '../db';
 import type { ChainDeps } from '../deps';
@@ -166,7 +172,15 @@ export const registerUserOpRoutes = (
     if (!config.bundlerUrl) throw upstream('Bundler not configured on the bank');
 
     const response = await chain.sendUserOp(pk, op).catch((err: unknown) => {
-      throw upstream(`Bundler refused the userOp: ${err instanceof Error ? err.message : String(err)}`);
+      // Never included: keep the bundler's message for Technical details, show a plain sentence.
+      const bundlerMessage = err instanceof Error ? err.message : String(err);
+      const mapped = mapBundlerError(bundlerMessage);
+      events.recordEvent('userop.rejected', sender, {
+        decisionId: decision.decisionId,
+        ...mapped,
+        bundlerMessage,
+      });
+      throw upstream(mapped.reason, { reason: mapped.reason, code: mapped.code, bundlerMessage });
     });
     const userOpHash = response.userOperationHash as Hex;
     store.insertUserOp(userOpHash, sender, decision.decisionId, userOpToJson(op));
@@ -186,6 +200,10 @@ export const registerUserOpRoutes = (
     let status = row.status as UserOpStatusValue;
     let txHash = row.tx_hash ?? undefined;
     let blockNumber = row.block_number ?? undefined;
+    let failure: FailureReason | undefined =
+      row.status === 'failed' && row.reason
+        ? { reason: row.reason, code: row.reason_code ?? undefined }
+        : undefined;
 
     if (status === 'pending') {
       const live = await chain.userOpStatus(hash as Hex);
@@ -193,12 +211,14 @@ export const registerUserOpRoutes = (
         status = live.status;
         txHash = live.txHash;
         blockNumber = live.blockNumber;
-        store.updateUserOp(hash, status, txHash ?? null, blockNumber ?? null);
+        if (status === 'failed') failure = decodeRevertReason(live.revertData);
+        store.updateUserOp(hash, status, txHash ?? null, blockNumber ?? null, failure);
         events.recordEvent(status === 'included' ? 'userop.included' : 'userop.failed', row.wallet_address, {
           userOpHash: hash,
           txHash,
           blockNumber,
           decisionId: row.decision_id,
+          ...(failure ? { reason: failure.reason, code: failure.code } : {}),
         });
         const decision = row.decision_id ? store.decision(row.decision_id) : null;
         if (status === 'included' && decision?.kind === 'to-own-account')
@@ -218,6 +238,8 @@ export const registerUserOpRoutes = (
     return UserOpStatusSchema.parse({
       userOpHash: hash,
       status,
+      reason: status === 'failed' ? (failure?.reason ?? GENERIC_REVERT) : undefined,
+      code: status === 'failed' ? failure?.code : undefined,
       txHash,
       blockNumber,
       explorerUrl: txHash ? explorerTxUrl(config.CHAIN_ID, txHash) : undefined,

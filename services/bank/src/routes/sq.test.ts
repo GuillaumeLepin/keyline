@@ -7,7 +7,7 @@ import {
   transferTransaction,
 } from '@keyline/chain';
 import type { FastifyInstance } from 'fastify';
-import { type Address, getAddress, type Hex, keccak256 } from 'viem';
+import { type Address, encodeErrorResult, getAddress, type Hex, keccak256, parseAbi } from 'viem';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app';
 import { metaTransactionToCall } from '../chain/calldata';
@@ -35,6 +35,7 @@ const state = {
   transfers: [] as { kind: string; to: Address; amount: bigint; token?: Address }[],
   tx: 'pending' as 'pending' | 'confirmed' | 'failed',
   userOp: { status: 'pending' } as Awaited<ReturnType<ChainDeps['userOpStatus']>>,
+  sendError: undefined as string | undefined,
 };
 const chainStub: Partial<ChainDeps> = {
   walletHasCode: async () => false,
@@ -63,8 +64,10 @@ const chainStub: Partial<ChainDeps> = {
   sponsor: async (_pk, userOp) => ({
     userOp: { ...userOp, paymaster: '0x8b1f6cb5d062aa2ce8d581942bbb960420d875ba', paymasterData: '0x1234' },
   }),
-  sendUserOp: async () =>
-    ({ userOperationHash: H(0x5c0) }) as unknown as Awaited<ReturnType<ChainDeps['sendUserOp']>>,
+  sendUserOp: async () => {
+    if (state.sendError) throw new Error(state.sendError);
+    return { userOperationHash: H(0x5c0) } as unknown as Awaited<ReturnType<ChainDeps['sendUserOp']>>;
+  },
   userOpStatus: async () => state.userOp,
 };
 
@@ -514,6 +517,22 @@ describe('SPEC §10 — Swissquote web, handoff, Safety key, moves', () => {
       payload: { decisionId: d.decisionId, userOp: op },
     });
     expect(sponsor.statusCode, sponsor.body).toBe(200);
+    // Phase D: a bundler rejection is never included — plain sentence + AA code + raw message; decision stays usable.
+    state.sendError = 'UserOperation reverted during simulation with reason: AA25 invalid account nonce';
+    const rejected = await app.inject({
+      method: 'POST',
+      url: '/userops/send',
+      payload: {
+        decisionId: d.decisionId,
+        userOp: { ...sponsor.json().userOp, signature: `0x${'77'.repeat(120)}` },
+      },
+    });
+    expect(rejected.statusCode).toBe(502);
+    expect(rejected.json()).toMatchObject({
+      message: 'This transaction was already sent or is out of order — try again.',
+      details: { code: 'AA25', bundlerMessage: state.sendError },
+    });
+    state.sendError = undefined;
     const send = await app.inject({
       method: 'POST',
       url: '/userops/send',
@@ -561,6 +580,44 @@ describe('SPEC §10 — Swissquote web, handoff, Safety key, moves', () => {
       },
     });
     expect(next.json()).toMatchObject({ kind: 'transfer', verdict: 'approve', tier: 1 });
+  });
+
+  it('GET /userops/:hash on a failed receipt returns the decoded reason + code, persisted', async () => {
+    const insert = (hash: Hex) =>
+      app.db
+        .prepare(
+          "INSERT INTO userops (user_op_hash, wallet_address, decision_id, status, user_op_json, created_at, updated_at) VALUES (?, ?, NULL, 'pending', '{}', ?, ?)",
+        )
+        .run(hash, wallet, new Date().toISOString(), new Date().toISOString());
+    const hash = H(0xfa11);
+    insert(hash);
+    state.userOp = {
+      status: 'failed',
+      txHash: H(0xfa12),
+      blockNumber: 9,
+      revertData: encodeErrorResult({
+        abi: parseAbi(['error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)']),
+        errorName: 'ERC20InsufficientBalance',
+        args: [wallet, 0n, 1n],
+      }),
+    };
+    const res = await app.inject({ method: 'GET', url: `/userops/${hash}` });
+    expect(res.json()).toMatchObject({
+      status: 'failed',
+      reason: 'Not enough funds in your wallet for this transfer.',
+      code: 'ERC20InsufficientBalance',
+    });
+    state.userOp = { status: 'pending' };
+    const again = await app.inject({ method: 'GET', url: `/userops/${hash}` }); // read back from the DB
+    expect(again.json()).toMatchObject({ status: 'failed', code: 'ERC20InsufficientBalance' });
+    // No revert data → the generic sentence; an included op carries no reason.
+    const h2 = H(0xfa13);
+    insert(h2);
+    state.userOp = { status: 'failed', txHash: H(0xfa14), blockNumber: 10 };
+    expect((await app.inject({ method: 'GET', url: `/userops/${h2}` })).json().reason).toBe(
+      'The transfer reverted on-chain',
+    );
+    expect((await app.inject({ method: 'GET', url: `/userops/${H(0x5c0)}` })).json().reason).toBeUndefined();
   });
 
   it('logout clears the web session', async () => {

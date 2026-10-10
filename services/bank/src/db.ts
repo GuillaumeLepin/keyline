@@ -103,6 +103,12 @@ export const openDb = (path: string): Db => {
     for (const sql of MIGRATIONS) db.exec(sql);
     // Phase C: contacts.trusted (ALTER is not idempotent in SQLite — check the column first).
     const cols = db.prepare('PRAGMA table_info(contacts)').all() as { name: string }[];
+    // Phase D: plain-language failure reason of a userOp (+ technical code).
+    const opCols = db.prepare('PRAGMA table_info(userops)').all() as { name: string }[];
+    if (!opCols.some((c) => c.name === 'reason')) {
+      db.exec('ALTER TABLE userops ADD COLUMN reason TEXT');
+      db.exec('ALTER TABLE userops ADD COLUMN reason_code TEXT');
+    }
     if (!cols.some((c) => c.name === 'trusted')) {
       db.exec('ALTER TABLE contacts ADD COLUMN trusted INTEGER NOT NULL DEFAULT 0');
       db.exec("UPDATE contacts SET trusted = 1 WHERE label = 'Lukas Meier'");

@@ -35,6 +35,8 @@ export type UserOpRow = {
   tx_hash: string | null;
   block_number: number | null;
   user_op_json: string;
+  reason?: string | null;
+  reason_code?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -116,7 +118,7 @@ export const createStore = (db: Db) => {
   );
   const userOpByHash = db.prepare('SELECT * FROM userops WHERE lower(user_op_hash) = lower(?)');
   const updateUserOp = db.prepare(
-    'UPDATE userops SET status = ?, tx_hash = ?, block_number = ?, updated_at = ? WHERE lower(user_op_hash) = lower(?)',
+    'UPDATE userops SET status = ?, tx_hash = ?, block_number = ?, reason = ?, reason_code = ?, updated_at = ? WHERE lower(user_op_hash) = lower(?)',
   );
   const setWalletDeployed = db.prepare(
     "UPDATE wallets SET status = 'deployed', deploy_tx_hash = ? WHERE lower(address) = lower(?)",
@@ -214,8 +216,22 @@ export const createStore = (db: Db) => {
     userOp(hash: string): UserOpRow | undefined {
       return userOpByHash.get(hash) as UserOpRow | undefined;
     },
-    updateUserOp(hash: string, status: string, txHash: string | null, blockNumber: number | null): void {
-      updateUserOp.run(status, txHash, blockNumber, nowIso(), hash);
+    updateUserOp(
+      hash: string,
+      status: string,
+      txHash: string | null,
+      blockNumber: number | null,
+      failure?: { reason: string; code?: string },
+    ): void {
+      updateUserOp.run(
+        status,
+        txHash,
+        blockNumber,
+        failure?.reason ?? null,
+        failure?.code ?? null,
+        nowIso(),
+        hash,
+      );
     },
     markWalletDeployed(wallet: string, txHash: string): void {
       setWalletDeployed.run(txHash, wallet);

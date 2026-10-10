@@ -709,6 +709,10 @@ export type SendUserOpResponse = z.infer<typeof SendUserOpResponseSchema>;
 export const UserOpStatusSchema = z.object({
   userOpHash: Hash32,
   status: UserOpStatusValueSchema,
+  /** Plain-language reason when `status: 'failed'` (decoded revert, or "The transfer reverted on-chain"). */
+  reason: z.string().optional(),
+  /** Technical code behind `reason` (e.g. "AA25", "ERC20InsufficientBalance", "Error(...)") for Technical details. */
+  code: z.string().optional(),
   txHash: Hash32.optional(),
   blockNumber: z.number().int().nonnegative().optional(),
   explorerUrl: z.string().url().optional(),

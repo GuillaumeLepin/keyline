@@ -31,6 +31,8 @@ export type UserOpChainStatus = {
   status: 'pending' | 'included' | 'failed';
   txHash?: Hex;
   blockNumber?: number;
+  /** EntryPoint revert data from the bundler receipt (`reason`) when `success: false`. */
+  revertData?: Hex;
 };
 export type AttestationVerifyInput = {
   client: BankPublicClient;
@@ -292,12 +294,37 @@ export const createChainDeps = (config: BankConfig): ChainDeps => {
     sqGuardian: createGuardianClient(config.SQ_GUARDIAN_URL, 'swissquote'),
     sponsor: (pk, userOp) => chain.sponsor(pk, userOp, requireUrl()),
     sendUserOp: (pk, userOp) => chain.sendUserOp(pk, userOp, requireUrl().bundlerUrl),
+    // Raw eth_getUserOperationReceipt (not @keyline/chain.getUserOpStatus) so the receipt's revert `reason` is kept.
     userOpStatus: async (hash) => {
-      const s = await chain.getUserOpStatus(requireUrl().bundlerUrl, hash);
+      const res = await fetch(requireUrl().bundlerUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'eth_getUserOperationReceipt',
+          params: [hash],
+        }),
+      }).catch((err: unknown) => {
+        throw upstream(`Bundler unreachable: ${errMsg(err)}`);
+      });
+      const body = (await res.json().catch(() => null)) as {
+        result?: {
+          success: boolean;
+          reason?: Hex;
+          receipt: { transactionHash: Hex; blockNumber: Hex | string | number };
+        } | null;
+        error?: { message?: string };
+      } | null;
+      if (!res.ok || !body || body.error)
+        throw upstream(`Bundler receipt lookup failed: ${body?.error?.message ?? `HTTP ${res.status}`}`);
+      const r = body.result;
+      if (!r) return { status: 'pending' };
       return {
-        status: s.status,
-        txHash: s.txHash,
-        blockNumber: s.blockNumber == null ? undefined : Number(s.blockNumber),
+        status: r.success ? 'included' : 'failed',
+        txHash: r.receipt.transactionHash,
+        blockNumber: Number(BigInt(r.receipt.blockNumber)),
+        revertData: r.success ? undefined : r.reason,
       };
     },
     // ERC-1271 against the deployed Safe through viem — a library call, nothing hand-rolled (see packages/chain).
