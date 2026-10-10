@@ -4,36 +4,43 @@ import type { Event } from '@keyline/shared';
 import {
   Address,
   AmountField,
+  AssetRow,
   Button,
+  Chip,
   EmptyState,
   formatCHF,
   formatShortDateTime,
   formatSignedUSDC,
-  formatUSDC,
   Note,
-  PolicyLine,
+  NumberTicker,
+  ProtectionRing,
+  QrCode,
   Sheet,
+  SheetV2,
   SimulatedBadge,
   Skeleton,
   StatementRow,
   TestnetStrip,
 } from '@keyline/ui';
-import { Bell, ShieldCheck } from '@phosphor-icons/react/dist/ssr';
+import { Bell, GearSix } from '@phosphor-icons/react/dist/ssr';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { copy } from '@/src/copy';
+import { copy, copyV2 } from '@/src/copy';
 import { env } from '@/src/env';
 import { api } from '@/src/lib/api';
 import { addressUrl, PasskeyCancelledError } from '@/src/lib/chain';
 import { usePersona } from '@/src/lib/device';
+import { decimalsFor, formatQty } from '@/src/lib/format';
 import {
   useAlerts,
+  useAssetBalances,
   useLocalTransfers,
   useLocalWallet,
   useMe,
+  useSqPositions,
   useUsdcBalance,
   useWalletEvents,
 } from '@/src/lib/hooks';
@@ -127,9 +134,19 @@ function NoWalletHome({ onLoggedIn }: { onLoggedIn: (wallet: LocalWallet) => voi
   );
 }
 
+/** Static SIMULATED prices (SPEC §10 F0.2), used only until `GET /sq/positions` answers with the bank's own. */
+const FALLBACK_CHF = { USDC: env.chfPerUsdc, EURC: 0.94, ETH: 3120 } as const;
+const ASSETS = [
+  { symbol: 'USDC', name: 'USD Coin', decimals: 2 },
+  { symbol: 'EURC', name: 'Euro Coin', decimals: 2 },
+  { symbol: 'ETH', name: 'Ether', decimals: 4 },
+] as const;
+
 function WalletHome({ wallet }: { wallet: LocalWallet }) {
+  const balances = useAssetBalances(wallet.address);
   const balance = useUsdcBalance(wallet.address);
   const events = useWalletEvents(wallet.address);
+  const positions = useSqPositions();
   const { transfers, topups, refresh } = useLocalTransfers();
   const alerts = useAlerts(wallet.address);
   const attack = (alerts.data ?? []).some(
@@ -142,10 +159,21 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
       ),
   );
   const [sheet, setSheet] = useState<'none' | 'receive' | 'topup'>('none');
-  const [protectionWord, protectionReason] = copy.home.protection.split(' · ');
-  const usdc = balance.data ?? 0;
+  // Legacy E2E only: the v1 top-up stays reachable at `/?sheet=topup`; it is not offered on home (DECISIONS #26).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('sheet') === 'topup') setSheet('topup');
+  }, []);
+  const v = copyV2.home;
   const onboardingPending = wallet.onboardingStep < 7;
+  const protectedNow = wallet.status === 'deployed';
 
+  const price = (symbol: 'USDC' | 'EURC' | 'ETH'): number => {
+    const p = positions.data?.positions.find((x) => x.symbol === symbol);
+    return p ? Number(p.priceChf) : FALLBACK_CHF[symbol];
+  };
+  const totalChf = balances.data
+    ? ASSETS.reduce((sum, a) => sum + balances.data[a.symbol] * price(a.symbol), 0)
+    : 0;
   const rows = buildStatement(transfers, topups, events.data ?? []);
 
   return (
@@ -153,6 +181,16 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
       <header className="kl-topbar">
         <h1 className="kl-topbar__title">{copy.brand}</h1>
         <div className="flex items-center gap-1">
+          {protectedNow ? (
+            <Link
+              href="/security"
+              className="flex min-h-11 items-center gap-2 px-2 text-14 font-semibold text-ink no-underline"
+              data-testid="home-protected"
+            >
+              <ProtectionRing state="protected" size={24} label={v.protectionTitle} />
+              {v.protected}
+            </Link>
+          ) : null}
           {alerts.data && alerts.data.length > 0 ? (
             <Link
               href="/alerts"
@@ -162,12 +200,8 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
               <Bell size={20} aria-hidden="true" />
             </Link>
           ) : null}
-          <Link
-            href="/security"
-            className="kl-btn kl-btn--ghost kl-btn--sm kl-btn--icon"
-            aria-label={copy.security.title}
-          >
-            <ShieldCheck size={20} aria-hidden="true" />
+          <Link href="/security" className="kl2-iconbtn" aria-label={v.settings}>
+            <GearSix size={20} aria-hidden="true" />
           </Link>
         </div>
       </header>
@@ -192,43 +226,58 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
         />
       ) : null}
 
-      <section className="kl-balance" aria-label={copy.home.balance}>
-        <p className="kl-eyebrow">{copy.home.balance}</p>
-        {balance.isPending ? (
+      <section className="grid gap-1" aria-label={v.balance} data-testid="home-balance">
+        <p className="kl-eyebrow">{v.balance}</p>
+        {balances.isPending ? (
           <Skeleton kind="amount" />
-        ) : balance.isError ? (
+        ) : balances.isError ? (
           <ApiErrorState
-            error={balance.error}
+            error={balances.error}
             body={copy.common.errorBody}
-            onRetry={() => balance.refetch()}
+            onRetry={() => balances.refetch()}
           />
         ) : (
           <>
-            <p className="kl-balance__amount">{formatCHF(usdc * env.chfPerUsdc)}</p>
-            <p className="kl-balance__secondary">{formatUSDC(usdc)}</p>
-            <p className="text-12 text-ink-3">
-              {copy.send.rate(formatCHF(env.chfPerUsdc))} <SimulatedBadge />
+            <p className="m-0 text-44 font-semibold tracking-[-0.025em]">
+              <NumberTicker value={totalChf} format={formatCHF} />
+            </p>
+            <p className="m-0 flex items-center gap-1 text-12 text-ink-3">
+              {v.totalNote}
+              <Chip />
             </p>
           </>
         )}
-        {wallet.status === 'deployed' ? (
-          <Link href="/security" className="no-underline">
-            <PolicyLine verdict="ok" word={protectionWord} reason={protectionReason} />
-          </Link>
-        ) : null}
       </section>
 
       <div className="kl-actions kl-actions--row mt-0">
-        <Button variant="primary" href="/send" disabled={wallet.status !== 'deployed'}>
-          {copy.home.send}
+        <Button variant="primary" href="/send" disabled={!protectedNow}>
+          {v.send}
         </Button>
         <Button variant="secondary" onClick={() => setSheet('receive')}>
-          {copy.home.receive}
+          {v.receive}
         </Button>
-        <Button variant="secondary" onClick={() => setSheet('topup')}>
-          {copy.home.topUp}
+        <Button variant="secondary" href="/back" disabled={!protectedNow}>
+          {copyV2.home.backToSq}
         </Button>
       </div>
+
+      <section aria-label={copyV2.home.assets} data-testid="home-assets">
+        <div className="kl-section">
+          <h2 className="kl-section__title">{copyV2.home.assets}</h2>
+        </div>
+        <div>
+          {ASSETS.map((a) => (
+            <AssetRow
+              key={a.symbol}
+              loading={balances.isPending}
+              name={a.name}
+              symbol={a.symbol}
+              quantity={balances.data ? formatQty(balances.data[a.symbol], a.decimals) : ''}
+              value={balances.data ? formatCHF(balances.data[a.symbol] * price(a.symbol)) : undefined}
+            />
+          ))}
+        </div>
+      </section>
 
       <section className="kl-stack" aria-label={copy.home.statement}>
         <div className="kl-section">
@@ -237,15 +286,7 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
         {events.isPending && rows.length === 0 ? (
           <Skeleton kind="row" count={3} />
         ) : rows.length === 0 && events.isError ? null : rows.length === 0 ? (
-          <EmptyState
-            title={copy.home.emptyTitle}
-            body={copy.home.emptyBody}
-            action={
-              <Button variant="secondary" onClick={() => setSheet('topup')}>
-                {copy.home.emptyAction}
-              </Button>
-            }
-          />
+          <EmptyState title={copy.home.emptyTitle} body={v.assetsEmpty} />
         ) : (
           <div>
             {rows.map((r) => (
@@ -268,14 +309,57 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
         ) : null}
       </section>
 
+      <section aria-label={v.sq} data-testid="home-sq">
+        <div className="kl-section flex-wrap gap-2">
+          <h2 className="kl-section__title flex items-center gap-1 whitespace-nowrap">
+            {v.sq}
+            <Chip />
+          </h2>
+          <Link className="kl2-link whitespace-nowrap text-14" href="/swissquote/portfolio">
+            {v.sqOpen}
+          </Link>
+        </div>
+        <p className="m-0 text-12 text-ink-3">{v.sqNote}</p>
+        {positions.isPending ? (
+          <Skeleton kind="row" count={3} />
+        ) : positions.isError ? (
+          <ApiErrorState
+            error={positions.error}
+            body={copy.common.errorBody}
+            onRetry={() => positions.refetch()}
+          />
+        ) : (
+          <div>
+            {positions.data.positions.map((p) => (
+              <StatementRow
+                key={p.id}
+                label={p.name}
+                meta={
+                  p.kind === 'cash'
+                    ? copyV2.sqWeb.portfolio.groups.cash
+                    : formatQty(Number(p.quantity), decimalsFor(p.symbol), p.symbol)
+                }
+                amount={formatCHF(Number(p.valueChf))}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
       <TestnetStrip explorerUrl={addressUrl(wallet.address)} />
 
-      <Sheet open={sheet === 'receive'} title={copy.home.receiveTitle} onClose={() => setSheet('none')}>
-        <div className="kl-stack">
+      <SheetV2
+        open={sheet === 'receive'}
+        title={copy.home.receiveTitle}
+        onClose={() => setSheet('none')}
+        contained
+      >
+        <div className="grid justify-items-center gap-4">
+          <QrCode value={wallet.address} size={160} label={copy.home.receiveTitle} />
           <Address value={wallet.address} expanded explorerUrl={addressUrl(wallet.address)} />
           <p className="text-14 text-ink-2">{copy.home.receiveNote}</p>
         </div>
-      </Sheet>
+      </SheetV2>
 
       <Sheet open={sheet === 'topup'} title={copy.home.topUpTitle} onClose={() => setSheet('none')}>
         <TopUpForm
@@ -283,6 +367,7 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
           onDone={() => {
             refresh();
             balance.refetch();
+            balances.refetch();
             setSheet('none');
           }}
         />

@@ -9,23 +9,29 @@ import {
   AttestationChallengeResponseSchema,
   AttestationResponseSchema,
   AttestationSchema,
+  ClaimHandoffResponseSchema,
   type ClaimPairingBody,
   ContactSchema,
   type CreateRecoveryBody,
   type CreateWalletBody,
   CreateWalletResponseSchema,
   DappSchema,
+  DepositAddressResponseSchema,
   DeskQueueResponseSchema,
   EidResponseSchema,
   EventsResponseSchema,
   GuardianSchema,
   GuardiansResponseSchema,
+  HandoffSchema,
   HealthSchema,
   InboxResponseSchema,
   type LoginVerifyBody,
   LoginVerifyResponseSchema,
   MeResponseSchema,
   type MockEidBody,
+  type MoveBody,
+  MoveSchema,
+  MovesResponseSchema,
   NotImplementedSchema,
   type OperatorActionBody,
   PairingSchema,
@@ -39,11 +45,15 @@ import {
   RecoveryTypedDataResponseSchema,
   type RegisterVerifyBody,
   RegisterVerifyResponseSchema,
+  type SafetyKeyBody,
+  SafetyKeyRequestSchema,
   type SendUserOpBody,
   SendUserOpResponseSchema,
   type SetModeBody,
   type SponsorBody,
   SponsorResponseSchema,
+  SqPositionsResponseSchema,
+  SqSessionSchema,
   type StepUpBody,
   type TopupBody,
   TopupResponseSchema,
@@ -97,6 +107,23 @@ function headerSafe(label: string): string {
   return Array.from(label, (ch) => (ch.charCodeAt(0) > 0xff ? '-' : ch)).join('');
 }
 
+// ---- v2 handoff: the phone's short-lived onboarding token lives in memory only (SPEC §10 F1, DECISIONS #28) ----
+
+let onboardingToken: string | null = null;
+
+export function setOnboardingToken(token: string | null): void {
+  onboardingToken = token;
+}
+
+export function hasOnboardingToken(): boolean {
+  return onboardingToken !== null;
+}
+
+/** The bank binds the new passkey and wallet to the Swissquote client through `X-Onboarding-Token`. */
+function needsOnboardingToken(method: string, path: string): boolean {
+  return path.startsWith('/auth/passkey/register') || (method === 'POST' && path === '/wallets');
+}
+
 async function request<T>(
   method: 'GET' | 'POST',
   path: string,
@@ -109,6 +136,7 @@ async function request<T>(
     'X-Device-Label': headerSafe(getDeviceLabel()),
     ...extraHeaders,
   };
+  if (onboardingToken && needsOnboardingToken(method, path)) headers['X-Onboarding-Token'] = onboardingToken;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   let response: Response;
   try {
@@ -143,6 +171,10 @@ async function request<T>(
       );
     }
     const err = ApiErrorSchema.safeParse(json);
+    // A route the bank has not shipped yet (Fastify's default 404) is "Not available yet", never a fake success.
+    const message = err.success ? err.data.message : '';
+    if (response.status === 404 && /^Route .+ not found$/.test(message))
+      throw new ApiError('not-implemented', 404, 'route-missing', message, json);
     if (err.success)
       throw new ApiError('http', response.status, err.data.error, err.data.message, err.data.details);
     throw new ApiError('http', response.status, 'http', `${response.status} ${response.statusText}`, json);
@@ -236,6 +268,25 @@ export const api = {
       request('GET', `/attestations/${wallet}/challenge`, AttestationChallengeResponseSchema),
     submit: (body: AttestationBody) => request('POST', '/attestations', AttestationResponseSchema, body),
     get: (wallet: string) => request('GET', `/attestations/${wallet}`, AttestationSchema),
+  },
+
+  // ---- v2: Swissquote web (SIMULATED account; `sq_web` cookie), handoff, moves (real transfers) ----
+  sq: {
+    login: (username: string) => request('POST', '/sq/login', SqSessionSchema, { username }),
+    logout: () => request('POST', '/sq/logout', z.object({ ok: z.literal(true) }), {}),
+    me: () => request('GET', '/sq/me', SqSessionSchema),
+    positions: () => request('GET', '/sq/positions', SqPositionsResponseSchema),
+    safetyKeyRequest: () => request('GET', '/sq/safety-key-request', SafetyKeyRequestSchema),
+    registerSafetyKey: (body: SafetyKeyBody) => request('POST', '/sq/safety-key', GuardianSchema, body),
+    move: (body: MoveBody) => request('POST', '/sq/moves', MoveSchema, body),
+    moves: async () => (await request('GET', '/sq/moves', MovesResponseSchema)).moves,
+    depositAddress: () => request('GET', '/sq/deposit-address', DepositAddressResponseSchema),
+  },
+
+  handoff: {
+    create: () => request('POST', '/handoff', HandoffSchema, {}),
+    get: (code: string) => request('GET', `/handoff/${code}`, HandoffSchema),
+    claim: (code: string) => request('POST', `/handoff/${code}/claim`, ClaimHandoffResponseSchema, {}),
   },
 
   topups: {

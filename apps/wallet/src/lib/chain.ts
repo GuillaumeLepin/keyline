@@ -277,6 +277,27 @@ export async function readUsdcBalance(address: Address): Promise<number> {
   return Number(formatUnits(raw, 6));
 }
 
+/** Circle EURC on Base Sepolia (DECISIONS #27, verified; 6 decimals). */
+export const EURC_ADDRESS: Address = '0x808456652fdb597867f38412077A9182bf77359F';
+
+export interface AssetBalances {
+  readonly USDC: number;
+  readonly EURC: number;
+  readonly ETH: number;
+}
+
+/** USDC, EURC and ETH held by the Safe, read from chain (Home v2 asset rows). */
+export async function readAssetBalances(address: Address): Promise<AssetBalances> {
+  const [usdc, eurc, eth] = await Promise.all([
+    readUsdcBalance(address),
+    publicClient
+      .readContract({ address: EURC_ADDRESS, abi: erc20Abi, functionName: 'balanceOf', args: [address] })
+      .then((raw) => Number(formatUnits(raw, 6))),
+    publicClient.getBalance({ address }).then((raw) => Number(formatUnits(raw, 18))),
+  ]);
+  return { USDC: usdc, EURC: eurc, ETH: eth };
+}
+
 export function txUrl(txHash: string): string {
   return explorerTxUrl(env.chainId, txHash);
 }

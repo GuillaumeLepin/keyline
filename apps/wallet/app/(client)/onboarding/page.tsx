@@ -2,47 +2,48 @@
 
 import type { Guardian, PolicyDecision } from '@keyline/shared';
 import {
+  ActionButton,
   Address,
   Button,
-  Disclosure,
+  DrawnCheck,
   EmergencyCard,
   ErrorState,
-  formatDuration,
   formatInteger,
+  haptic,
   KeyCard,
   Note,
   Panel,
   PolicyLine,
+  ProtectionRing,
   RadioCard,
   Sheet,
   SimulatedBadge,
   Skeleton,
-  StatusSequence,
-  type StatusStep,
+  StackView,
   Stepper,
 } from '@keyline/ui';
-import { ArrowSquareOut, Bank, CheckCircle, IdentificationCard, Key } from '@phosphor-icons/react/dist/ssr';
+import { ArrowSquareOut, CheckCircle, Key } from '@phosphor-icons/react/dist/ssr';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { type Address as Addr, getAddress, type Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { copy } from '@/src/copy';
+import { copy, copyV2 } from '@/src/copy';
 import { env } from '@/src/env';
-import { api, isApiError } from '@/src/lib/api';
+import { api, hasOnboardingToken, isApiError } from '@/src/lib/api';
 import {
   addressUrl,
   buildOpFromDecision,
   PasskeyCancelledError,
   pollUserOp,
-  type SubmitStage,
   signAttestation,
   sponsorSignAndSend,
   txUrl,
 } from '@/src/lib/chain';
 import { getDeviceLabel } from '@/src/lib/device';
-import { useLocalWallet, useNow } from '@/src/lib/hooks';
+import { forgetClaim, handoffFirstName } from '@/src/lib/handoff';
+import { useLocalWallet } from '@/src/lib/hooks';
 import {
   localWalletFromLogin,
   loginWithPasskey,
@@ -53,15 +54,24 @@ import type { LocalWallet } from '@/src/lib/storage';
 
 const TOTAL = 6;
 
+/**
+ * Onboarding v2 (SPEC §10 F1). Before a wallet exists: "Hi Lea" (from the Swissquote handoff) → the phone key. Then
+ * the persisted steps 2–6 (Safety key confirmed on the laptop, Emergency card, recovery mode, Protect, proof) and
+ * "Move your first funds". Screens change through `StackView` (one spring, header stays).
+ */
 export default function OnboardingPage() {
   const router = useRouter();
   const { wallet, save, patch } = useLocalWallet();
+  const [name, setName] = useState<string | null | undefined>(undefined);
+  const [greeted, setGreeted] = useState(false);
+  useEffect(() => setName(handoffFirstName()), []);
   const finished = wallet !== undefined && wallet !== null && wallet.onboardingStep > TOTAL;
-  // Navigating during render trips React's setState-in-render check (audit #5); redirect from an effect instead.
   useEffect(() => {
     if (finished) router.replace('/');
   }, [finished, router]);
-  if (wallet === undefined || finished) {
+  // Direction of the last move, for the stack transition (forward unless the step went down).
+  const last = useRef(0);
+  if (wallet === undefined || name === undefined || finished) {
     return (
       <>
         <Skeleton kind="line" count={2} />
@@ -69,43 +79,443 @@ export default function OnboardingPage() {
       </>
     );
   }
-  const step = wallet ? Math.min(wallet.onboardingStep, TOTAL) : 1;
   const go = (next: number, extra: Partial<LocalWallet> = {}) => patch({ ...extra, onboardingStep: next });
+  const handoff = name !== null;
 
-  switch (step) {
-    case 1:
-      return <Step1 onCreated={save} />;
-    case 2:
-      return wallet ? (
-        <Step2 wallet={wallet} onNext={(g) => go(3, g ? { guardians: { safetyKey: g } } : {})} />
-      ) : null;
-    case 3:
-      return wallet ? (
-        <Step3 wallet={wallet} onNext={(addr) => go(4, { guardians: { emergencyCard: addr } })} />
-      ) : null;
-    case 4:
-      return wallet ? <Step4 wallet={wallet} onNext={() => go(5, { recoveryMode: 'default' })} /> : null;
-    case 5:
-      return wallet ? (
-        <Step5
-          wallet={wallet}
-          onProtected={(tx, sq) =>
-            patch({ status: 'deployed', protectTxHash: tx, guardians: sq ? { swissquote: sq } : {} })
-          }
-          onNext={() => go(6)}
-        />
-      ) : null;
-    default:
-      return wallet ? (
-        <Step6
-          wallet={wallet}
-          onDone={(attested) => {
-            patch({ attested, onboardingStep: TOTAL + 1 });
-            router.push('/');
-          }}
-        />
-      ) : null;
+  let key: string;
+  let body: ReactNode;
+  if (!wallet) {
+    if (handoff && !greeted) {
+      key = 'hi';
+      body = <Hi name={name} onNext={() => setGreeted(true)} />;
+    } else {
+      key = 'key';
+      body = handoff ? <KeyStep onCreated={save} /> : <Step1 onCreated={save} />;
+    }
+  } else {
+    const step = Math.min(wallet.onboardingStep, TOTAL);
+    key = `s${step}${step === 6 && wallet.attested ? '-funds' : ''}`;
+    switch (step) {
+      case 2:
+        body = (
+          <SafetyKeyStep wallet={wallet} onNext={(g) => go(3, g ? { guardians: { safetyKey: g } } : {})} />
+        );
+        break;
+      case 3:
+        body = <Step3 wallet={wallet} onNext={(addr) => go(4, { guardians: { emergencyCard: addr } })} />;
+        break;
+      case 4:
+        body = <Step4 wallet={wallet} onNext={() => go(5, { recoveryMode: 'default' })} />;
+        break;
+      case 5:
+        body = (
+          <ProtectStep
+            wallet={wallet}
+            onProtected={(tx, sq) =>
+              patch({ status: 'deployed', protectTxHash: tx, guardians: sq ? { swissquote: sq } : {} })
+            }
+            onNext={() => go(6)}
+          />
+        );
+        break;
+      default:
+        body = wallet.attested ? (
+          <FirstFunds
+            onHome={() => {
+              forgetClaim();
+              patch({ onboardingStep: TOTAL + 1 });
+              router.push('/');
+            }}
+          />
+        ) : (
+          <Step6
+            wallet={wallet}
+            onDone={(attested) => patch(attested ? { attested } : { onboardingStep: TOTAL + 1 })}
+          />
+        );
+    }
   }
+  const order = ['hi', 'key', 's2', 's3', 's4', 's5', 's6', 's6-funds'].indexOf(key);
+  const direction: 1 | -1 = order >= last.current ? 1 : -1;
+  last.current = order;
+
+  return (
+    <div className="-mx-4 -mt-6 -mb-8 flex min-h-[calc(100dvh-40px)] flex-1 flex-col md:min-h-0">
+      <StackView screenKey={key} direction={direction} title={copy.brand} className="flex-1">
+        <div className="flex min-h-full flex-col gap-6 px-4 pt-6 pb-8">{body}</div>
+      </StackView>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------------------------------------------ */
+/* C1 · Hi Lea (the client comes from the Swissquote web session through the handoff; no form)                    */
+/* ------------------------------------------------------------------------------------------------------------ */
+
+function Hi({ name, onNext }: { name: string; onNext: () => void }) {
+  const s = copyV2.onboarding.hi;
+  return (
+    <>
+      <div className="grid justify-items-start gap-6 pt-8">
+        <ProtectionRing state="empty" size={64} />
+        <div className="kl-stack">
+          <h1 className="kl-title" data-testid="hi-title">
+            {s.title(name)}
+          </h1>
+          <p className="kl-lead">{s.body}</p>
+        </div>
+      </div>
+      <div className="kl-actions">
+        <ActionButton full label={s.primary} onClick={onNext} data-testid="hi-continue" />
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------------------------------------------------ */
+/* C2 · A key that stays on this phone (passkey; the bank binds it to the client with X-Onboarding-Token)        */
+/* ------------------------------------------------------------------------------------------------------------ */
+
+function KeyStep({ onCreated }: { onCreated: (wallet: LocalWallet) => void }) {
+  const s = copyV2.onboarding.key;
+  const s1 = copy.onboarding.s1;
+  const create = useMutation({
+    mutationFn: () => createWallet(),
+    onSuccess: onCreated,
+  });
+  const cancelled = create.error instanceof PasskeyCancelledError;
+  const unsupported = create.error instanceof PasskeyUnsupportedError;
+  return (
+    <>
+      <Stepper current={1} total={TOTAL} label={s1.step} />
+      <div className="kl-stack">
+        <h1 className="kl-title">{s.title}</h1>
+        <p className="kl-lead">{s1.body}</p>
+      </div>
+      <Panel title={s1.panelTitle} rows={s1.rows.map(([label, value]) => ({ label, value }))} />
+      {!hasOnboardingToken() ? <Note tone="warn">{copyV2.start.noHandoff}</Note> : null}
+      {cancelled ? <Note tone="warn">{s1.cancelled}</Note> : null}
+      {unsupported ? <ErrorState title={s1.unsupportedTitle} body={s1.unsupportedBody} /> : null}
+      {create.error && !cancelled && !unsupported ? (
+        <ApiErrorState error={create.error} body={copy.common.errorBody} onRetry={() => create.mutate()} />
+      ) : null}
+      <div className="kl-actions">
+        <ActionButton
+          full
+          label={s.primary}
+          status={create.isPending ? 'loading' : 'idle'}
+          onClick={() => create.mutate()}
+          data-testid="create-key"
+        />
+      </div>
+    </>
+  );
+}
+
+async function createWallet(): Promise<LocalWallet> {
+  const passkey = await registerPasskey();
+  const created = await api.wallets.create({
+    pubKeyX: passkey.pubKeyX,
+    pubKeyY: passkey.pubKeyY,
+    credentialId: passkey.credentialId,
+    deviceLabel: getDeviceLabel(),
+    recoveryMode: 'default',
+  });
+  return {
+    address: created.address,
+    credentialId: passkey.credentialId,
+    pubKeyX: passkey.pubKeyX,
+    pubKeyY: passkey.pubKeyY,
+    deviceLabel: getDeviceLabel(),
+    status: 'pending',
+    attested: false,
+    recoveryMode: created.wallet.recoveryMode,
+    guardians: {},
+    onboardingStep: 2,
+  };
+}
+
+/* ------------------------------------------------------------------------------------------------------------ */
+/* C3 · Your laptop becomes your Safety key — the laptop confirms on Swissquote web; the phone watches it land   */
+/* ------------------------------------------------------------------------------------------------------------ */
+
+function SafetyKeyStep({ wallet, onNext }: { wallet: LocalWallet; onNext: (safetyKey?: Addr) => void }) {
+  const s = copyV2.onboarding.safetyKey;
+  const guardians = useQuery({
+    queryKey: ['guardians', wallet.address],
+    queryFn: () => api.wallets.guardians(wallet.address),
+    refetchInterval: (q) => (q.state.data?.some((g) => g.kind === 'safety-key') ? false : 2_000),
+    retry: false,
+  });
+  const found = guardians.data?.find((g) => g.kind === 'safety-key');
+  const address = found ? getAddress(found.address) : (wallet.guardians.safetyKey as Addr | undefined);
+  const confirmed = address !== undefined;
+  return (
+    <>
+      <Stepper current={2} total={TOTAL} label={copy.onboarding.s2.step} />
+      <div className="kl-stack">
+        <h1 className="kl-title">{s.title}</h1>
+        <p className="kl-lead">{s.body}</p>
+      </div>
+      <div data-testid={confirmed ? 'safety-key-confirmed' : 'safety-key-waiting'}>
+        <KeyCard
+          name={copy.onboarding.s2.keyName}
+          where={copy.onboarding.s2.keyWhere}
+          can={copy.onboarding.s2.keyCan}
+          cannot={copy.onboarding.s2.keyCannot}
+          icon={<Key size={20} aria-hidden="true" />}
+          status={confirmed ? 'active' : 'pending'}
+          statusWord={confirmed ? copyV2.onboarding.safetyKey.confirmed : copyV2.onboarding.safetyKey.waiting}
+          action={address ? <Address value={address} explorerUrl={addressUrl(address)} /> : undefined}
+        />
+      </div>
+      {guardians.isError ? (
+        <ApiErrorState
+          error={guardians.error}
+          body={copy.common.errorBody}
+          onRetry={() => guardians.refetch()}
+        />
+      ) : null}
+      <div className="kl-actions">
+        <ActionButton
+          full
+          label={copy.common.continue}
+          disabled={!confirmed}
+          status={confirmed ? 'idle' : 'idle'}
+          onClick={() => onNext(address)}
+          data-testid="safety-key-continue"
+        />
+        {!confirmed ? (
+          <Button variant="ghost" full onClick={() => onNext()}>
+            {s.skip}
+          </Button>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------------------------------------------------ */
+/* C6 · Protect — one batched userOp; status line Signed → Sent → In block; the ring draws on the receipt          */
+/* ------------------------------------------------------------------------------------------------------------ */
+
+type ProtectRun =
+  | { kind: 'idle' }
+  | { kind: 'working'; label: 'preparing' | 'signed' | 'sent' }
+  | { kind: 'included'; txHash: Hex; blockNumber?: number }
+  | { kind: 'refused'; decision: PolicyDecision }
+  | { kind: 'error'; error: unknown; cancelled: boolean };
+
+function ProtectStep({
+  wallet,
+  onProtected,
+  onNext,
+}: {
+  wallet: LocalWallet;
+  onProtected: (txHash: Hex, swissquote?: Addr) => void;
+  onNext: () => void;
+}) {
+  const s = copyV2.onboarding.protect;
+  const already = wallet.status === 'deployed' && wallet.protectTxHash !== undefined;
+  const [run, setRun] = useState<ProtectRun>(
+    already ? { kind: 'included', txHash: wallet.protectTxHash as Hex } : { kind: 'idle' },
+  );
+  // Arcs registered so far. On the receipt they draw one after another, chained by onDrawn (never a timer).
+  const [registered, setRegistered] = useState<0 | 1 | 2 | 3>(already ? 3 : 0);
+  const [closed, setClosed] = useState(already);
+  const [settled, setSettled] = useState(already);
+  const sqRef = useRef<Addr | undefined>(wallet.guardians.swissquote as Addr | undefined);
+
+  const start = useCallback(async () => {
+    try {
+      setRun({ kind: 'working', label: 'preparing' });
+      try {
+        const sq = await api.wallets.addGuardian(wallet.address, { kind: 'swissquote' });
+        sqRef.current = getAddress(sq.address);
+      } catch (error) {
+        if (!(isApiError(error) && error.status === 409)) throw error;
+      }
+      const decision = await api.policy.evaluate({
+        kind: 'protect',
+        walletAddress: wallet.address,
+        calls: [],
+        chfValue: 0,
+        recipientAddress: wallet.address,
+        deviceLabel: getDeviceLabel(),
+      });
+      if (decision.verdict !== 'approve') {
+        setRun({ kind: 'refused', decision });
+        return;
+      }
+      const unsigned = await buildOpFromDecision(wallet, decision);
+      const result = await sponsorSignAndSend({
+        wallet,
+        unsignedUserOp: unsigned,
+        decision,
+        onStage: (stage) => {
+          if (stage === 'sending') setRun({ kind: 'working', label: 'signed' });
+          if (stage === 'sent') setRun({ kind: 'working', label: 'sent' });
+        },
+      });
+      setRun({ kind: 'working', label: 'sent' });
+      const final = await pollUserOp(result.userOpHash, () => undefined);
+      if (final.status === 'failed' || !final.txHash) {
+        setRun({ kind: 'error', error: new Error(copy.activity.failedStep), cancelled: false });
+        return;
+      }
+      onProtected(final.txHash as Hex, sqRef.current);
+      setRun({ kind: 'included', txHash: final.txHash as Hex, blockNumber: final.blockNumber });
+      setRegistered(1);
+    } catch (error) {
+      setRun({ kind: 'error', error, cancelled: error instanceof PasskeyCancelledError });
+    }
+  }, [wallet, onProtected]);
+
+  const onDrawn = useCallback((i: number) => {
+    if (i === 0) setRegistered(2);
+    else if (i === 1) setRegistered(3);
+    else if (i === 2) setClosed(true);
+  }, []);
+  useEffect(() => {
+    if (!closed || settled) return;
+    haptic('success');
+    const t = setTimeout(() => setSettled(true), 1_200);
+    return () => clearTimeout(t);
+  }, [closed, settled]);
+
+  const working = run.kind === 'working' || (run.kind === 'included' && !closed);
+  const statusLine =
+    run.kind === 'working'
+      ? run.label === 'sent'
+        ? s.sent
+        : run.label === 'signed'
+          ? s.signed
+          : s.fee
+      : run.kind === 'included'
+        ? s.block(run.blockNumber ? formatInteger(run.blockNumber) : '…')
+        : s.fee;
+
+  return (
+    <>
+      <Stepper current={5} total={TOTAL} label={copy.onboarding.s5.step} />
+      <div className="kl-stack">
+        <h1 className="kl-title" data-testid="protect-title">
+          {closed ? s.titleDone : s.title}
+        </h1>
+        <p className="kl-lead">{closed ? s.bodyDone : s.body}</p>
+      </div>
+      <div
+        className="grid place-items-center py-2"
+        data-testid="protect-ring"
+        data-registered={registered}
+        data-closed={closed}
+      >
+        <ProtectionRing
+          state={closed ? 'protected' : registered === 0 ? 'empty' : 'registering'}
+          registered={registered}
+          size={200}
+          onDrawn={onDrawn}
+        >
+          {closed ? (
+            <DrawnCheck size={40} />
+          ) : (
+            <>
+              <span className="text-28 font-semibold">{s.ringCount(registered)}</span>
+              <span className="text-12 text-ink-3">{s.ringSub}</span>
+            </>
+          )}
+        </ProtectionRing>
+      </div>
+      <ul className="m-0 list-none p-0">
+        {s.rows.map((r, i) => {
+          const state = i < registered ? 'added' : working && i === registered ? 'adding' : 'waiting';
+          return (
+            <li
+              key={r.name}
+              className="flex min-h-14 items-center justify-between gap-4 border-b border-line py-2"
+            >
+              <span className="grid">
+                <span className="text-16">{r.name}</span>
+                <span className="text-12 text-ink-3">{r.where}</span>
+              </span>
+              <span
+                className={`flex items-center gap-2 text-14 ${state === 'added' ? 'text-ok' : state === 'adding' ? 'font-semibold text-ink' : 'text-ink-3'}`}
+              >
+                {state === 'added' ? (
+                  <CheckCircle size={16} aria-hidden="true" />
+                ) : (
+                  <span
+                    className={`inline-block h-2 w-2 rounded-full ${state === 'adding' ? 'bg-accent' : 'bg-line-strong'}`}
+                    aria-hidden="true"
+                  />
+                )}
+                {state === 'added' ? s.added : state === 'adding' ? s.adding : s.waiting}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {run.kind === 'refused' ? <PolicyLine verdict="block" reason={copy.common.policyRefused} /> : null}
+      {run.kind === 'error' && run.cancelled ? <Note tone="warn">{copy.review.passkeyCancelled}</Note> : null}
+      {run.kind === 'error' && !run.cancelled ? (
+        <ApiErrorState error={run.error} title={s.errorTitle} body={s.errorBody} onRetry={start} />
+      ) : null}
+      <div className="kl-actions">
+        <ActionButton
+          full
+          label={settled ? copy.common.continue : s.primary}
+          successLabel={s.titleDone}
+          status={closed && !settled ? 'success' : working ? 'loading' : 'idle'}
+          onClick={
+            settled
+              ? onNext
+              : run.kind === 'idle' || run.kind === 'error' || run.kind === 'refused'
+                ? start
+                : undefined
+          }
+          data-testid="protect-primary"
+        />
+        <p className="m-0 text-center text-12 text-ink-3" data-testid="protect-status" aria-live="polite">
+          {run.kind === 'included' ? (
+            <a
+              className="kl2-link inline-flex items-center gap-1"
+              href={txUrl(run.txHash)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`${statusLine} · ${copy.common.viewOnBasescan}`}
+            >
+              {statusLine}
+              <ArrowSquareOut size={12} aria-hidden="true" />
+            </a>
+          ) : (
+            statusLine
+          )}
+        </p>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------------------------------------------------ */
+/* After the proof · Move your first funds (it happens on the laptop's Swissquote page)                          */
+/* ------------------------------------------------------------------------------------------------------------ */
+
+function FirstFunds({ onHome }: { onHome: () => void }) {
+  const s = copyV2.onboarding.firstFunds;
+  return (
+    <>
+      <div className="grid justify-items-start gap-6 pt-4">
+        <ProtectionRing state="protected" size={64} />
+        <div className="kl-stack">
+          <h1 className="kl-title">{s.title}</h1>
+          <p className="kl-lead">{s.body}</p>
+        </div>
+      </div>
+      <div className="kl-actions">
+        <ActionButton full label={s.primary} onClick={onHome} data-testid="first-funds-home" />
+      </div>
+    </>
+  );
 }
 
 /* ------------------------------------------------------------------------------------------------------------ */
@@ -174,118 +584,6 @@ function Step1({ onCreated }: { onCreated: (wallet: LocalWallet) => void }) {
         <Button variant="ghost" full loading={signIn.isPending} onClick={() => signIn.mutate()}>
           {s.signIn}
         </Button>
-      </div>
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------------------------------------------------ */
-/* Step 2 · Add your Safety key (6-digit pairing code, polled until the laptop claims it)                        */
-/* ------------------------------------------------------------------------------------------------------------ */
-
-function Step2({ wallet, onNext }: { wallet: LocalWallet; onNext: (safetyKey?: Addr) => void }) {
-  const s = copy.onboarding.s2;
-  // The laptop opens the same origin as the phone (qa-demo runs the stack on other ports); never hard-code it.
-  const [pairUrl, setPairUrl] = useState<string>(env.pairUrl);
-  useEffect(() => {
-    setPairUrl(`${window.location.host}/pair`);
-  }, []);
-  const [attempt, setAttempt] = useState(0);
-  const pairing = useQuery({
-    queryKey: ['pairing', wallet.address, attempt],
-    queryFn: () => api.pairings.create(wallet.address),
-    retry: false,
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-  const code = pairing.data?.code;
-  const status = useQuery({
-    queryKey: ['pairing-status', code],
-    queryFn: () => api.pairings.get(code as string),
-    enabled: Boolean(code),
-    refetchInterval: (q) => (q.state.data?.status === 'open' ? 2_000 : false),
-  });
-  const now = useNow(Boolean(code));
-  const expiresAt = pairing.data ? new Date(pairing.data.expiresAt).getTime() : 0;
-  const remaining = Math.max(0, expiresAt - now);
-  const claimed = status.data?.status === 'claimed' || wallet.guardians.safetyKey !== undefined;
-  const expired =
-    !claimed && (status.data?.status === 'expired' || (pairing.data !== undefined && remaining === 0));
-  const guardianAddress = status.data?.guardian?.address ?? wallet.guardians.safetyKey;
-
-  return (
-    <>
-      <Stepper current={2} total={TOTAL} label={s.step} />
-      <div className="kl-stack">
-        <h1 className="kl-title">{s.title}</h1>
-        <p className="kl-lead">{s.body(pairUrl)}</p>
-      </div>
-
-      {pairing.isPending ? (
-        <Skeleton kind="amount" />
-      ) : pairing.isError ? (
-        <ApiErrorState
-          error={pairing.error}
-          body={copy.common.errorBody}
-          onRetry={() => setAttempt((a) => a + 1)}
-        />
-      ) : claimed ? null : (
-        <div className="kl-stack kl-stack--tight items-center text-center">
-          <p className="kl-pairing-code">
-            {pairing.data.code.slice(0, 3)} {pairing.data.code.slice(3)}
-          </p>
-          {expired ? (
-            <>
-              <p className="text-12 text-ink-3">
-                {s.expired} <SimulatedBadge />
-              </p>
-              <Button variant="secondary" size="sm" onClick={() => setAttempt((a) => a + 1)}>
-                {s.newCode}
-              </Button>
-            </>
-          ) : (
-            <p className="text-12 text-ink-3">
-              {s.expiresIn(formatDuration(remaining))} <SimulatedBadge />
-            </p>
-          )}
-        </div>
-      )}
-
-      <KeyCard
-        name={s.keyName}
-        where={s.keyWhere}
-        can={s.keyCan}
-        cannot={s.keyCannot}
-        icon={<Key size={20} aria-hidden="true" />}
-        status={claimed ? 'active' : 'pending'}
-        statusWord={claimed ? undefined : s.waiting}
-        action={
-          guardianAddress ? (
-            <Address value={guardianAddress} explorerUrl={addressUrl(guardianAddress)} />
-          ) : undefined
-        }
-      />
-
-      <Disclosure summary={copy.common.technicalDetails}>
-        <div className="kl-stack kl-stack--tight">
-          <p className="text-12 text-ink-3">{copy.onboarding.s1.techAddress}</p>
-          <Address value={wallet.address} explorerUrl={addressUrl(wallet.address)} />
-        </div>
-      </Disclosure>
-
-      <div className="kl-actions">
-        <Button
-          variant="primary"
-          full
-          disabled={!claimed}
-          onClick={() => onNext(guardianAddress ? getAddress(guardianAddress) : undefined)}
-        >
-          {copy.common.continue}
-        </Button>
-        {!claimed ? (
-          <Button variant="ghost" full onClick={() => onNext()}>
-            {s.skip}
-          </Button>
-        ) : null}
       </div>
     </>
   );
@@ -431,225 +729,6 @@ function Step4({ wallet, onNext }: { wallet: LocalWallet; onNext: () => void }) 
       </div>
     </>
   );
-}
-
-/* ------------------------------------------------------------------------------------------------------------ */
-/* Step 5 · Protect my wallet (first sponsored userOp: deploy + enableModule + 3 guardians, threshold 2)          */
-/* ------------------------------------------------------------------------------------------------------------ */
-
-type ProtectPhase =
-  | { kind: 'idle' }
-  | { kind: 'running'; stage: SubmitStage | 'guardians' | 'policy'; decision?: PolicyDecision }
-  | { kind: 'sent'; userOpHash: Hex; decision: PolicyDecision }
-  | { kind: 'included'; userOpHash: Hex; txHash: Hex; blockNumber?: number }
-  | { kind: 'confirmed'; userOpHash: Hex; txHash: Hex; blockNumber?: number }
-  | { kind: 'refused'; decision: PolicyDecision }
-  | { kind: 'error'; error: unknown; cancelled: boolean };
-
-function Step5({
-  wallet,
-  onProtected,
-  onNext,
-}: {
-  wallet: LocalWallet;
-  onProtected: (txHash: Hex, swissquote?: Addr) => void;
-  onNext: () => void;
-}) {
-  const s = copy.onboarding.s5;
-  const [phase, setPhase] = useState<ProtectPhase>(
-    wallet.status === 'deployed' && wallet.protectTxHash
-      ? { kind: 'confirmed', userOpHash: '0x', txHash: wallet.protectTxHash as Hex }
-      : { kind: 'idle' },
-  );
-  const sqRef = useRef<Addr | undefined>(wallet.guardians.swissquote as Addr | undefined);
-
-  const run = useCallback(async () => {
-    try {
-      setPhase({ kind: 'running', stage: 'guardians' });
-      // Swissquote's recoverer: the bank fetches sq-guardian's public address itself. Idempotent server-side.
-      try {
-        const sq = await api.wallets.addGuardian(wallet.address, { kind: 'swissquote' });
-        sqRef.current = getAddress(sq.address);
-      } catch (error) {
-        // Already added is fine (409); anything else is a real failure.
-        if (!(isApiError(error) && error.status === 409)) throw error;
-      }
-      setPhase({ kind: 'running', stage: 'policy' });
-      const decision = await api.policy.evaluate({
-        kind: 'protect',
-        walletAddress: wallet.address,
-        calls: [],
-        chfValue: 0,
-        recipientAddress: wallet.address,
-        deviceLabel: getDeviceLabel(),
-      });
-      if (decision.verdict !== 'approve') {
-        setPhase({ kind: 'refused', decision });
-        return;
-      }
-      setPhase({ kind: 'running', stage: 'building', decision });
-      const unsigned = await buildOpFromDecision(wallet, decision);
-      const result = await sponsorSignAndSend({
-        wallet,
-        unsignedUserOp: unsigned,
-        decision,
-        onStage: (stage) => setPhase({ kind: 'running', stage, decision }),
-      });
-      setPhase({ kind: 'sent', userOpHash: result.userOpHash, decision });
-      const final = await pollUserOp(result.userOpHash, (st) => {
-        if ((st.status === 'included' || st.status === 'confirmed') && st.txHash) {
-          setPhase({
-            kind: st.status,
-            userOpHash: result.userOpHash,
-            txHash: st.txHash as Hex,
-            blockNumber: st.blockNumber,
-          });
-        }
-      });
-      if (final.status === 'failed') {
-        setPhase({ kind: 'error', error: new Error(copy.activity.failedStep), cancelled: false });
-        return;
-      }
-      if (final.txHash) {
-        onProtected(final.txHash as Hex, sqRef.current);
-        setPhase({
-          kind: 'confirmed',
-          userOpHash: result.userOpHash,
-          txHash: final.txHash as Hex,
-          blockNumber: final.blockNumber,
-        });
-      }
-    } catch (error) {
-      setPhase({ kind: 'error', error, cancelled: error instanceof PasskeyCancelledError });
-    }
-  }, [wallet, onProtected]);
-
-  const isConfirmed = phase.kind === 'confirmed';
-  const steps = protectSequence(phase);
-
-  return (
-    <>
-      <Stepper current={5} total={TOTAL} label={s.step} />
-      {isConfirmed ? (
-        <>
-          <h1 className="kl-title">{s.protectedTitle}</h1>
-          <ul className="kl-stack kl-stack--tight list-none p-0 m-0">
-            {s.protectedLines.map((line) => (
-              <li key={line} className="flex items-start gap-2 text-16">
-                <span className="text-ok shrink-0 pt-0.5">
-                  <CheckCircle size={20} aria-hidden="true" />
-                </span>
-                {line}
-              </li>
-            ))}
-          </ul>
-          <div className="kl-stack">
-            <KeyCard
-              name={copy.security.safetyKey.name}
-              where={copy.security.safetyKey.where}
-              can={copy.security.safetyKey.can}
-              cannot={copy.pair.keyCannot}
-              icon={<Key size={20} aria-hidden="true" />}
-              status={wallet.guardians.safetyKey ? 'active' : 'pending'}
-            />
-            <KeyCard
-              name={copy.security.emergencyCard.name}
-              where={copy.security.emergencyCard.where}
-              can={copy.security.emergencyCard.can}
-              cannot={copy.security.emergencyCard.cannot}
-              icon={<IdentificationCard size={20} aria-hidden="true" />}
-            />
-            <KeyCard
-              name={copy.security.swissquote.name}
-              where={copy.security.swissquote.where}
-              can={copy.security.swissquote.can}
-              cannot={copy.security.swissquote.cannot}
-              icon={<Bank size={20} aria-hidden="true" />}
-            />
-          </div>
-          {phase.txHash !== '0x' ? (
-            <a className="kl-link" href={txUrl(phase.txHash)} target="_blank" rel="noreferrer">
-              {copy.common.viewOnBasescan}
-              <ArrowSquareOut size={16} aria-hidden="true" />
-            </a>
-          ) : null}
-          <div className="kl-actions">
-            <Button variant="primary" full onClick={onNext}>
-              {copy.common.continue}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <>
-          <h1 className="kl-title">{s.title}</h1>
-          <Panel title={s.panelTitle} rows={s.rows.map(([label, value]) => ({ label, value }))} />
-          {phase.kind === 'refused' ? (
-            <PolicyLine
-              verdict={
-                phase.decision.verdict === 'block'
-                  ? 'block'
-                  : phase.decision.verdict === 'cooling'
-                    ? 'cooling'
-                    : 'step-up'
-              }
-              reason={copy.common.policyRefused}
-            />
-          ) : null}
-          {phase.kind === 'refused' ? (
-            <Disclosure summary={copy.common.technicalDetails}>
-              <pre className="kl-code">{phase.decision.reasons.join('\n')}</pre>
-            </Disclosure>
-          ) : null}
-          {phase.kind === 'error' && phase.cancelled ? (
-            <Note tone="warn">{copy.review.passkeyCancelled}</Note>
-          ) : null}
-          {phase.kind === 'error' && !phase.cancelled ? (
-            <ApiErrorState error={phase.error} title={s.errorTitle} body={s.errorBody} onRetry={run} />
-          ) : null}
-          {steps ? <StatusSequence steps={steps} /> : null}
-          <div className="kl-actions">
-            <Button
-              variant="primary"
-              full
-              loading={phase.kind === 'running' || phase.kind === 'sent' || phase.kind === 'included'}
-              onClick={run}
-            >
-              {s.primary}
-            </Button>
-          </div>
-        </>
-      )}
-    </>
-  );
-}
-
-function protectSequence(phase: ProtectPhase): StatusStep[] | null {
-  const labels = copy.onboarding.s5.sequence;
-  if (phase.kind === 'idle' || phase.kind === 'refused' || phase.kind === 'error') return null;
-  const stageIndex =
-    phase.kind === 'running'
-      ? phase.stage === 'signing' ||
-        phase.stage === 'building' ||
-        phase.stage === 'sponsoring' ||
-        phase.stage === 'guardians' ||
-        phase.stage === 'policy'
-        ? 0
-        : 1
-      : phase.kind === 'sent'
-        ? 2
-        : phase.kind === 'included'
-          ? 3
-          : 4;
-  const blockLabel =
-    phase.kind === 'included' || phase.kind === 'confirmed'
-      ? copy.review.inBlock(phase.blockNumber ? formatInteger(phase.blockNumber) : '…')
-      : labels[2];
-  return [
-    { label: labels[0], state: stageIndex > 0 ? 'done' : 'active' },
-    { label: labels[1], state: stageIndex > 1 ? 'done' : stageIndex === 1 ? 'active' : 'todo' },
-    { label: blockLabel, state: stageIndex > 2 ? 'done' : stageIndex === 2 ? 'active' : 'todo' },
-    { label: labels[3], state: stageIndex > 3 ? 'done' : stageIndex === 3 ? 'active' : 'todo' },
-  ];
 }
 
 /* ------------------------------------------------------------------------------------------------------------ */

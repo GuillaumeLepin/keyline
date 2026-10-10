@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api';
-import { readUsdcBalance } from './chain';
+import { readAssetBalances, readUsdcBalance } from './chain';
 import {
   type LocalTopup,
   type LocalTransfer,
@@ -61,6 +61,20 @@ export function useUsdcBalance(address: string | undefined) {
     enabled: Boolean(address),
     refetchInterval: 15_000,
   });
+}
+
+export function useAssetBalances(address: string | undefined) {
+  return useQuery({
+    queryKey: ['asset-balances', address],
+    queryFn: () => readAssetBalances(address as `0x${string}`),
+    enabled: Boolean(address),
+    refetchInterval: 15_000,
+  });
+}
+
+/** Swissquote positions (SIMULATED ledger). Readable with the wallet session (phone) or the sq_web session (laptop). */
+export function useSqPositions(enabled = true) {
+  return useQuery({ queryKey: ['sq-positions'], queryFn: api.sq.positions, enabled, retry: false });
 }
 
 export function useContacts() {

@@ -17,6 +17,8 @@ import {
   Skeleton,
   StatementRow,
   TestnetStrip,
+  ThemeSwitch,
+  useThemePreference,
 } from '@keyline/ui';
 import {
   Bank,
@@ -31,7 +33,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps } from '@/src/copy';
+import { copy, copyGaps, copyV2 } from '@/src/copy';
 import { env } from '@/src/env';
 import { api, isApiError } from '@/src/lib/api';
 import { addressUrl, readRecoveryStatus } from '@/src/lib/chain';
@@ -93,6 +95,7 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
     .filter((t) => t.status !== 'failed' && new Date(t.at).toDateString() === today)
     .reduce((sum, t) => sum + t.amountChf, 0);
   const deployed = wallet.status === 'deployed';
+  const [theme, setTheme] = useThemePreference();
 
   return (
     <>
@@ -232,6 +235,24 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
           icon={<SignOut size={20} aria-hidden="true" />}
         />
       </ul>
+
+      <ul className="m-0 list-none p-0">
+        <StatementRow
+          label={copyV2.security.bitcoin.title}
+          meta={copyV2.security.bitcoin.notHere}
+          href="/security/bitcoin"
+          chevron
+        />
+      </ul>
+
+      <section className="kl-stack" aria-label={copyV2.theme.legend}>
+        <ThemeSwitch
+          value={theme}
+          onChange={setTheme}
+          legend={copyV2.theme.legend}
+          labels={{ system: copyV2.theme.system, light: copyV2.theme.light, dark: copyV2.theme.dark }}
+        />
+      </section>
 
       <section className="kl-stack">
         <div className="kl-section">

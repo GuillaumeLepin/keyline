@@ -1,3 +1,12 @@
+import type {
+  BitcoinPolicyCopy,
+  ConfirmPromptCopy,
+  HandoffTileCopy,
+  PositionsTableCopy,
+  WebShellCopy,
+} from '@keyline/ui';
+import { TRAVEL_RULE_OWN_WALLET } from '@keyline/ui'; // 'No ownership check needed: this wallet is verified as yours.'
+
 // Generated from docs/DESIGN.md §9–10. Do not edit strings here; edit DESIGN.md and re-paste.
 const base = {
   brand: 'Keyline',
@@ -753,4 +762,306 @@ export const devResetCopy = {
   passkeyUrl: 'chrome://password-manager/passkeys',
   passkeyAfter: (rpId: string) => `— look for entries for “${rpId}”.`,
   next: 'Then open the profile URL from the reset checklist.',
+} as const;
+
+/* v2 journey copy — docs/DESIGN.md Appendix V2, verbatim (supersedes the earlier copyV2 / copyGapsV2). */
+// ---------- primitive copy (typed by @keyline/ui) ----------
+export const sqWebShell: WebShellCopy = {
+  brand: 'Swissquote',
+  prototype: 'Prototype of Swissquote web — simulated',
+  navLabel: 'Swissquote',
+  signOut: 'Sign out',
+};
+
+export const sqPositionsCopy: PositionsTableCopy = {
+  caption: 'Positions',
+  position: 'Position',
+  quantity: 'Quantity',
+  price: 'Price',
+  value: 'Value',
+  action: 'Keyline',
+  total: 'Total value',
+};
+
+export const sqTileCopy: HandoffTileCopy = {
+  eyebrow: 'Keyline',
+  title: 'A wallet only you can spend from',
+  body: 'Your phone holds the key. Any 2 of your 3 recoverers can restore access: your Safety key, your Emergency card and Swissquote. Swissquote can’t move your money, alone or with anyone.',
+  start: 'Set up Keyline on my phone',
+  scan: 'Scan with your phone’s camera, or open keyline.app/start and type this code:',
+  qrLabel: 'QR code to continue on your phone',
+  expiresIn: (clock: string) => `Code expires in ${clock}`,
+  waiting: 'Waiting for your phone',
+  expired: 'Code expired',
+  renew: 'Show a new code',
+  claimed: 'Phone connected',
+  claimedBody: 'Continue on your phone. This page updates by itself.',
+  protectedTitle: 'Protected · 2 of 3 recoverers',
+};
+
+export const sqSafetyKeyCopy: ConfirmPromptCopy = {
+  context: 'Request from your phone',
+  title: 'Make this computer your Safety key?',
+  body: 'Your phone is setting up Keyline. This computer keeps a second key in this browser. It co-approves large transfers and can help restore access if you lose your phone.',
+  canTitle: 'It can',
+  can: ['Approve large transfers with your phone', 'Help restore access, with one other recoverer'],
+  cannotTitle: 'It can’t',
+  cannot: ['Spend on its own', 'Be used from another computer'],
+  confirm: 'Make this computer my Safety key',
+  decline: 'Not now',
+  confirmed: 'Safety key added',
+  doneTitle: 'This computer is your Safety key',
+  doneBody: 'Continue on your phone. Keep this browser profile: clearing its data removes the key.',
+  alreadyTitle: 'This computer is already your Safety key',
+  alreadyBody: 'Nothing to do here. Continue on your phone.',
+  errorTitle: 'The Safety key wasn’t added.',
+  errorBody: 'Nothing changed on your wallet. Try again.',
+  retry: 'Try again',
+};
+
+export const btcPolicyCopy: BitcoinPolicyCopy = {
+  title: 'The same protection, written as a Bitcoin script',
+  description:
+    'Two ways to spend. Your key can spend at any time. After the waiting period, any 2 of your 3 recoverers (Safety key, Emergency card, Swissquote) can move the Bitcoin to a new key.',
+  branch1: 'Your key, now',
+  branch1Code: 'pk(owner)',
+  or: 'or',
+  branch2: 'After the waiting period:',
+  branch2Count: '2 of 3 recoverers',
+  recoverers: 'Safety key · Emergency card · Swissquote',
+  branch2Code: 'and(older(waiting), thresh(2, …))',
+  axisNow: 'Now',
+  axisWait: 'Waiting period ends',
+  axisTime: 'time',
+};
+
+// ---------- screens ----------
+export const copyV2 = {
+  sqWeb: {
+    nav: { portfolio: 'Portfolio', trade: 'Trade', payments: 'Payments', documents: 'Documents' },
+    account: (n: string) => `Account ${n}`, // 'Account 4821 3307'
+    signIn: {
+      title: 'Sign in to Swissquote',
+      lead: 'Lea’s details are filled in for the prototype. One click signs in.',
+      username: 'Username',
+      usernameValue: 'lea.keller',
+      password: 'Password',
+      primary: 'Sign in',
+      error: 'That doesn’t match our records.',
+      note: 'Swissquote web is simulated for the prototype.',
+    },
+    signedOut: 'You are signed out.',
+    notAvailable: 'Not part of the prototype.', // Trade, Payments, Documents
+    portfolio: {
+      title: 'Portfolio',
+      valuation: (when: string) => `Valuation ${when}`, // + <Chip/>
+      cash: 'Cash',
+      invested: 'Invested',
+      total: 'Total value',
+      groups: { cash: 'Cash', securities: 'Securities', crypto: 'Crypto' },
+      chf: 'Swiss franc',
+      move: 'Move to Keyline',
+      moveAria: (asset: string) => `Move ${asset} to Keyline`,
+      why: 'Why?',
+      btcReason: 'Not movable yet',
+    },
+    tileProtected: {
+      balance: 'In your Keyline wallet',
+      note: 'Read from the network. Only your phone can spend it.',
+    },
+    move: {
+      title: (asset: string) => `Move ${asset} to Keyline`,
+      amount: 'Amount',
+      max: 'Max',
+      available: (qty: string) => `Available ${qty}`,
+      value: (chf: string) => `Value ${chf}`, // + <Chip/> (simulated price)
+      from: 'From',
+      fromValue: 'Your Swissquote account',
+      to: 'To',
+      toValue: 'Your Keyline wallet · verified as yours',
+      travelRule: TRAVEL_RULE_OWN_WALLET,
+      fee: 'Network fee',
+      feeValue: 'Paid by Swissquote',
+      primary: 'Move to Keyline',
+      moving: 'Moving to your Keyline wallet',
+      done: 'Moved. It appears in Keyline within a minute.',
+      viewTx: 'View on Basescan',
+      errAmount: 'Enter an amount above zero, up to what is available.',
+      funderEmpty:
+        'Swissquote’s test account has no funds for this asset right now. Nothing was moved and nothing was debited.',
+      noWallet: 'Set up Keyline on your phone first. Moves go only to a wallet verified as yours.',
+      errorTitle: 'Nothing was moved',
+      errorBody: 'The transfer didn’t go through and nothing was debited. Try again.',
+    },
+    moves: {
+      title: 'Moves to Keyline',
+      empty: 'No moves yet.',
+      status: { pending: 'Pending', sent: 'Sent', confirmed: 'Confirmed', failed: 'Failed' },
+    },
+    approvals: 'Approvals',
+  },
+
+  // A3 — the human's text, verbatim. Shown on Swissquote web (sheet) and linked from Security.
+  btcWhy: {
+    title: 'Why can’t I move Bitcoin?',
+    body: [
+      'Keyline moves an asset only when it can give it the same protection: your key, two of three recoverers, a public waiting period. For Bitcoin that needs a different key design (a threshold key or a timelocked script), which is on our roadmap. Until then your Bitcoin stays in your Swissquote account.',
+    ],
+    link: 'Roadmap: Bitcoin',
+    close: 'Close',
+  },
+
+  // B1 — /start on the phone
+  start: {
+    title: 'Continue on your phone',
+    body: 'Type the 6-digit code shown on your laptop.',
+    field: '6-digit code',
+    scanned: 'Code from your laptop',
+    primary: 'Continue',
+    wrong: 'That code doesn’t match. Check your laptop and try again.',
+    expired: 'Code expired. Show a new one on your laptop.',
+    noHandoff:
+      'Start on Swissquote web on your laptop: choose “Set up Keyline on my phone”, then type the code here.',
+  },
+
+  onboarding: {
+    stepper: (n: number, label: string) => `Step ${n} of 6 · ${label}`,
+    hi: {
+      title: (first: string) => `Hi ${first}`, // 'Hi Lea' — from the web session, no form
+      body: 'Keyline is a wallet only you can spend from. Swissquote helps you get back in if you lose your phone — it can’t move your money.',
+      signedInAs: (name: string, account: string) => `Connected to Swissquote as ${name} · ${account}`,
+      primary: 'Create my Keyline',
+    },
+    key: {
+      step: 'Create your key',
+      title: 'A key that stays on this phone',
+      primary: 'Create with Face ID / fingerprint',
+    },
+    safetyKey: {
+      step: 'Safety key',
+      title: 'Your laptop becomes your Safety key',
+      body: 'Confirm on your laptop. Nothing to type.',
+      waiting: 'Waiting for your laptop',
+      confirmed: 'Confirmed on your laptop',
+      primary: 'Continue',
+      skip: 'Skip for now — add it later',
+    },
+    emergency: { step: 'Emergency card' },
+    recovery: { step: 'How recovery works' },
+    protect: {
+      step: 'Protect my wallet',
+      title: 'One signature protects your wallet',
+      titleDone: 'Protected',
+      body: 'Your wallet is created on Base and your three recoverers are written into it. Swissquote pays the network fee.',
+      bodyDone:
+        'Your phone key signs. Any 2 of your 3 recoverers can restore access. Swissquote can’t move your money, alone or with anyone.',
+      rows: [
+        { name: 'Safety key', where: 'On your laptop' },
+        { name: 'Emergency card', where: 'On paper, with you' },
+        { name: 'Swissquote', where: 'Swiss data centre' },
+      ],
+      ringSub: 'recoverers added',
+      ringCount: (n: number) => `${n} of 3`,
+      waiting: 'Waiting',
+      adding: 'Adding',
+      added: 'Added',
+      primary: 'Protect my wallet',
+      continue: 'Continue',
+      fee: 'Network fee paid by Swissquote',
+      signed: 'Signed',
+      sent: 'Sent',
+      block: (n: string) => `In block ${n}`,
+      errorTitle: 'The wallet wasn’t created',
+      errorBody: 'Nothing was charged. The network didn’t accept the request — try again.',
+    },
+    proof: { step: 'Prove it’s yours', primary: 'Sign the proof', next: 'Continue' },
+    firstFunds: {
+      title: 'Move your first funds',
+      body: 'Open Swissquote on your laptop and choose “Move to Keyline” next to USDC, EURC or ETH. It arrives here within a minute.',
+      waiting: 'Waiting for your first funds',
+      arrived: (amount: string) => `${amount} arrived`,
+      primary: 'Go to my wallet',
+    },
+  },
+
+  // D1 — no "Top up": money comes in via Move to Keyline, goes out via Back to Swissquote.
+  home: {
+    protected: 'Protected',
+    settings: 'Settings',
+    balance: 'Balance',
+    totalNote: 'Total in CHF', // + <Chip/> (simulated rates)
+    assets: 'Assets',
+    assetsEmpty: 'Nothing here yet. Move funds from Swissquote on your laptop.',
+    send: 'Send',
+    sendOnlyUsdc: 'Send works with USDC in this prototype.',
+    receive: 'Receive',
+    backToSq: 'Back to Swissquote',
+    statement: 'Statement',
+    all: 'All',
+    sq: 'In your Swissquote account', // + <Chip/> once, at the header
+    sqNote: 'Read only. Swissquote web is simulated.',
+    sqOpen: 'Open Swissquote',
+    protectionTitle: 'Protected · 2 of 3 recoverers',
+    testnet: 'Test network · Base Sepolia — nothing here is real money.',
+  },
+
+  // D5 — Back to Swissquote → review → receipt. Always Tier 1.
+  back: {
+    title: 'Back to Swissquote',
+    body: 'Sends to your own Swissquote account, verified as yours.',
+    asset: 'Asset',
+    amount: 'Amount',
+    max: 'Max',
+    available: (qty: string) => `Available ${qty}`,
+    errAmount: 'Enter an amount above zero, up to what is available.',
+    primary: 'Review',
+    review: {
+      title: 'Review',
+      to: 'to your Swissquote account',
+      recipient: 'Your Swissquote account · verified',
+      policy: { word: 'Approved', reason: 'Your own account.' },
+      travelRule: 'No ownership check needed: this account is verified as yours.',
+      panel: 'What will happen',
+      rows: {
+        send: 'You send',
+        to: 'To',
+        fee: 'Network fee',
+        feeValue: 'Paid by Swissquote',
+        balance: 'Your balance',
+      },
+      footnote: 'This can’t be undone.',
+      cta: 'Confirm with Face ID',
+    },
+    receipt: {
+      title: 'Sent to Swissquote',
+      line: (amount: string) => `${amount} to your Swissquote account`,
+      steps: ['Signed', 'Sent', 'In block', 'Credited'],
+      creditPending: 'Swissquote credits your account when the transfer is in a block.',
+      credited: 'Credited to your Swissquote account', // + <Chip/> (simulated ledger)
+      done: 'Done',
+    },
+  },
+
+  // F6 — Security → Roadmap: Bitcoin
+  security: {
+    roadmapRow: 'Roadmap: Bitcoin',
+    roadmapRowMeta: 'Not in this prototype',
+    bitcoin: {
+      title: 'Roadmap: Bitcoin',
+      body: 'Bitcoin can be protected the same way with a script: your key spends at any time; after a public waiting period, 2 of your 3 recoverers can move it to a new key.',
+      // diagram: <BitcoinPolicyDiagram copy={btcPolicyCopy} />
+      why: 'Keyline moves an asset only when it can give it the same protection: your key, two of three recoverers, a public waiting period. For Bitcoin that needs a different key design (a threshold key or a timelocked script), which is on our roadmap. Until then your Bitcoin stays in your Swissquote account.',
+      notHere: 'Not in this prototype.',
+    },
+  },
+
+  theme: { legend: 'Appearance', system: 'System', light: 'Light', dark: 'Dark' },
+} as const;
+
+export const copyJourney = {
+  webShell: sqWebShell,
+  positions: sqPositionsCopy,
+  tile: sqTileCopy,
+  safetyKey: sqSafetyKeyCopy,
+  btcPolicy: btcPolicyCopy,
 } as const;

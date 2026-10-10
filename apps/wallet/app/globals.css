@@ -34,3 +34,9 @@ body {
   font-size: var(--text-16);
   line-height: var(--leading-16);
 }
+
+/* Swissquote web (laptop): a bottom sheet keeps a readable width on a 1200 px page (proposed for @keyline/ui v2.css). */
+.kl-sqweb .kl2-sheet__panel {
+  max-width: 560px;
+  margin-inline: auto;
+}

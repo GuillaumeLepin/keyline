@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
+import '@keyline/ui/v2.css';
 import './globals.css';
 
 // Self-hosted (apps/wallet/app/fonts) so the demo never depends on Google Fonts being reachable.
