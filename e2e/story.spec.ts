@@ -25,6 +25,7 @@ import {
   txUrl,
   usdcBalance,
 } from './chain';
+import { readEmergencyCardKey } from './fixtures/onboard';
 import {
   bankGet,
   bodyText,
@@ -33,7 +34,6 @@ import {
   readLocalWallet,
   waitForRecovery,
 } from './fixtures/personas';
-import { readEmergencyCardKey } from './fixtures/onboard';
 import { type RecoveryView, startRecoveryToIdentity, submitIdentity } from './fixtures/recover';
 
 const SCREENS = resolve(import.meta.dirname, '../docs/screens');
