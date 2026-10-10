@@ -164,7 +164,7 @@ export function Note({ tone = 'info', title, children, icon, className }: NotePr
       role={tone === 'danger' ? 'alert' : 'note'}
     >
       <span className="kl-note__icon">{icon ?? defaultIcon}</span>
-      <span>
+      <span className="kl-note__body">
         {title ? <span className="kl-note__title">{title}</span> : null}
         {children}
       </span>

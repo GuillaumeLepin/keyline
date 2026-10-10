@@ -40,8 +40,8 @@ export default function DeskQueuePage() {
   }
   const items = queue.data.items.filter((i) => matches(i, filter));
   return (
-    <section className="kl-section">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+    <section className="kl-stack">
+      <div className="kl-section flex-wrap gap-4">
         <h1 className="kl-section__title">{s.queue}</h1>
         <div className="flex gap-2" role="tablist" aria-label={s.queue}>
           {s.filters.map((label, i) => (
@@ -73,7 +73,7 @@ export default function DeskQueuePage() {
                 meta={
                   <>
                     <span>{r.requestedFrom.deviceLabel}</span>
-                    {waiting ? (
+                    {waiting && waiting !== statusLabel(r.status) ? (
                       <span>
                         {' '}
                         · {copy.desk.waitingFor}: {waiting}
@@ -83,7 +83,7 @@ export default function DeskQueuePage() {
                 }
                 status={statusTone(r.status)}
                 statusWord={statusLabel(r.status)}
-                amount={`#${shortId(r.id)}`}
+                amount={<span className="kl-mono text-ink-2">#{shortId(r.id)}</span>}
                 amountSub={formatRelative(new Date(r.createdAt), now)}
               />
             );

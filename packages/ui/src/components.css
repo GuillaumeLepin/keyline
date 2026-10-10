@@ -1022,6 +1022,11 @@
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
+/* A section heading already draws the hairline above an empty state (no double rule). */
+.kl-section + .kl-empty {
+  border-top: 0;
+  padding-top: var(--space-4);
+}
 .kl-empty__icon {
   color: var(--ink-3);
   display: inline-flex;
@@ -1136,6 +1141,20 @@
 .kl-note__title {
   font-weight: 600;
   display: block;
+}
+.kl-note__body {
+  flex: 1;
+  min-width: 0;
+}
+/* Block content inside a Note (paragraph, ring, sequence, actions, link) gets the same rhythm as a stack. */
+.kl-note__body
+  > :is(p, div, ol, ul, pre, details, .kl-btn, .kl-link)
+  + :is(p, div, ol, ul, pre, details, .kl-btn, .kl-link) {
+  margin-top: var(--space-3);
+}
+/* A small ghost action inside a Note lines up with the text above it. */
+.kl-note__body > .kl-btn--ghost.kl-btn--sm {
+  margin-left: calc(-1 * var(--space-3));
 }
 
 /* ---------- TestnetStrip ---------- */

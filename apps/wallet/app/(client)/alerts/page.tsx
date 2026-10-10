@@ -204,7 +204,13 @@ function StartedAlert({
       </p>
       {executeAfter ? (
         <div className="flex justify-center">
-          <CountdownRing endsAt={executeAfter} durationMs={GRACE_MS} size={120} doneLabel={s.periodOver} />
+          <CountdownRing
+            endsAt={executeAfter}
+            durationMs={GRACE_MS}
+            size={120}
+            doneLabel={s.periodOver}
+            showFinish={false}
+          />
         </div>
       ) : null}
       {phase.kind === 'refused' ? <p>{copy.common.policyRefused}</p> : null}

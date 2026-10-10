@@ -500,7 +500,7 @@ function ProveSheet({ wallet, open, onClose }: { wallet: LocalWallet; open: bool
                   label: copy.security.verifiedAt,
                   value: formatShortDateTime(new Date(attestation.data.verifiedAt)),
                 },
-                { label: copy.security.method, value: attestation.data.method.toUpperCase() },
+                { label: copy.security.method, value: copy.security.proof.methodValue },
                 {
                   label: copy.onboarding.s6.rows.client,
                   value: (

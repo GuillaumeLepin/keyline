@@ -247,7 +247,8 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
           {applyCap.isPending ? <p className="text-12 text-ink-3">{copyGaps.review.dappEvaluating}</p> : null}
         </div>
       ) : null}
-      {d ? (
+      {/* An expired approval replaces the verdict: never show "Approved" next to "Approval expired". */}
+      {d && !(expired && !confirm.isPending) ? (
         <Verdict
           decision={d}
           unknownDapp={unknownDapp}
@@ -554,6 +555,8 @@ function whatWillHappen(
   });
   if (d) {
     for (const c of d.simulation.decodedCalls) {
+      // A plain transfer is already stated by "You send"; its decoded call only earns a row when it carries a risk.
+      if (!draft.dapp && c.risk === 'none') continue;
       rows.push({
         label: <RiskWord risk={c.risk} />,
         value: c.humanText,

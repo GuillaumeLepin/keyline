@@ -123,7 +123,8 @@ const events = [
 
 function decision(verdict: 'approve' | 'step-up' | 'cooling' | 'block', amountUsdc: number, to = LUKAS) {
   const units = BigInt(Math.round(amountUsdc * 1_000_000));
-  const before = 120_000_000n;
+  // Large sends (step-up) need a balance that covers them: asset deltas must stay non-negative (WeiString).
+  const before = units > 120_000_000n ? 3_000_000_000n : 120_000_000n;
   const hit = verdict === 'block';
   return {
     requestId: 'dec_01HZX7Q2M9',
@@ -172,7 +173,7 @@ function decision(verdict: 'approve' | 'step-up' | 'cooling' | 'block', amountUs
       counterparty: to,
       listsChecked: ['OFAC-SDN', 'SECO'],
       hit,
-      source: hit ? 'seeded-sanctioned.json' : undefined,
+      source: hit ? 'seeded-test' : undefined,
       simulatedHit: hit,
       simulated: true,
     },
@@ -333,6 +334,9 @@ async function shoot(browser: Browser, scene: Scene): Promise<void> {
     }
   }, storage);
   const page = await context.newPage();
+  // Fixtures are dated around NOW (decision expiresAt, coolingUntil, recovery executeAfter…): pin Date.now() to it.
+  // Fixed time only — setTimeout/setInterval keep running, so the app's polling still fires.
+  await page.clock.setFixedTime(NOW);
   if (scene.refusingAuthenticator) {
     const cdp = await context.newCDPSession(page);
     await cdp.send('WebAuthn.enable');
@@ -715,10 +719,18 @@ const SCENES: Scene[] = [
           amountUsdc: verdict === 'step-up' ? 2500 : 25,
         },
       },
-      usdc: 120_000_000n,
+      usdc: verdict === 'step-up' ? 3_000_000_000n : 120_000_000n,
       bank: {
         'POST /policy/evaluate': {
           status: 201,
+          body: decision(
+            verdict,
+            verdict === 'step-up' ? 2500 : 25,
+            verdict === 'block' ? SANCTIONED : verdict === 'cooling' ? MARTA : LUKAS,
+          ),
+        },
+        // Step-up and cooling poll GET /policy/:id every 2 s until the bank clears them; keep them waiting.
+        'GET /policy/dec_01HZX7Q2M9': {
           body: decision(
             verdict,
             verdict === 'step-up' ? 2500 : 25,

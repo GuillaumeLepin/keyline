@@ -236,7 +236,7 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
         </div>
         {events.isPending && rows.length === 0 ? (
           <Skeleton kind="row" count={3} />
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && events.isError ? null : rows.length === 0 ? (
           <EmptyState
             title={copy.home.emptyTitle}
             body={copy.home.emptyBody}
@@ -330,12 +330,12 @@ function TopUpForm({ wallet, onDone }: { wallet: LocalWallet; onDone: () => void
           : copy.home.topUpBalance('—')}{' '}
         <SimulatedBadge />
       </p>
-      {topup.isError ? (
-        <ApiErrorState error={topup.error} body={copy.common.errorBody} onRetry={submit} />
-      ) : null}
       <Button variant="primary" full loading={topup.isPending} onClick={submit}>
         {copy.home.topUp}
       </Button>
+      {topup.isError ? (
+        <ApiErrorState error={topup.error} body={copy.common.errorBody} onRetry={submit} />
+      ) : null}
     </div>
   );
 }

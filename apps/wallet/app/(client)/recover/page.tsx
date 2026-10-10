@@ -517,7 +517,12 @@ function StepRecoverers({ recovery }: { recovery: RecoveryRequest }) {
   const s = copy.recover;
   const queryClient = useQueryClient();
   const sq = recovery.guardianConfirmations.find((c) => c.kind === 'swissquote' && !c.void);
-  const sqRefusal = recovery.guardianRefusals.at(-1);
+  const sqRefusal = recovery.guardianRefusals.filter((g) => g.kind === 'swissquote').at(-1);
+  // Swissquote's state drives the whole step: confirmed, declined (e.g. the 24 h rule), or not answered yet.
+  const sqDeclined = !sq && sqRefusal !== undefined;
+  const sqReason = sqRefusal ? s.recSqReason(sqRefusal.status, sqRefusal.reasons.join(' ')) : undefined;
+  const title = sq ? s.recTitle : sqDeclined ? s.recTitleSqDeclined : s.recTitleWaiting;
+  const lead = sq ? s.recBody : sqDeclined ? s.recBodySqDeclined : s.recBodyWaiting;
   const [cardKey, setCardKey] = useState('');
   const [cardError, setCardError] = useState<string | undefined>(undefined);
   const useCard = useMutation({
@@ -553,8 +558,8 @@ function StepRecoverers({ recovery }: { recovery: RecoveryRequest }) {
     <>
       <Stepper current={4} total={TOTAL} label={STEP_LABELS[3]} />
       <div className="kl-stack">
-        <h1 className="kl-title">{s.recTitle}</h1>
-        <p className="kl-lead">{s.recBody}</p>
+        <h1 className="kl-title">{title}</h1>
+        <p className="kl-lead">{lead}</p>
       </div>
       <div className="kl-stack">
         <KeyCard
@@ -563,13 +568,15 @@ function StepRecoverers({ recovery }: { recovery: RecoveryRequest }) {
           can={copy.security.swissquote.can}
           cannot={copy.security.swissquote.cannot}
           icon={<Bank size={20} aria-hidden="true" />}
-          status={sq ? 'active' : 'pending'}
-          statusWord={sq ? s.recSq(formatClock(new Date(sq.at))) : undefined}
+          status={sq ? 'active' : sqDeclined ? 'revoked' : 'pending'}
+          statusWord={sq ? s.recSq(formatClock(new Date(sq.at))) : sqDeclined ? s.recSqDeclined : undefined}
           action={
             sq?.txHash ? (
               <ExplorerLink hash={sq.txHash} />
             ) : sq ? (
               <p className="text-12 text-ink-3">{copy.recover.sqHeld}</p>
+            ) : sqDeclined ? (
+              <p className="text-12 text-ink-2">{sqReason}</p>
             ) : undefined
           }
         />
@@ -620,14 +627,15 @@ function StepRecoverers({ recovery }: { recovery: RecoveryRequest }) {
           onRetry={() => useCard.mutate(cardKey)}
         />
       ) : null}
-      {sqRefusal && !sq ? (
-        <Note tone="danger" title={copy.security.events.refused}>
-          {sqRefusal.reasons.join(' · ')}
-        </Note>
-      ) : null}
-      <Note tone="info">{s.recEither}</Note>
+      <Note tone={sqDeclined ? 'warn' : 'info'}>{sqDeclined ? s.recBoth : s.recEither}</Note>
       <Disclosure summary={copy.common.technicalDetails}>
         <div className="kl-stack kl-stack--tight">
+          {sqRefusal ? (
+            <>
+              <p className="text-12 text-ink-3">{s.recSqRawLabel}</p>
+              <p className="kl-mono text-12">{`${sqRefusal.status} · ${sqRefusal.reasons.join(' · ')}`}</p>
+            </>
+          ) : null}
           <p className="text-12 text-ink-3">{copy.recover.walletLabel}</p>
           <Address value={recovery.walletAddress} explorerUrl={addressUrl(recovery.walletAddress)} />
           <p className="text-12 text-ink-3">{copy.recover.newKey}</p>
@@ -667,7 +675,7 @@ function StepWaiting({ recovery, onWelcomeHome }: { recovery: RecoveryRequest; o
   if (recovery.status === 'finalized') {
     return (
       <>
-        <Stepper current={5} total={TOTAL} label={STEP_LABELS[4]} />
+        <Stepper current={5} total={TOTAL} label={copy.recover.restoredLabel} />
         <div className="kl-stack">
           <h1 className="kl-title">{s.welcome}</h1>
           <p className="kl-lead">{s.welcomeBody}</p>
@@ -675,7 +683,7 @@ function StepWaiting({ recovery, onWelcomeHome }: { recovery: RecoveryRequest; o
         <Panel
           rows={[
             {
-              label: copy.recover.walletLabel,
+              label: copy.desk.wallet,
               value: (
                 <Address value={recovery.walletAddress} explorerUrl={addressUrl(recovery.walletAddress)} />
               ),
@@ -691,7 +699,9 @@ function StepWaiting({ recovery, onWelcomeHome }: { recovery: RecoveryRequest; o
             },
           ]}
         />
-        {recovery.onchain.finalizedTxHash ? <ExplorerLink hash={recovery.onchain.finalizedTxHash} /> : null}
+        {recovery.onchain.finalizedTxHash ? (
+          <ExplorerLink hash={recovery.onchain.finalizedTxHash} label={copy.recover.viewRestoreTx} />
+        ) : null}
         <div className="kl-actions">
           <Button variant="primary" full onClick={onWelcomeHome}>
             {s.goHome}
@@ -716,10 +726,10 @@ function StepWaiting({ recovery, onWelcomeHome }: { recovery: RecoveryRequest; o
               durationMs={GRACE_MS}
               size={200}
               caption={env.demoFastMode ? copy.demo.gracePeriod : undefined}
-              doneLabel={copy.desk.status.finalized}
+              doneLabel={copy.recover.ready}
+              showFinish={false}
             />
           </div>
-          <p className="text-12 text-ink-3 text-center">{copy.desk.timerSource}</p>
         </>
       ) : (
         <Skeleton kind="amount" />
@@ -743,10 +753,10 @@ function StepWaiting({ recovery, onWelcomeHome }: { recovery: RecoveryRequest; o
   );
 }
 
-function ExplorerLink({ hash }: { hash: string }) {
+function ExplorerLink({ hash, label }: { hash: string; label?: string }) {
   return (
     <a className="kl-link" href={txUrl(hash)} target="_blank" rel="noreferrer">
-      {copy.common.viewOnBasescan}
+      {label ?? copy.common.viewOnBasescan}
       <ArrowSquareOut size={16} aria-hidden="true" />
     </a>
   );

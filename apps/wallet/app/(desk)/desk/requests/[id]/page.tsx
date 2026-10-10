@@ -151,8 +151,12 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
         </div>
         <h1 className="kl-title">{s.detailTitle(item.client.name, shortId(r.id))}</h1>
         <p className="kl-eyebrow">
-          {s.requestedFrom(r.requestedFrom.deviceLabel, 'Zürich', formatDateTime(new Date(r.createdAt)))} ·{' '}
-          {statusLabel(r.status)}
+          {s.requestedFrom(
+            r.requestedFrom.deviceLabel,
+            copy.demo.city,
+            formatDateTime(new Date(r.createdAt)),
+          )}{' '}
+          · {statusLabel(r.status)}
         </p>
       </div>
 
@@ -163,10 +167,7 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
               {s.identitySignals} <SimulatedBadge />
             </h2>
           </div>
-          <Panel
-            rows={signalRows}
-            footnote={item.signals.length > 0 ? item.signals.join(' · ') : undefined}
-          />
+          <Panel rows={signalRows} />
           {r.reasons.length > 0 ? (
             <Note tone="danger" title={copy.desk.reasons}>
               {r.reasons.join(' · ')}
@@ -180,7 +181,7 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
           </div>
           <Panel
             rows={confirmationRows}
-            footnote={`${item.confirmations.have} / ${item.confirmations.need}`}
+            footnote={s.confOf(item.confirmations.have, item.confirmations.need)}
           />
           {r.guardianRefusals.length > 0 ? (
             <Note tone="warn" title={copy.desk.refusals}>
@@ -255,7 +256,7 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
       ) : null}
 
       {canApprove || canRefuse || canOverride ? (
-        <section className="kl-section">
+        <section className="kl-stack max-w-[560px]">
           {canRefuse ? (
             <TextField label={s.refuseNote} value={note} onChange={(e) => setNote(e.target.value)} />
           ) : null}
@@ -298,6 +299,7 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
       </Sheet>
 
       <Disclosure summary={copy.common.technicalDetails}>
+        {item.signals.length > 0 ? <pre className="kl-code">{item.signals.join('\n')}</pre> : null}
         <pre className="kl-code">
           {JSON.stringify(
             { id: r.id, status: r.status, waitingFor: r.waitingFor, onchain: r.onchain },
@@ -317,7 +319,12 @@ function confirmationValue(
 ) {
   const s = copy.desk;
   if (!c) {
-    if (status === 'finalized' || status === 'executed-waiting' || status === 'cancelled')
+    if (
+      status === 'finalized' ||
+      status === 'executed-waiting' ||
+      status === 'cancelled' ||
+      status === 'identity-refused'
+    )
       return s.conf.notUsed;
     return kind === 'swissquote' ? s.conf.pending : s.conf.pending;
   }

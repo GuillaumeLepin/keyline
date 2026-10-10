@@ -532,7 +532,9 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
     await shot(l, '13-laptop-approve');
     const started = Date.now();
     await l.page.getByRole('button', { name: 'Confirm with Safety key' }).click();
-    await expect(l.page.getByText('Confirmed. The waiting period starts')).toBeVisible({ timeout: 240_000 });
+    await expect(l.page.getByRole('heading', { name: 'Confirmed on this laptop' })).toBeVisible({
+      timeout: 240_000,
+    });
     await shot(l, '13-laptop-confirmed');
 
     const r = await waitForRecovery<RecoveryView>(id, (x) => x.status === 'executed-waiting', {

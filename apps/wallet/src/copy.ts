@@ -299,7 +299,7 @@ const base = {
     dailyUsed: (used: string) => `CHF 1’000 · used ${used} today`,
     laptopAbove: 'Laptop needed above CHF 1’000',
     waitingPeriod: 'Waiting period',
-    waitingTrigger: 'First transfer to a new address, > CHF 10’000',
+    waitingTrigger: 'First transfer to a new address, or above CHF 10’000',
     sponsored: 'Network fees paid by Swissquote today',
     sponsoredCount: (n: number, max: number) => `${n} / ${max}`,
     recoveryMode: 'Recovery mode',
@@ -374,6 +374,20 @@ const base = {
     recCardField: 'Emergency card key',
     recCardUse: 'Use Emergency card',
     recEither: 'Either your laptop or your Emergency card will do. You don’t need both.',
+    recTitleWaiting: 'Waiting for your recoverers',
+    recBodyWaiting: 'Swissquote is checking this request. Any 2 of your 3 recoverers restore access.',
+    recTitleSqDeclined: 'Swissquote didn’t confirm',
+    recBodySqDeclined:
+      'Swissquote’s recovery service declined this request. Your Safety key and your Emergency card can still restore access together.',
+    recSqDeclined: 'Declined',
+    recBoth: 'You need both: confirm on your laptop and paste your Emergency card.',
+    recSqReason: (status: number, raw: string) =>
+      status === 409 && /24 h/.test(raw)
+        ? 'This wallet was already restored in the last 24 hours. Swissquote confirms at most one restore per wallet per day, so a stolen identity can’t be reused right away.'
+        : status === 403
+          ? 'Swissquote didn’t accept the identity check for this request.'
+          : 'Swissquote declined this request.',
+    recSqRawLabel: 'Swissquote’s answer',
     waitTitle: (t: string) => `Access restores at ${t}`,
     waitFinishes: (t: string) => `Finishes at ${t} · read from the chain`,
     waitBody:
@@ -728,10 +742,15 @@ export const devResetCopy = {
   running: 'Clearing',
   done: 'Cleared',
   cleared: (items: string) => `Removed: ${items}.`,
+  localItems: (n: number) => `${n} localStorage ${n === 1 ? 'key' : 'keys'}`,
+  sessionItems: (n: number) => `${n} sessionStorage ${n === 1 ? 'key' : 'keys'}`,
+  safetyKeyItem: 'the laptop Safety key (IndexedDB “keyline”)',
+  cookieItem: 'the bank session cookie',
   cookieFailed:
     'The bank did not answer, so the session cookie is still there. Start the bank and try again.',
   passkeyTitle: 'One step the app cannot do',
-  passkeyBody: (rpId: string) =>
-    `Now delete this profile's Keyline passkeys in chrome://password-manager/passkeys — look for entries for "${rpId}".`,
+  passkeyBefore: 'Now delete this profile’s Keyline passkeys in',
+  passkeyUrl: 'chrome://password-manager/passkeys',
+  passkeyAfter: (rpId: string) => `— look for entries for “${rpId}”.`,
   next: 'Then open the profile URL from the reset checklist.',
 } as const;

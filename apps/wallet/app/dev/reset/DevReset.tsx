@@ -26,17 +26,17 @@ export function DevReset({ rpId }: { rpId: string }) {
     const items: string[] = [];
     const localKeys = Object.keys(window.localStorage).filter((k) => k.startsWith('keyline'));
     for (const k of localKeys) window.localStorage.removeItem(k);
-    if (localKeys.length) items.push(`${localKeys.length} localStorage keys`);
+    if (localKeys.length) items.push(s.localItems(localKeys.length));
     const sessionKeys = Object.keys(window.sessionStorage).filter((k) => k.startsWith('keyline'));
     for (const k of sessionKeys) window.sessionStorage.removeItem(k);
-    if (sessionKeys.length) items.push(`${sessionKeys.length} sessionStorage keys`);
+    if (sessionKeys.length) items.push(s.sessionItems(sessionKeys.length));
     for (const db of DATABASES) await deleteDatabase(db);
-    items.push('IndexedDB "keyline" (Safety key)');
+    items.push(s.safetyKeyItem);
     // The session cookie is httpOnly: only the bank can clear it.
     try {
       const res = await fetch(`${env.bankUrl}/auth/logout`, { method: 'POST', credentials: 'include' });
       if (!res.ok) throw new Error(String(res.status));
-      items.push('bank session cookie');
+      items.push(s.cookieItem);
       setCookieFailed(false);
     } catch {
       setCookieFailed(true);
@@ -46,16 +46,17 @@ export function DevReset({ rpId }: { rpId: string }) {
   };
 
   return (
-    <main className="kl-stack" style={{ maxWidth: 560, margin: '48px auto', padding: '0 16px' }}>
+    <main className="kl-stack mx-auto my-12 max-w-[560px] px-4">
       <h1 className="kl-title">{s.title}</h1>
       <p className="kl-lead">{s.body}</p>
-      <Button onClick={run} loading={state === 'running'} disabled={state === 'running'}>
+      <Button variant="primary" onClick={run} loading={state === 'running'} disabled={state === 'running'}>
         {state === 'done' ? s.done : state === 'running' ? s.running : s.run}
       </Button>
       {state === 'done' ? <Note tone="ok">{s.cleared(removed.join(', '))}</Note> : null}
       {cookieFailed ? <Note tone="warn">{s.cookieFailed}</Note> : null}
       <Note tone="info" title={s.passkeyTitle}>
-        {s.passkeyBody(rpId)} {s.next}
+        {s.passkeyBefore} <span className="kl-mono whitespace-nowrap">{s.passkeyUrl}</span>{' '}
+        {s.passkeyAfter(rpId)} {s.next}
       </Note>
     </main>
   );

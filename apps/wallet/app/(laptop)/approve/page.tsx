@@ -7,6 +7,7 @@ import {
   Disclosure,
   EmptyState,
   formatCHF,
+  formatClock,
   formatRelative,
   formatUSDC,
   Note,
@@ -334,7 +335,12 @@ function RecoveryPrompt({
   if (confirm.isSuccess) {
     return (
       <>
-        <Note tone="ok">{copy.approve.recoveryConfirmed}</Note>
+        <h1 className="kl-title">{copy.approve.confirmedTitle}</h1>
+        <Note tone="ok">
+          {recovery.onchain.executeAfter
+            ? copy.approve.waitingBody(formatClock(new Date(recovery.onchain.executeAfter)))
+            : copy.approve.recoveryConfirmed}
+        </Note>
         <Panel
           rows={[
             { label: copy.desk.statusCol, value: copy.desk.status[recovery.status] },

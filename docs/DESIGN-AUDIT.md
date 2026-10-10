@@ -1,5 +1,7 @@
 # Design audit
 
+**Restored build (10 Oct, `main` after the Stage rollback):** Wave 1 re-checked — all 28 fixed rows still hold on current code; #28 stays open (`copyGaps`, 44 refs). Wave 2 statuses are in the "Wave 2 status, 10 Oct" table; new findings in "Restored build, 10 Oct" at the end. `docs/DESIGN.md` carries no Stage section (§11 is the review checklist; Appendix A has no `stage.*`).
+
 **Wave 1 status (re-checked 6 Oct 08:40):** 28 of 29 rows are fixed in the current sources (9 in `packages/ui`, 19 in `apps/wallet`); #28 stays open because a new Wave 2 `copyGaps` block exists. Wave 2 table below.
 
 ## Wave 1 (onboarding, pair, home, send, review)
@@ -151,6 +153,44 @@ Severity as in Wave 1. "ui" = fixed in `packages/ui` by this pass; everything el
 
 Verified clean in Wave 2 (no row): purple/gradients/shadows/pill shapes, emoji, `$`, "Dashboard/Overview", guardian/gas/seed/userOp outside `Technical details` (the desk's `SocialRecoveryModule` line is an operator screen and acceptable there), spinners without a sentence, one primary per screen (Thief screens have none; `/approve` has one), tap targets (≥ 48 px buttons, 56 px rows, 24 px chips are desk-only pointer targets), text clipping at 390 px (only the two `.kl-code` cases, fixed), focus ring visible (`w2-thief-identity.png`), the ring is the only animation on every screen it appears on.
 
+### Wave 2 status, 10 Oct (restored build)
+
+Checked against current sources and the 10 Oct E2E captures (`story-*`, `attacker-*`, `fraud-*`).
+
+| # | Status | Note |
+|---|---|---|
+| W2-1 | **open — downgraded to should** | The refusal reason no longer cites the label (`ID document name mismatch · liveness check failed`) and the thief also fails on the name, but `services/bank/src/identity.ts` still fails any label containing "thief" and `routes/desk.ts` still emits `Device label contains "thief"` (now only under the desk's Technical details). The persona label still reaches client copy: Lea's alert ("a device labelled “Thief · stolen phone”") and the laptop's `Device  Lea · new phone`. Needs `bank-backend` + `wallet-client` (`getDeviceLabel`), a behaviour change outside this pass. |
+| W2-2 | fixed | Verdict row reads `Overridden by operator (demo)`, failed rows stay red, Operator row added (`attacker-08`). |
+| W2-3 | fixed | Request sections stack (`attacker-06/08`). |
+| W2-4 | fixed (this pass) | `recover` waiting: `showFinish={false}`, module line removed from the main column (still in Technical details). |
+| W2-5 | fixed (this pass) | Title fixed earlier; stepper reads `Restored`; row `Wallet`; link `View the restore transaction on Basescan`. |
+| W2-6 | fixed | `Your laptop` / `On paper, with you`. |
+| W2-7 | open (should, wallet-client) | Native `type="date"` still renders `03/14/1991`; the fix changes input parsing (behaviour), not done here. |
+| W2-8 | fixed | `Was this you?`. |
+| W2-9 | fixed | `periodOver` body + done label; recover ring now `Ready to finish`. |
+| W2-10 | fixed | Home has the alert banner + bell (`story-16`). |
+| W2-11 | open (should, wallet-client + qa-demo) | `copy.home.restoredRow` exists but no statement row maps `recovery.finalized`; `story-16` still ends on an empty statement. |
+| W2-12 | fixed (this pass) | Chips solid-ink when selected; duplicate "Waiting for" dropped; id in mono ink-2. |
+| W2-13 | nit, open | `Back to queue` is flush-left but indented by the ghost button's 12 px padding. |
+| W2-14 | fixed (this pass) | Raw signals moved into Technical details. |
+| W2-15 | fixed (this pass) | Refuse form is a stack (field full width, actions flush-left, max 560 px). |
+| W2-16 | fixed (this pass) | `Confirmed on this laptop` heading; note says `The waiting period has started. It ends at …` once `executeAfter` is known. |
+| W2-17 | fixed (this pass) | `Method  Signed by your wallet`. |
+| W2-18 | fixed | Five distinct bars in captures. |
+| W2-19 | fixed (this pass) | Top-up error renders below the primary (`home-topup-error-funder-empty`). |
+| W2-20 | fixed | Address rows stack. |
+| W2-N1 | open (nit) | Recover step 1 still has no KeyCard. |
+| W2-N2 | open (nit) | `swiyu e-ID check SIMULATED` still twice (`attacker-02`). |
+| W2-N3 | fixed | Hint uses `copy.recover.codeHint`. |
+| W2-N4 | won't fix | The two reasons are plain client sentences; keeping them visible helps the thief understand the refusal. |
+| W2-N5 | open (nit) | Inbox title unchanged. |
+| W2-N6 | fixed (this pass) | `2 of 2 confirmations`. |
+| W2-N7 | fixed | Audit iterates every source. |
+| W2-N8 | open (nit) | `copyGaps` 44 refs. |
+| W2-N9 | fixed (this pass) | Last `'Zürich'` literal → `copy.demo.city`. |
+| W2-N10 | fixed (this pass) | `… or above CHF 10’000`. |
+| W2-N11 | fixed (this pass) | ui: `.kl-section + .kl-empty` drops the top rule. |
+
 ## `packages/ui` changes in this pass
 
 Gates: `pnpm --filter @keyline/ui typecheck` ✓ · `test` ✓ (11/11) · `pnpm exec biome check packages/ui` ✓ · `contrast` ✓ 25/25 (two new device-bar pairs).
@@ -173,3 +213,44 @@ See `docs/screens/README.md` — which captures are demo-ready now and which to 
 - W2-1 and W2-2 change what the bank returns; if `bank-backend` cannot ship them, the desk must at least stop printing the device-label reason and show the pre-override verdict (wallet-only fallback described in each row).
 - The three `w2-desk-request*` captures are 30 s apart with different layouts: re-shoot before trusting any desk screenshot.
 - The restored-wallet Home (W2-11) is a staging problem as much as a UI one; without a funded twin the story ends on `CHF 0.00`.
+
+
+---
+
+# Restored build, 10 Oct
+
+Inputs: `pnpm screenshots` (10 Oct 11:56, 49 passed / 3 failed — see risks), the 10 Oct E2E captures (`story-*`, `attacker-*`, `fraud-*`), `/dev/reset` shot at 1280×900 (`docs/screens/dev-reset.png`), live `/desk/queue` re-shot after the fix. Only the restored per-device screens; the abandoned Stage is not in `main` and was not audited.
+
+| # | Screen | Violation | Severity | Fix | Status |
+|---|---|---|---|---|---|
+| R-1 | Desk queue | `attacker-05`: the request list renders as a third column to the right of the heading and chips (the `<section>` was `kl-section`, a flex row — the W2-3 bug on the queue). | blocker | `queue/page.tsx`: section `kl-stack`, header row `kl-section`. | fixed (live re-shot) |
+| R-2 | Desk request | Refused request shows Swissquote / Safety key / Emergency card all `Pending` — they will never confirm. | should | `confirmationValue`: `identity-refused` → `Not used`. | fixed |
+| R-3 | Alerts (started) | Inside the danger Note the paragraph, ring, `Finishes at` and the red primary touch (0–4 px); the finish time repeats the body. | should | ui: `Note` body `.kl-note__body` spaces block children by `--space-3`; `alerts`: `showFinish={false}`. | fixed |
+| R-4 | Alerts (refused), all Notes with a ghost action | `See event log` floats 12 px right of the text column. | nit | ui: `.kl-note__body > .kl-btn--ghost.kl-btn--sm` pulls the button flush. | fixed |
+| R-5 | Recover waiting (`story-14`, `fraud-02`) | Finish time three times + `read from the SocialRecoveryModule` on a client screen. | should | = W2-4. | fixed |
+| R-6 | Home offline | `Nothing yet — Your first top-up will appear here` shown above `Swissquote isn’t reachable`: an empty statement is claimed while the statement could not be read. | should | `page.tsx`: no empty state when `events.isError`. | fixed (re-shot) |
+| R-7 | Home (empty statement) | Double hairline under `Statement` (section rule + empty-state rule). | nit | ui: `.kl-section + .kl-empty { border-top: 0 }`. | fixed |
+| R-8 | Review | `Approved · Within your CHF 1’000 daily limit` shown together with `Approval expired` (contradiction). | should | `review/page.tsx`: the verdict is hidden while the expired state is shown. | fixed |
+| R-9 | Review | `✓ Ok  Send 25 USDC` row repeats `You send` with a raw risk word. | should | `whatWillHappen`: decoded-call rows only for dapp requests or when `risk ≠ none`. | fixed |
+| R-10 | Approve (confirmed) | No heading; note contradicts `Status  Waiting period`. | should | = W2-16. | fixed |
+| R-11 | Desk request | Raw signals footnote under the identity card, incl. `Device label contains "thief"` and `Liveness: passed (simulated)` next to `Liveness Failed`. | should | = W2-14. | fixed |
+| R-12 | Desk request | `Refuse` floats far right of the note field. | should | = W2-15. | fixed |
+| R-13 | `/dev/reset` | The page's only action is a secondary button — no primary. | should | `variant="primary"`. | fixed |
+| R-14 | `/dev/reset` | Inline `style={{ maxWidth, margin, padding }}`. | nit | `mx-auto my-12 max-w-[560px] px-4`. | fixed |
+| R-15 | `/dev/reset` | Straight quotes/apostrophe; `chrome://password-manager/passkeys` breaks at the hyphen; removed-item strings were literals in the component. | nit | `devResetCopy`: curly quotes, `passkeyBefore/passkeyUrl/passkeyAfter`, URL in `kl-mono whitespace-nowrap`; item strings moved to copy (`localItems`, `sessionItems`, `safetyKeyItem`, `cookieItem`). | fixed |
+| R-16 | Lea's alerts, laptop approve | Persona label leaks into client copy (`device labelled “Thief · stolen phone”`, `Device  Lea · new phone`). | should | = W2-1 remainder (`getDeviceLabel`, bank rule). | open |
+| R-17 | Security (guardians error) | `Protected · 2 of 3 recoverers` above three `Pending` recoverers when the guardian read fails; `pendingWallet` is also rendered in ok-green. | should | `security/page.tsx`: derive the line from `guardians` (and use ink-2 + Clock when not deployed); needs a `KeyCard` status for "unknown". | open (wallet-client) |
+| R-18 | Top-up sheet | `SIMULATED` wraps onto its own line under the account balance. | nit | Shorten to `Account balance: CHF …` or `text-12`. | open |
+| R-19 | Home statement | Pressable row amounts sit left of the chevron, non-pressable ones flush right: the amount column is ragged. | nit | ui: reserve the chevron slot on every row of a list that has one. | open |
+| R-20 | Activity (failed) | `– 25.00 USDC` at full weight for a transfer that never left; tx hash row offers `Show full address`; three `View on Basescan` links. | nit | Strike/ink-3 the amount when failed; `Address` label `Show full hash` for hashes; drop the standalone link. | open |
+| R-21 | Onboarding 2 (expired) | The expired code stays at full weight. | nit | ink-3 + line-through when expired. | open |
+| R-22 | Desk request | `Back to queue` indented 12 px (= W2-13). | nit | — | open |
+
+**Counts (restored build):** 1 blocker (fixed) · 12 should (10 fixed, 2 open: R-16, R-17) · 9 nits (4 fixed, 5 open). Including the Wave 2 carry-overs: open shoulds are W2-1 (downgraded), W2-7, W2-11, R-16 (same root as W2-1), R-17. **No blocker remains open.**
+
+Gates after the fixes: `pnpm --filter @keyline/ui typecheck` ✓ · `test` ✓ 11/11 · `contrast` ✓ 25/25 · `pnpm --filter @keyline/wallet typecheck` ✓ · `pnpm exec biome check packages/ui apps/wallet` ✓.
+
+## Risks (restored build)
+
+- `pnpm screenshots` fixtures have drifted (owner `qa-demo`, `e2e/screenshots.spec.ts`): `NOW` is pinned to 6 Oct but the browser clock is not, so every policy decision is already expired; `send-review-step-up`, `send-review-block` and `onboarding-5-protect-refused` time out (decision parse/fixture missing), `send-review-cooling` hits `no fixture for GET /policy/dec_…`, and after R-8 `send-review-approve` no longer shows `Approved` (it waits for it). Fix: fake the page clock to `NOW` (`page.clock.setFixedTime`) or build fixtures from `Date.now()`. The review captures are not trustworthy until then.
+- The desk request (R-2, R-11, R-12), recover waiting/finished (R-5, W2-5), alerts (R-3) and approve-confirmed (R-10) fixes were verified in code and on the live queue only; they need the next `pnpm e2e` run to re-shoot `attacker-06/08`, `fraud-02/03`, `story-13/14/15`.
