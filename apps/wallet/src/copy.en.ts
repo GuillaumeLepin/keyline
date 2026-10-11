@@ -883,6 +883,7 @@ export const copyV2 = {
     tileProtected: {
       balance: 'In your Keyline wallet',
       note: 'Read from the network. Only your phone can spend it.',
+      startAnother: 'Set up Keyline on another phone',
     },
     move: {
       title: (asset: string) => `Move ${asset} to Keyline`,

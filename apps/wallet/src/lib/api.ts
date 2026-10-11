@@ -52,6 +52,7 @@ import {
   type SetModeBody,
   type SponsorBody,
   SponsorResponseSchema,
+  SqKeylineStateSchema,
   SqPositionsResponseSchema,
   SqSessionSchema,
   type StepUpBody,
@@ -289,6 +290,15 @@ export const api = {
     logout: () => request('POST', '/sq/logout', z.object({ ok: z.literal(true) }), {}),
     me: () => request('GET', '/sq/me', SqSessionSchema),
     positions: () => request('GET', '/sq/positions', SqPositionsResponseSchema),
+    /** Tile state; null while the bank has not shipped the route yet (the tile then derives it, see KeylineTile). */
+    keyline: async () => {
+      try {
+        return await request('GET', '/sq/keyline', SqKeylineStateSchema);
+      } catch (e) {
+        if (isApiError(e) && e.kind === 'not-implemented') return null;
+        throw e;
+      }
+    },
     safetyKeyRequest: () => request('GET', '/sq/safety-key-request', SafetyKeyRequestSchema),
     registerSafetyKey: (body: SafetyKeyBody) => request('POST', '/sq/safety-key', GuardianSchema, body),
     move: (body: MoveBody) => request('POST', '/sq/moves', MoveSchema, body),

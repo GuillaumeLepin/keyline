@@ -886,6 +886,7 @@ export const copyV2: W<'copyV2'> = {
     tileProtected: {
       balance: 'Dans votre portefeuille Keyline',
       note: 'Lu sur le réseau. Seul votre téléphone peut le dépenser.',
+      startAnother: 'Configurer Keyline sur un autre téléphone',
     },
     move: {
       title: (asset: string) => `Transférer ${asset} vers Keyline`,
