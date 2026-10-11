@@ -656,6 +656,15 @@ export const TopupResponseSchema = z.object({
 });
 export type TopupResponse = z.infer<typeof TopupResponseSchema>;
 
+export const PolicyLimitsSchema = z.object({
+  dailyChf: z.number().positive(),
+  coolingChf: z.number().positive(),
+  productionDailyChf: z.number().positive(),
+  productionCoolingChf: z.number().positive(),
+  demo: z.boolean(),
+});
+export type PolicyLimitsView = z.infer<typeof PolicyLimitsSchema>;
+
 /** GET /me — the signed-in client, their SIMULATED account and their wallet (if any). */
 export const MeResponseSchema = z.object({
   client: ClientSchema,
@@ -669,6 +678,8 @@ export const MeResponseSchema = z.object({
   wallet: WalletSchema.nullable(),
   /** How the caller was authenticated: passkey session, or the DEMO_FAST_MODE X-Device-Label header. */
   auth: z.enum(['session', 'device-label', 'onboarding-token']),
+  /** Tier limits in force (CHF). `demo: true` when DEMO_FAST_MODE scales them down; production values alongside. */
+  limits: PolicyLimitsSchema.optional(),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 

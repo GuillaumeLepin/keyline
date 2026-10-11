@@ -202,6 +202,10 @@ const fixtures: Record<string, [z.ZodType, unknown]> = {
       },
     },
   ],
+  PolicyLimitsSchema: [
+    S.PolicyLimitsSchema,
+    { dailyChf: 5, coolingChf: 50, productionDailyChf: 1000, productionCoolingChf: 10000, demo: true },
+  ],
   DappSchema: [
     S.DappSchema,
     {

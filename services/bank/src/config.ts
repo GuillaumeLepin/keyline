@@ -1,6 +1,7 @@
 // Environment is loaded by `tsx --env-file=.env` (package script). This module never reads another .env.
 import { privateKeyToAccount } from 'viem/accounts';
 import { z } from 'zod';
+import { type PolicyLimits, PRODUCTION_LIMITS } from './policy/engine';
 
 const PrivateKey = z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'private key (0x + 64 hex)');
 const Address = z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'address');
@@ -24,6 +25,10 @@ export const EnvSchema = z.object({
   DEMO_FAST_MODE: z
     .preprocess(emptyToUndefined, z.enum(['true', 'false']).optional())
     .transform((v) => v === 'true'),
+
+  // DECISIONS #27: demo-scale tier limits, applied ONLY with DEMO_FAST_MODE=true (production 1'000 / 10'000).
+  POLICY_DAILY_LIMIT_CHF: z.preprocess(emptyToUndefined, z.coerce.number().positive().optional()),
+  POLICY_COOLING_THRESHOLD_CHF: z.preprocess(emptyToUndefined, z.coerce.number().positive().optional()),
 
   BANK_PORT: z.coerce.number().int().positive().default(4000),
   BANK_HOST: z.string().default('127.0.0.1'),
@@ -59,6 +64,25 @@ export type BankConfig = Env & {
   addresses: { verdict: `0x${string}`; relayer: `0x${string}`; funder: `0x${string}` };
   sessionTtlSeconds: number;
   challengeTtlSeconds: number;
+  /** Tier limits in force: production unless DEMO_FAST_MODE=true and the POLICY_* overrides are set. */
+  policyLimits: PolicyLimits;
+};
+
+/** Never overrides production limits when fast mode is off. */
+export const policyLimitsOf = (
+  e: Pick<Env, 'DEMO_FAST_MODE' | 'POLICY_DAILY_LIMIT_CHF' | 'POLICY_COOLING_THRESHOLD_CHF'>,
+): PolicyLimits => {
+  if (!e.DEMO_FAST_MODE) return PRODUCTION_LIMITS;
+  const dailyChf = e.POLICY_DAILY_LIMIT_CHF ?? PRODUCTION_LIMITS.dailyChf;
+  const coolingChf = e.POLICY_COOLING_THRESHOLD_CHF ?? PRODUCTION_LIMITS.coolingChf;
+  return {
+    ...PRODUCTION_LIMITS,
+    dailyChf,
+    coolingChf,
+    demo:
+      dailyChf !== PRODUCTION_LIMITS.productionDailyChf ||
+      coolingChf !== PRODUCTION_LIMITS.productionCoolingChf,
+  };
 };
 
 export class ConfigError extends Error {
@@ -88,6 +112,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): BankConfig => 
       funder: privateKeyToAccount(e.BANK_FUNDER_PRIVATE_KEY as `0x${string}`).address,
     },
     sessionTtlSeconds: 15 * 60,
+    policyLimits: policyLimitsOf(e),
     challengeTtlSeconds: 5 * 60,
   };
 };

@@ -353,6 +353,7 @@ export const registerPolicyRoutes = (
         suggestedCap: suggestedCapFor(calls, simulation),
         session: session ? { name: session.name, identity: session.identity } : undefined,
         signature: signatureCtx,
+        limits: config.policyLimits,
       },
     );
     store.saveDecision(decision, body);

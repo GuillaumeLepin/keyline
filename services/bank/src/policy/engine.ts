@@ -27,6 +27,23 @@ import {
 
 export const TIER1_DAILY_LIMIT_CHF = 1_000;
 export const TIER3_THRESHOLD_CHF = 10_000;
+
+/** Tier limits in force. Production = the constants above; DEMO_FAST_MODE may scale them down (config.ts). */
+export type PolicyLimits = {
+  dailyChf: number;
+  coolingChf: number;
+  productionDailyChf: number;
+  productionCoolingChf: number;
+  /** True when the values in force differ from production (demo scale) — the reasons then state both. */
+  demo: boolean;
+};
+export const PRODUCTION_LIMITS: PolicyLimits = {
+  dailyChf: TIER1_DAILY_LIMIT_CHF,
+  coolingChf: TIER3_THRESHOLD_CHF,
+  productionDailyChf: TIER1_DAILY_LIMIT_CHF,
+  productionCoolingChf: TIER3_THRESHOLD_CHF,
+  demo: false,
+};
 export const SPONSORED_DAILY_CAP = 20;
 export const DECISION_TTL_MS = 10 * 60 * 1000;
 /** Cooling delay in the prototype; production would be 24 h (STRATEGY §5). */
@@ -75,6 +92,8 @@ export type PolicyContext = {
   fx?: Fx;
   /** SPEC §11.3: identity of the WalletConnect dApp (kind 'dapp' with a topic). Replaces the contract allowlist check. */
   session?: { name: string; identity: DappIdentity };
+  /** Tier limits in force (defaults to production). Passed in, never read from globals. */
+  limits?: PolicyLimits;
   /** kind 'dapp-signature' (DECISIONS #30): what the analysis of the payload found (policy/signature-analysis.ts). */
   signature?: { summary: string; siweOtherSite: boolean; unlimited: boolean };
 };
@@ -142,6 +161,13 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
     reasons.push('Cancelling a recovery you did not start · network fee paid by Swissquote');
   } else {
     const total = round2(ctx.dailySpentChf + input.chfValue);
+    const L = ctx.limits ?? PRODUCTION_LIMITS;
+    const dailyLabel = L.demo
+      ? `demo daily limit of ${formatChf(L.dailyChf)} (production ${formatChf(L.productionDailyChf)})`
+      : `${formatChf(L.dailyChf)} daily limit`;
+    const aboveDaily = L.demo
+      ? `Above your ${dailyLabel} · ${formatChf(total)} today`
+      : `Above your ${dailyLabel} (${formatChf(total)} today)`;
     const danger = ctx.simulation.decodedCalls.some((c) => c.risk === 'danger');
     const isDapp = input.kind === 'dapp';
     const session = isDapp ? ctx.session : undefined;
@@ -175,14 +201,16 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
           ? `${dapp.name} asked your wallet to call a contract Swissquote has not reviewed`
           : "Blocked apps can't ask your wallet for anything through Keyline",
       );
-    } else if (!knownRecipient || total > TIER3_THRESHOLD_CHF) {
+    } else if (!knownRecipient || total > L.coolingChf) {
       verdict = 'cooling';
       tier = 3;
       coolingUntil = new Date(input.requestedAt.getTime() + COOLING_MS).toISOString();
       reasons.push(
         !knownRecipient
           ? `First transfer to a new address · ${COOLING_MS / 1000} s waiting period, you can cancel`
-          : `Above ${formatChf(TIER3_THRESHOLD_CHF)} (${formatChf(total)} today) · ${COOLING_MS / 1000} s waiting period, you can cancel`,
+          : L.demo
+            ? `Above the demo waiting-period threshold of ${formatChf(L.coolingChf)} (production ${formatChf(L.productionCoolingChf)}) · ${formatChf(total)} today · ${COOLING_MS / 1000} s waiting period, you can cancel`
+            : `Above ${formatChf(L.coolingChf)} (${formatChf(total)} today) · ${COOLING_MS / 1000} s waiting period, you can cancel`,
       );
       reasons.push(
         `Waiting period accelerated for the demo: ${COOLING_MS / 1000} s instead of ${COOLING_PROD_LABEL}`,
@@ -196,10 +224,7 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
       reasons.push(...session.identity.reasons);
       if (danger) reasons.push(REASON_UNLIMITED_APPROVAL);
       if (ctx.suggestedCap) reasons.push(ctx.suggestedCap.humanText);
-      if (total > TIER1_DAILY_LIMIT_CHF)
-        reasons.push(
-          `Above your ${formatChf(TIER1_DAILY_LIMIT_CHF)} daily limit (${formatChf(total)} today)`,
-        );
+      if (total > L.dailyChf) reasons.push(aboveDaily);
       reasons.push(REASON_PROTOTYPE);
     } else if (danger) {
       verdict = 'step-up';
@@ -207,24 +232,23 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
       stepUp = {};
       reasons.push(REASON_UNLIMITED_APPROVAL);
       if (ctx.suggestedCap) reasons.push(ctx.suggestedCap.humanText);
-      if (total > TIER1_DAILY_LIMIT_CHF)
-        reasons.push(
-          `Above your ${formatChf(TIER1_DAILY_LIMIT_CHF)} daily limit (${formatChf(total)} today)`,
-        );
+      if (total > L.dailyChf) reasons.push(aboveDaily);
       reasons.push(REASON_PROTOTYPE);
-    } else if (total > TIER1_DAILY_LIMIT_CHF) {
+    } else if (total > L.dailyChf) {
       verdict = 'step-up';
       tier = 2;
       stepUp = {};
       reasons.push(
-        `Above your ${formatChf(TIER1_DAILY_LIMIT_CHF)} daily limit (${formatChf(total)} today) · confirm on your laptop with your Safety key`,
+        L.demo
+          ? `${aboveDaily} · your laptop must approve`
+          : `${aboveDaily} · confirm on your laptop with your Safety key`,
       );
       reasons.push(REASON_PROTOTYPE);
     } else {
       reasons.push(
         isDapp && appName
-          ? `${appName} is reviewed by Swissquote · within your ${formatChf(TIER1_DAILY_LIMIT_CHF)} daily limit`
-          : `Within your ${formatChf(TIER1_DAILY_LIMIT_CHF)} daily limit · no second approval needed`,
+          ? `${appName} is reviewed by Swissquote · within your ${dailyLabel}`
+          : `Within your ${dailyLabel} · no second approval needed`,
       );
       if (contact && !contact.verifiedOwnership && !isDapp)
         reasons.push(`${contact.label} has not proved they own this address · double-check it with them`);

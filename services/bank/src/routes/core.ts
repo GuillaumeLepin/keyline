@@ -147,6 +147,7 @@ export const registerCoreRoutes = (
       },
       wallet,
       auth: client.auth,
+      limits: config.policyLimits,
     });
   });
 
