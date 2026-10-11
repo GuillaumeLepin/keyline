@@ -1,0 +1,40 @@
+/*
+ * Same Tailwind v4 setup as apps/wallet: preflight + utilities only, mapped onto the Keyline tokens
+ * (theme.pcss is a copy of apps/wallet/app/theme.pcss). DemoSwap is a different app, so it uses the
+ * tokens but none of the wallet's chrome (no phone frame).
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "@keyline/ui/tokens.css" layer(theme);
+@import "./theme.pcss";
+
+:root {
+  --font-sans: var(--font-hanken), "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

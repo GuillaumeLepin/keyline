@@ -23,7 +23,8 @@
     "demo:stage-recovery": "pnpm --filter @keyline/scripts demo:stage-recovery",
     "demo:open": "bash scripts/demo-open.sh",
     "check-balances": "pnpm --filter @keyline/scripts check-balances",
-    "keyline": "pnpm --filter @keyline/scripts keyline"
+    "keyline": "pnpm --filter @keyline/scripts keyline",
+    "dev:demoswap": "pnpm --filter @keyline/demoswap dev"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.0",
