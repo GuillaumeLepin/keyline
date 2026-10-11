@@ -71,7 +71,10 @@ export function ActionButton({
       <motion.span
         className="kl2-action__label"
         initial={false}
-        animate={success ? { opacity: 0, scaleX: 0.2 } : { opacity: 1, scaleX: 1 }}
+        // Reduced motion (M7): no fold — the label only hides (opacity), instantly.
+        animate={
+          success ? (reduce ? { opacity: 0 } : { opacity: 0, scaleX: 0.2 }) : { opacity: 1, scaleX: 1 }
+        }
         transition={reduce ? INSTANT : { ...FADE, duration: 0.14 }}
       >
         {busy ? <span className="kl2-action__spinner" aria-hidden="true" /> : icon}

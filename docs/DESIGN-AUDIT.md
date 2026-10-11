@@ -341,21 +341,23 @@ Source: DESIGN.md v2 §5.3 and §6. Spring = `SPRING` `{ stiffness 420, damping 
 
 | # | Motion | Primitive | Trigger (only this) | Duration | Curve | What moves | Reduced motion | ✓ |
 |---|---|---|---|---|---|---|---|---|
-| M1 | Stack push / pop | `StackView` | navigation to a child screen / back (`direction` 1 / −1) | spring (≈ 200 ms) | `SPRING`; title `FADE` | new screen from x 100 %; old to −24 % and opacity .6; header fixed, title cross-fades 180 ms | content cross-fade 180 ms, no x | ☐ |
-| M2 | Sheet open / close | `SheetV2` | open / close; drag > 96 px or flick > 600 px/s closes | scrim 180 ms; panel spring | `FADE` / `SPRING` | scrim opacity; panel y 100 % → 0 | panel and scrim fade 180 ms; drag disabled | ☐ |
-| M3 | Number ticker | `NumberTicker` | the displayed value changes (never on mount) | spring | `SPRING` | each digit column rolls; separators and codes static; new leading digits fade | text swaps instantly | ☐ |
-| M4 | Cross-fade | `CrossFade` | skeleton → content, any in-place swap (`stateKey` change) | 180 ms | `FADE` | both layers in one grid cell; no layout jump | instant | ☐ |
-| M5 | Button press | `ActionButton` | pointer down (not when disabled / loading / success) | spring | `SPRING` | scale .98 | none | ☐ |
-| M6 | Button loading | `ActionButton status="loading"` | async action starts | 900 ms per turn, linear, loops while loading | linear | 16 px ring beside the label (label stays), `aria-busy` | static ring at 50 % | ☐ |
-| M7 | Button success | `ActionButton status="success"` | action confirmed on-chain / by the bank | label 140 ms; check 220 ms | `FADE`; check `DRAW`-curve | label folds (scaleX .2 + fade), check draws; one `haptic('success')` | check appears, no fold; haptic still fires | ☐ |
-| M8 | Button error | `ActionButton status="error"` | action failed | 180 ms | `--ease-standard` | **colour only** (danger fill / text); sentence next to the button | instant colour | ☐ |
-| M9 | Arc draw | `ProtectionRing` (`registered` / `lit`) | a recoverer is seen on-chain (receipt log), chained by `onDrawn` | 240 ms each | `DRAW` | one arc, pathLength 0 → 1 | arcs appear drawn | ☐ |
-| M10 | Ring close | `ProtectionRing state="protected"` | protection confirmed (after the 3rd arc) | spring + seam fade 180 ms after 200 ms | `SPRING` / `FADE` | gaps 4° → 0°; centre check draws 220 ms; one haptic | closed at once | ☐ |
-| M11 | Countdown sweep | `ProtectionCountdown` | every animation frame while counting | real time | linear (rAF) | inner stroke shortens; centre time changes once per second | stroke steps once per second | ☐ |
-| M12 | Countdown lands | `ProtectionCountdown` | remaining reaches 0 (once) | 240 ms | `DRAW` curve | one pulse scale 1 → 1.04 → 1; `00:00` + `Ready to finish`; one haptic | no pulse; haptic still fires | ☐ |
-| M13 | Success ring (receipt) | `ProtectionRing state="success"` | transfer confirmed | arcs drawn; check 220 ms | `DRAW` | closed `--ok` ring + drawn check | appears drawn | ☐ |
-| M14 | Theme change | `ThemeSwitch` → `data-theme` | setting changed | 180 ms | `--ease-standard` | page background colour only | instant | ☐ |
-| M15 | Disclosure chevron (v1) | `Disclosure` | open / close | 120 ms | `--ease-out` | chevron rotates 180° | instant (`--duration-fast: 0`) | ☐ |
+| M1 | Stack push / pop | `StackView` | navigation to a child screen / back (`direction` 1 / −1) | spring (≈ 200 ms) | `SPRING`; title `FADE` | new screen from x 100 %; old to −24 % and opacity .6; header fixed, title cross-fades 180 ms | content cross-fade 180 ms, no x | ☑ |
+| M2 | Sheet open / close | `SheetV2` | open / close; drag > 96 px or flick > 600 px/s closes | scrim 180 ms; panel spring | `FADE` / `SPRING` | scrim opacity; panel y 100 % → 0 | panel and scrim fade 180 ms; drag disabled | ☑ |
+| M3 | Number ticker | `NumberTicker` | the displayed value changes (never on mount) | spring | `SPRING` | each digit column rolls; separators and codes static; new leading digits fade | text swaps instantly | ☑ |
+| M4 | Cross-fade | `CrossFade` | skeleton → content, any in-place swap (`stateKey` change) | 180 ms | `FADE` | both layers in one grid cell; no layout jump | instant | ☑ |
+| M5 | Button press | `ActionButton` | pointer down (not when disabled / loading / success) | spring | `SPRING` | scale .98 | none | ☑ |
+| M6 | Button loading | `ActionButton status="loading"` | async action starts | 900 ms per turn, linear, loops while loading | linear | 16 px ring beside the label (label stays), `aria-busy` | static ring at 50 % | ☑ |
+| M7 | Button success | `ActionButton status="success"` | action confirmed on-chain / by the bank | label 140 ms; check 220 ms | `FADE`; check `DRAW`-curve | label folds (scaleX .2 + fade), check draws; one `haptic('success')` | check appears, no fold; haptic still fires | ☑ |
+| M8 | Button error | `ActionButton status="error"` | action failed | 180 ms | `--ease-standard` | **colour only** (danger fill / text); sentence next to the button | instant colour | ☑ |
+| M9 | Arc draw | `ProtectionRing` (`registered` / `lit`) | a recoverer is seen on-chain (receipt log), chained by `onDrawn` | 240 ms each | `DRAW` | one arc, pathLength 0 → 1 | arcs appear drawn | ☑ |
+| M10 | Ring close | `ProtectionRing state="protected"` | protection confirmed (after the 3rd arc) | spring + seam fade 180 ms after 200 ms | `SPRING` / `FADE` | gaps 4° → 0°; centre check draws 220 ms; one haptic | closed at once | ☑ |
+| M11 | Countdown sweep | `ProtectionCountdown` | every animation frame while counting | real time | linear (rAF) | inner stroke shortens; centre time changes once per second | stroke steps once per second | ☑ |
+| M12 | Countdown lands | `ProtectionCountdown` | remaining reaches 0 (once) | 240 ms | `DRAW` curve | one pulse scale 1 → 1.04 → 1; `00:00` + `Ready to finish`; one haptic | no pulse; haptic still fires | ☑ |
+| M13 | Success ring (receipt) | `ProtectionRing state="success"` | transfer confirmed | arcs drawn; check 220 ms | `DRAW` | closed `--ok` ring + drawn check | appears drawn | ☑ |
+| M14 | Theme change | `ThemeSwitch` → `data-theme` | setting changed | 180 ms | `--ease-standard` | page background colour only | instant | ☑ |
+| M15 | Disclosure chevron (v1) | `Disclosure` | open / close | 120 ms | `--ease-out` | chevron rotates 180° | instant (`--duration-fast: 0`) | ☑ |
+
+**Wallet motion pass (Phase D, commit 3d8822e) — ticked M1–M15** against the wallet's report: all 15 pass after its fixes (M7: one vibration per success, not two; M10: Protect continues on the third arc's `onDrawn`, not on a timer; M11/M12: every countdown is now `ProtectionCountdown`, the v1 `CountdownRing` is gone from client screens). ui fixes the same round: M7 under reduced motion no longer jumps the label to `scaleX(.2)` (opacity only, instant); `ProtectionCountdown` takes `srLabel(remaining, finishAt)` so the hidden sentence is FR/DE. Ticks are from the wallet's report plus code reading of the primitives; not re-filmed frame by frame — the five row checks below are the acceptance test for the next capture run.
 
 Checks for every row: (a) nothing moves on first paint or on hydration; (b) the trigger is a real event (no timers standing in for on-chain events outside `/design`); (c) one haptic per success/refusal, none on errors; (d) with `prefers-reduced-motion: reduce` emulated, the screenshots before/after the trigger differ only by the end state; (e) no console hydration warning with reduced motion on (C-38).
 

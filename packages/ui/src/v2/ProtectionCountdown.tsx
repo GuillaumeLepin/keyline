@@ -14,6 +14,9 @@ export type ProtectionCountdownProps = {
   size?: number;
   subLabel?: string;
   doneLabel?: string;
+  /** Translated accessible sentence while counting, e.g. FR `(r, f) => \`${r} restantes, se termine à ${f}\``.
+   * Default: `02:41 remaining, finishes at 14:32:10`. */
+  srLabel?: (remaining: string, finishAt: string) => string;
   onDone?: () => void;
 };
 
@@ -29,6 +32,7 @@ export function ProtectionCountdown({
   size = 200,
   subLabel = 'remaining',
   doneLabel = 'Ready to finish',
+  srLabel = (remaining, finishAt) => `${remaining} remaining, finishes at ${finishAt}`,
   onDone,
 }: ProtectionCountdownProps) {
   const end = typeof endsAt === 'number' ? endsAt : endsAt.getTime();
@@ -75,7 +79,7 @@ export function ProtectionCountdown({
       progress={durationMs > 0 ? remaining / durationMs : 0}
       size={size}
       pulseKey={pulse}
-      label={done ? doneLabel : `${formatDuration(remaining)} remaining, finishes at ${formatClock(end)}`}
+      label={done ? doneLabel : srLabel(formatDuration(remaining), formatClock(end))}
     >
       <span className={big ? 'kl2-ring__time' : 'kl2-ring__time kl2-ring__time--sm'} aria-hidden="true">
         {done ? '00:00' : formatDuration(Math.ceil(remaining / 1000) * 1000)}

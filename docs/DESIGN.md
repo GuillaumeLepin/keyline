@@ -203,7 +203,7 @@ Styles in `@keyline/ui/v2.css` (prefix `kl2-`). v1 primitives are unchanged; in 
 | Primitive | Props | Notes |
 |---|---|---|
 | `ProtectionRing` | `state`, `registered?: 0\|1\|2\|3`, `lit?`, `progress?`, `size?`, `onDrawn?(i)`, `pulseKey?`, `children` (centre), `label?` | §5 |
-| `ProtectionCountdown` | `endsAt`, `durationMs`, `lit?`, `size?`, `subLabel?`, `doneLabel?`, `onDone?` | ring in `counting`; rAF sweep; pulse + haptic at 0 |
+| `ProtectionCountdown` | `endsAt`, `durationMs`, `lit?`, `size?`, `subLabel?`, `doneLabel?`, `srLabel?(remaining, finishAt)`, `onDone?` | ring in `counting`; rAF sweep; pulse + haptic at 0 |
 | `DrawnCheck` | `size?` | 220 ms check |
 | `StackView` | `screenKey`, `direction: 1\|-1`, `title`, `onBack?`, `backLabel?`, `trailing?` | shared header |
 | `SheetV2` | `open`, `title`, `onClose`, `contained?`, `closeLabel?` | spring + scrim, drag to close, focus return; max 560 px wide, centred, on wide viewports |
