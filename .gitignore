@@ -24,3 +24,6 @@ e2e/test-results*/
 e2e/.playwright-artifacts*/
 docs/demo-phone.webm
 docs/demo-laptop.webm
+
+# agents' temporary verification copies
+.wallet-verify-*/

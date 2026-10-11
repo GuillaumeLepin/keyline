@@ -135,6 +135,18 @@ export const PendingSendSchema = z.object({
       name: z.string().min(1),
       description: z.string(),
       calls: z.array(z.object({ to: AddressSchema, value: z.string(), data: HexSchema })),
+      /** SPEC §11.2: the WalletConnect request this review answers (`eth_sendTransaction` / `wallet_sendCalls`). */
+      wc: z
+        .object({
+          topic: z.string().min(1),
+          requestId: z.number(),
+          method: z.enum(['eth_sendTransaction', 'wallet_sendCalls']),
+          url: z.string(),
+          icon: z.string().optional(),
+          verification: z.enum(['verified', 'unverified', 'flagged']),
+          origin: z.string().optional(),
+        })
+        .optional(),
     })
     .optional(),
 });
@@ -156,14 +168,36 @@ const DB_NAME = 'keyline';
 const STORE = 'keys';
 const SAFETY_KEY_ID = 'safety-key';
 
+/**
+ * ONE Safety key per browser profile; it may guard several wallets (each registers the same `address` as its
+ * `safety-key` recoverer). Never generate a second key while one exists: overwriting it would silently break the
+ * recovery of every wallet it already guards.
+ */
 export interface SafetyKeyRecord {
   readonly id: typeof SAFETY_KEY_ID;
   readonly privateKey: Hex;
+  /** The guardian address registered on each wallet. Signing looks the key up by this, never by wallet. */
   readonly address: Address;
-  readonly walletAddress: Address;
+  /** Every wallet this key guards (oldest first). */
+  readonly walletAddresses: readonly Address[];
   readonly label: 'prototype: software key';
   readonly createdAt: string;
 }
+
+/** Records written before multi-wallet support carried a single `walletAddress`. */
+export type StoredSafetyKey = Omit<SafetyKeyRecord, 'walletAddresses'> & {
+  walletAddresses?: readonly Address[];
+  walletAddress?: Address;
+};
+
+export function normalizeSafetyKey(stored: StoredSafetyKey): SafetyKeyRecord {
+  const { walletAddress, walletAddresses, ...rest } = stored;
+  const list = [...(walletAddresses ?? []), ...(walletAddress ? [walletAddress] : [])];
+  const unique = list.filter((w, i) => list.findIndex((x) => x.toLowerCase() === w.toLowerCase()) === i);
+  return { ...rest, walletAddresses: unique };
+}
+
+const sameAddress = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -185,23 +219,54 @@ function requestToPromise<T>(req: IDBRequest<T>): Promise<T> {
 }
 
 export const safetyKeyStore = {
+  /** This profile's Safety key (legacy single-wallet records are migrated in place). */
   async get(): Promise<SafetyKeyRecord | null> {
     const db = await openDb();
     try {
-      const tx = db.transaction(STORE, 'readonly');
-      const result = await requestToPromise(tx.objectStore(STORE).get(SAFETY_KEY_ID));
-      return (result as SafetyKeyRecord | undefined) ?? null;
+      const tx = db.transaction(STORE, 'readwrite');
+      const stored = (await requestToPromise(tx.objectStore(STORE).get(SAFETY_KEY_ID))) as
+        | StoredSafetyKey
+        | undefined;
+      if (!stored) return null;
+      const record = normalizeSafetyKey(stored);
+      if (stored.walletAddress !== undefined || !stored.walletAddresses)
+        await requestToPromise(tx.objectStore(STORE).put(record));
+      return record;
     } finally {
       db.close();
     }
   },
-  async set(record: Omit<SafetyKeyRecord, 'id' | 'label'>): Promise<SafetyKeyRecord> {
+  /** The key whose address is `guardianAddress` (a wallet's registered `safety-key` recoverer), else null. */
+  async forGuardian(guardianAddress: string): Promise<SafetyKeyRecord | null> {
+    const record = await safetyKeyStore.get();
+    return record && sameAddress(record.address, guardianAddress) ? record : null;
+  },
+  /**
+   * The first key of this profile. Refuses to overwrite: an existing key must be reused via `addWallet`.
+   */
+  async create(record: Omit<SafetyKeyRecord, 'id' | 'label'>): Promise<SafetyKeyRecord> {
     const full: SafetyKeyRecord = { id: SAFETY_KEY_ID, label: 'prototype: software key', ...record };
     const db = await openDb();
     try {
       const tx = db.transaction(STORE, 'readwrite');
-      await requestToPromise(tx.objectStore(STORE).put(full));
+      // `add` (not `put`) fails if a key already exists — never replace a Safety key.
+      await requestToPromise(tx.objectStore(STORE).add(full));
       return full;
+    } finally {
+      db.close();
+    }
+  },
+  /** Records that the existing key now also guards `walletAddress` (no-op if it already does). */
+  async addWallet(walletAddress: Address): Promise<SafetyKeyRecord> {
+    const record = await safetyKeyStore.get();
+    if (!record) throw new Error('no Safety key in this browser');
+    if (record.walletAddresses.some((w) => sameAddress(w, walletAddress))) return record;
+    const next: SafetyKeyRecord = { ...record, walletAddresses: [...record.walletAddresses, walletAddress] };
+    const db = await openDb();
+    try {
+      const tx = db.transaction(STORE, 'readwrite');
+      await requestToPromise(tx.objectStore(STORE).put(next));
+      return next;
     } finally {
       db.close();
     }

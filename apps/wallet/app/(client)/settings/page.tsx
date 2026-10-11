@@ -3,7 +3,7 @@
 import { AddressBook, Question, ShieldCheck, SquaresFour } from '@phosphor-icons/react/dist/ssr';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { Segmented } from '@/src/components/Segmented';
-import { useCopy, usePrefs } from '@/src/copy';
+import { copyWc, useCopy, usePrefs } from '@/src/copy';
 import {
   applyThemeColor,
   COOKIE,
@@ -13,12 +13,14 @@ import {
   type Lang,
   writeCookie,
 } from '@/src/i18n/prefs';
-import { Chip, ProtectionRing, StatementRow, ThemeSwitch, useThemePreference } from '@/src/ui';
+import { Chip, InboxBadge, ProtectionRing, StatementRow, ThemeSwitch, useThemePreference } from '@/src/ui';
+import { useWc } from '@/src/wc/context';
 
 /** I1 Settings: display currency, language, appearance; links to Help and Security (DESIGN.md v2 §11 I). */
 export default function SettingsPage() {
   const t = useCopy();
   const s = t.copyC.settings;
+  const wcCtx = useWc();
   const { prefs, setLang, setCurrency } = usePrefs();
   const [theme, setTheme] = useThemePreference();
 
@@ -89,7 +91,17 @@ export default function SettingsPage() {
           label={s.contacts}
           href="/contacts"
         />
-        <StatementRow icon={<SquaresFour size={20} aria-hidden="true" />} label={s.apps} href="/dapps" />
+        <StatementRow
+          icon={<SquaresFour size={20} aria-hidden="true" />}
+          label={s.apps}
+          href="/dapps"
+          amount={
+            <InboxBadge
+              count={wcCtx?.waiting.length ?? 0}
+              label={copyWc.inbox.badge(wcCtx?.waiting.length ?? 0)}
+            />
+          }
+        />
       </section>
 
       <p className="m-0 flex items-center gap-2 text-12 text-ink-3">

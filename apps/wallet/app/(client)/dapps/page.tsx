@@ -1,20 +1,23 @@
 'use client';
 
 import type { Dapp } from '@keyline/shared';
-import { ArrowSquareOut, Plugs, Prohibit } from '@phosphor-icons/react/dist/ssr';
+import { ArrowSquareOut } from '@phosphor-icons/react/dist/ssr';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps } from '@/src/copy';
+import { copy, copyGaps, copyWc } from '@/src/copy';
 import { api } from '@/src/lib/api';
 import { useLocalWallet } from '@/src/lib/hooks';
 import { pendingSendStore } from '@/src/lib/storage';
-import { Button, EmptyState, Note, SheetV2, SimulatedBadge, Skeleton, StatementRow } from '@/src/ui';
+import { Button, DappIdentityRow, EmptyState, Note, SheetV2, SimulatedBadge, Skeleton } from '@/src/ui';
+import { ConnectCard } from '@/src/wc/ConnectCard';
+import { ConnectedApps, RequestInbox } from '@/src/wc/ConnectedApps';
 
 /**
- * Reviewed apps from the bank's allowlist (SPEC F5). A mock app's `demoRequest` is what the app "asks"; the client
+ * SPEC §11.4: WalletConnect first — requests waiting for an answer, Connect (paste / scan), connected apps.
+ * Below, reviewed apps from the bank's allowlist (SPEC F5). A mock app's `demoRequest` is what the app "asks"; the client
  * submits it as `POST /policy/evaluate { kind: 'dapp' }` from /send/review, where the bank's decode is shown — the
  * app's own description is never trusted as the review.
  */
@@ -47,8 +50,16 @@ export default function DappsPage() {
   return (
     <>
       <ScreenHeader title={copy.dapps.title} backHref="/" />
-      <p className="kl-lead">{copy.dapps.body}</p>
       {wallet === null ? <Note tone="info">{copy.home.noWalletBody}</Note> : null}
+      {wallet?.status === 'deployed' ? (
+        <>
+          <RequestInbox />
+          <ConnectedApps />
+          <ConnectCard />
+        </>
+      ) : wallet ? (
+        <Note tone="info">{copyWc.request.notDeployed}</Note>
+      ) : null}
       {dapps.isPending ? (
         <Skeleton kind="row" count={4} />
       ) : dapps.isError ? (
@@ -114,32 +125,35 @@ function DappSection({
         <h2 className="kl-section__title">{title}</h2>
       </div>
       <ul className="kl-list">
-        {dapps.map((d) => {
-          const host = safeHost(d.url);
-          const blocked = !d.allowlisted;
-          return (
-            <StatementRow
-              key={d.id}
-              label={d.name}
-              meta={
-                <>
-                  <span>{host}</span>
-                  {d.simulated ? <SimulatedBadge /> : null}
-                </>
-              }
-              icon={
-                blocked ? <Prohibit size={20} aria-hidden="true" /> : <Plugs size={20} aria-hidden="true" />
-              }
-              status={blocked ? 'danger' : 'ok'}
-              statusWord={blocked ? copy.dapps.blocked : copy.dapps.reviewedMeta}
-              amount={d.demoRequest ? copyGaps.dapps.connect : undefined}
-              chevron={Boolean(d.demoRequest)}
-              onClick={d.demoRequest ? () => onSelect(d) : undefined}
-              href={d.demoRequest ? undefined : d.url}
-              amountSub={d.demoRequest ? undefined : <ArrowSquareOut size={14} aria-hidden="true" />}
-            />
-          );
-        })}
+        {dapps.map((d) => (
+          <li key={d.id} className="flex items-center gap-3 border-b border-line py-2">
+            <div className="min-w-0 flex-1">
+              <DappIdentityRow
+                name={d.name}
+                url={d.url}
+                verification={d.allowlisted ? 'verified' : 'flagged'}
+                copy={copyWc.identity}
+                compact
+                trailing={d.simulated ? <SimulatedBadge /> : undefined}
+              />
+            </div>
+            {d.demoRequest ? (
+              <button type="button" className="kl2-textbtn" onClick={() => onSelect(d)}>
+                {copyGaps.dapps.connect}
+              </button>
+            ) : (
+              <a
+                className="kl2-textbtn inline-flex items-center gap-1"
+                href={d.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {safeHost(d.url)}
+                <ArrowSquareOut size={14} aria-hidden="true" />
+              </a>
+            )}
+          </li>
+        ))}
       </ul>
     </section>
   );

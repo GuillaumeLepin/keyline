@@ -1,7 +1,7 @@
 'use client';
 
 import { type PolicyDecision, policyStepUpTypedData, type RecoveryRequest } from '@keyline/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { formatUnits, getAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -30,7 +30,9 @@ import {
 } from '@/src/ui';
 
 /**
- * Laptop persona: two queues for the one Safety key it holds.
+ * Laptop persona: two queues for the one Safety key it holds, across every wallet that key guards
+ * (`walletAddresses`). Signing never trusts the wallet list: it looks the key up by the wallet's registered
+ * `safety-key` guardian address (`keyForWallet`), so a wallet guarded by another computer is never signed for.
  * 1. Tier-2 transfers (SPEC F2.4): the key signs the `KeylinePolicyStepUp` EIP-712 message of the decision it is shown
  *    and the bank verifies it — policy-layer enforcement in the prototype.
  * 2. Recovery (SPEC F3.3): the key signs the SocialRecoveryModule's ExecuteRecovery hash — nothing else.
@@ -76,27 +78,38 @@ export default function ApprovePage() {
   );
 }
 
+/** This browser's key for `wallet`, found by the wallet's registered `safety-key` guardian address. */
+async function keyForWallet(wallet: string): Promise<SafetyKeyRecord> {
+  const guardian = (await api.wallets.guardians(wallet)).find((g) => g.kind === 'safety-key');
+  const key = guardian ? await safetyKeyStore.forGuardian(guardian.address) : null;
+  if (!key) throw new Error('This computer is not the Safety key of this wallet.');
+  return key;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Tier-2 transfers
 // ---------------------------------------------------------------------------------------------------------------
 
 function TransferQueue({ safetyKey }: { safetyKey: SafetyKeyRecord }) {
   const [settled, setSettled] = useState<Record<string, 'approved' | 'refused'>>({});
-  const pending = useQuery({
-    queryKey: ['pending-approvals', safetyKey.walletAddress],
-    queryFn: () => api.policy.pendingApprovals(safetyKey.walletAddress),
-    refetchInterval: 2_000,
-    retry: false,
+  const perWallet = useQueries({
+    queries: safetyKey.walletAddresses.map((w) => ({
+      queryKey: ['pending-approvals', w],
+      queryFn: () => api.policy.pendingApprovals(w),
+      refetchInterval: 2_000,
+      retry: false,
+    })),
   });
-  if (pending.isPending) return <Skeleton kind="block" height={120} />;
-  if (pending.isError) {
+  if (perWallet.some((q) => q.isPending)) return <Skeleton kind="block" height={120} />;
+  const failed = perWallet.find((q) => q.isError);
+  if (failed) {
     return (
-      <ApiErrorState error={pending.error} body={copy.common.errorBody} onRetry={() => pending.refetch()} />
+      <ApiErrorState error={failed.error} body={copy.common.errorBody} onRetry={() => failed.refetch()} />
     );
   }
-  const open = pending.data.filter(
-    (d) => d.verdict === 'step-up' && d.status !== 'cancelled' && !d.stepUp?.satisfiedBy,
-  );
+  const open = perWallet
+    .flatMap((q) => q.data ?? [])
+    .filter((d) => d.verdict === 'step-up' && d.status !== 'cancelled' && !d.stepUp?.satisfiedBy);
   const settledIds = Object.keys(settled);
   if (open.length === 0 && settledIds.length === 0) {
     return <EmptyState title={copy.approve.emptyTitle} body={copy.approve.emptyBody} />;
@@ -135,7 +148,8 @@ function TransferPrompt({
   const queryClient = useQueryClient();
   const approve = useMutation({
     mutationFn: async () => {
-      const account = privateKeyToAccount(safetyKey.privateKey);
+      const key = await keyForWallet(decision.walletAddress);
+      const account = privateKeyToAccount(key.privateKey);
       const signature = await account.signTypedData(policyStepUpTypedData(Number(env.chainId), decision));
       return api.policy.stepUp(decision.decisionId, {
         kind: 'safety-key',
@@ -146,14 +160,14 @@ function TransferPrompt({
     onSuccess: () => {
       haptic('success'); // no-op on a laptop; vibrates when the Safety key is a phone/tablet
       onSettled('approved');
-      queryClient.invalidateQueries({ queryKey: ['pending-approvals', safetyKey.walletAddress] });
+      queryClient.invalidateQueries({ queryKey: ['pending-approvals', decision.walletAddress] });
     },
   });
   const refuse = useMutation({
     mutationFn: () => api.policy.cancel(decision.decisionId),
     onSuccess: () => {
       onSettled('refused');
-      queryClient.invalidateQueries({ queryKey: ['pending-approvals', safetyKey.walletAddress] });
+      queryClient.invalidateQueries({ queryKey: ['pending-approvals', decision.walletAddress] });
     },
   });
 
@@ -257,34 +271,51 @@ function shortLabel(address: string): string {
 
 function RecoveryQueue({ safetyKey }: { safetyKey: SafetyKeyRecord }) {
   const [confirmedHere, setConfirmedHere] = useState<string | null>(null);
-  // The bank has no "recoveries by wallet" route; the wallet's event feed names the request id.
-  const events = useQuery({
-    queryKey: ['wallet-events', safetyKey.walletAddress],
-    queryFn: () => api.wallets.events(safetyKey.walletAddress),
-    refetchInterval: 3_000,
-    retry: false,
+  // The bank has no "recoveries by wallet" route; each wallet's event feed names its latest request id.
+  const events = useQueries({
+    queries: safetyKey.walletAddresses.map((w) => ({
+      queryKey: ['wallet-events', w],
+      queryFn: () => api.wallets.events(w),
+      refetchInterval: 3_000,
+      retry: false,
+    })),
   });
-  const recoveryId = latestRecoveryId(events.data);
-  const recovery = useQuery({
-    queryKey: ['recovery', recoveryId],
-    queryFn: () => api.recoveries.get(recoveryId as string),
-    enabled: Boolean(recoveryId),
-    refetchInterval: 3_000,
-    retry: false,
+  const recoveryIds = events.map((e) => latestRecoveryId(e.data)).filter((id): id is string => Boolean(id));
+  const recoveries = useQueries({
+    queries: recoveryIds.map((id) => ({
+      queryKey: ['recovery', id],
+      queryFn: () => api.recoveries.get(id),
+      refetchInterval: 3_000,
+      retry: false,
+    })),
   });
 
-  if (events.isPending) return <Skeleton kind="block" height={120} />;
-  if (events.isError) {
+  if (events.some((e) => e.isPending)) return <Skeleton kind="block" height={120} />;
+  const failed = events.find((e) => e.isError);
+  if (failed) {
     return (
-      <ApiErrorState error={events.error} body={copy.common.errorBody} onRetry={() => events.refetch()} />
+      <ApiErrorState error={failed.error} body={copy.common.errorBody} onRetry={() => failed.refetch()} />
     );
   }
-  const r = recovery.data;
   // Once this laptop confirmed, keep showing the result even after the bank relays and the status moves on.
-  if (r && (r.status === 'awaiting-guardians' || confirmedHere === r.id)) {
-    return <RecoveryPrompt recovery={r} safetyKey={safetyKey} onConfirmed={() => setConfirmedHere(r.id)} />;
-  }
-  return <EmptyState title={copyGaps.approveTransfer.noPending} />;
+  const shown = recoveries
+    .map((q) => q.data)
+    .filter((r): r is RecoveryRequest =>
+      Boolean(r && (r.status === 'awaiting-guardians' || confirmedHere === r.id)),
+    );
+  if (shown.length === 0) return <EmptyState title={copyGaps.approveTransfer.noPending} />;
+  return (
+    <div className="kl-stack">
+      {shown.map((r) => (
+        <RecoveryPrompt
+          key={r.id}
+          recovery={r}
+          safetyKey={safetyKey}
+          onConfirmed={() => setConfirmedHere(r.id)}
+        />
+      ))}
+    </div>
+  );
 }
 
 function latestRecoveryId(
@@ -312,8 +343,9 @@ function RecoveryPrompt({
   const [refused, setRefused] = useState(false);
   const confirm = useMutation({
     mutationFn: async () => {
+      const key = await keyForWallet(recovery.walletAddress);
       const signed = await signRecoveryConfirmation({
-        privateKey: safetyKey.privateKey,
+        privateKey: key.privateKey,
         recoveryId: recovery.id,
         wallet: getAddress(recovery.walletAddress),
         newOwnerProxy: getAddress(recovery.newOwner.signerProxyAddress),

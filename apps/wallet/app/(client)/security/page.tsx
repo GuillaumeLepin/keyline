@@ -9,6 +9,7 @@ import {
   GearSix,
   IdentificationCard,
   Key,
+  Plugs,
   ShieldCheck,
   SignOut,
 } from '@phosphor-icons/react/dist/ssr';
@@ -17,7 +18,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyC, copyGaps, copyV2, usePrefs } from '@/src/copy';
+import { copy, copyC, copyGaps, copyV2, copyWc, usePrefs } from '@/src/copy';
 import { env } from '@/src/env';
 import { api, isApiError } from '@/src/lib/api';
 import { addressUrl, readRecoveryStatus } from '@/src/lib/chain';
@@ -41,6 +42,7 @@ import {
   StatementRow,
   TestnetStrip,
 } from '@/src/ui';
+import { useWc } from '@/src/wc/context';
 
 /** Security centre (SPEC F6): keys, limits, sponsored counter, recovery mode, proof, Safety-key export, exit hatch, event log. */
 export default function SecurityPage() {
@@ -70,6 +72,7 @@ export default function SecurityPage() {
 function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
   const { lang } = usePrefs().prefs;
   const s = copy.security;
+  const wcCtx = useWc();
   const me = useMe();
   const events = useWalletEvents(wallet.address);
   const { transfers } = useLocalTransfers();
@@ -82,7 +85,9 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
     safetyKeyStore
       .get()
       .then((k) =>
-        setSafetyKey(k && k.walletAddress.toLowerCase() === wallet.address.toLowerCase() ? k : null),
+        setSafetyKey(
+          k?.walletAddresses.some((w) => w.toLowerCase() === wallet.address.toLowerCase()) ? k : null,
+        ),
       )
       .catch(() => setSafetyKey(null));
   }, [wallet.address]);
@@ -301,6 +306,14 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
       </ul>
 
       <ul className="m-0 list-none p-0">
+        {/* SPEC §11.4: connected WalletConnect apps, with the count. */}
+        <StatementRow
+          icon={<Plugs size={20} aria-hidden="true" />}
+          label={copyWc.security.row}
+          meta={copyWc.security.rowMeta(wcCtx?.sessions.length ?? 0)}
+          href="/dapps"
+          chevron
+        />
         <StatementRow
           icon={<CurrencyBtc size={20} aria-hidden="true" />}
           label={copyV2.security.bitcoin.title}

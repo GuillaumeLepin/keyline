@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { formatUnits, getAddress } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps } from '@/src/copy';
+import { copy, copyGaps, copyWc } from '@/src/copy';
 import { env } from '@/src/env';
 import { api } from '@/src/lib/api';
 import {
@@ -26,6 +26,7 @@ import {
   Address,
   Button,
   CountdownRing,
+  DappIdentityRow,
   Disclosure,
   EmptyState,
   ErrorState,
@@ -44,6 +45,15 @@ import {
   StatusSequence,
   type StatusStep,
 } from '@/src/ui';
+import { useWc } from '@/src/wc/context';
+import {
+  logRequest,
+  respondBlocked,
+  respondError,
+  respondRejected,
+  respondResult,
+  waitForInclusion,
+} from '@/src/wc/respond';
 
 export default function ReviewPage() {
   const router = useRouter();
@@ -81,10 +91,12 @@ type DraftCall = { to: string; value: string; data: string };
 
 function evaluateDraft(wallet: Wallet, draft: PendingSend, calls?: readonly DraftCall[]) {
   if (draft.dapp) {
+    const wc = draft.dapp.wc;
     return api.policy.evaluate({
       kind: 'dapp',
       walletAddress: wallet.address,
-      dappId: draft.dapp.id,
+      // SPEC §11.3: a WalletConnect request is evaluated against its recorded session (topic + Verify origin).
+      ...(wc ? { topic: wc.topic, origin: wc.origin ?? wc.url } : { dappId: draft.dapp.id }),
       chfValue: 0,
       calls: (calls ?? draft.dapp.calls).map((c) => ({
         to: getAddress(c.to),
@@ -139,6 +151,25 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
   const [stage, setStage] = useState<SubmitStage | null>(null);
   const [expired, setExpired] = useState(false);
   const [userOpHash, setUserOpHash] = useState<string | null>(null);
+  // SPEC §11.2: the WalletConnect request this review answers (absent for in-app transfers and mock dApps).
+  const wcCtx = useWc();
+  const wcReq = draft.dapp?.wc;
+  const wcRef = wcReq ? { topic: wcReq.topic, id: wcReq.requestId, method: wcReq.method } : null;
+  const wcExpired = wcReq ? Boolean(wcCtx?.find(wcReq.requestId)?.expired) : false;
+  const wcAnswered = useRef(false);
+  const [wcLine, setWcLine] = useState<string | null>(null);
+  const answerWc = async (fn: () => Promise<void>) => {
+    if (!wcRef || wcAnswered.current) return;
+    wcAnswered.current = true;
+    await fn().catch(() => undefined);
+    wcCtx?.resolve(wcRef.id);
+  };
+  const declineWc = () =>
+    wcRef &&
+    answerWc(async () => {
+      await respondRejected(wcRef, 'Declined in Keyline. Nothing was signed or sent.');
+      logRequest(wcRef, draft.dapp?.description ?? wcRef.method, 'declined');
+    });
 
   useEffect(() => {
     if (!d) return;
@@ -158,6 +189,41 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
         onStage: setStage,
       });
       setUserOpHash(result.userOpHash);
+      if (wcRef) {
+        const summary = dec.simulation.decodedCalls[0]?.humanText ?? draft.dapp?.description ?? wcRef.method;
+        if (wcRef.method === 'wallet_sendCalls') {
+          // EIP-5792: answer with the call-bundle id at once; the app polls wallet_getCallsStatus.
+          await answerWc(async () => {
+            await respondResult(wcRef, { id: result.userOpHash });
+            logRequest(wcRef, summary, 'approved', { userOpHash: result.userOpHash });
+          });
+        } else {
+          // eth_sendTransaction answers with the bundle tx hash, which exists once the userOp is included (~4 s).
+          setWcLine(copyWc.request.tx.waitingBlock);
+          const included = await waitForInclusion(result.userOpHash as `0x${string}`).catch(() => null);
+          await answerWc(async () => {
+            if (included?.success) {
+              await respondResult(wcRef, included.txHash);
+              logRequest(wcRef, summary, 'approved', {
+                txHash: included.txHash,
+                userOpHash: result.userOpHash,
+              });
+            } else {
+              await respondError(wcRef, {
+                code: -32603,
+                message: included
+                  ? `The transaction failed on the network (tx ${included.txHash}).`
+                  : 'Sent from Keyline, but not included in time. Check the wallet activity.',
+              });
+              logRequest(wcRef, summary, 'failed', {
+                userOpHash: result.userOpHash,
+                ...(included ? { txHash: included.txHash } : {}),
+              });
+            }
+          });
+          setWcLine(included?.success ? copyWc.request.tx.answered : copyWc.request.tx.reverted);
+        }
+      }
       const now = new Date().toISOString();
       transferStore.upsert({
         userOpHash: result.userOpHash,
@@ -197,6 +263,7 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
   const cancelDecision = useMutation({
     mutationFn: (id: string) => api.policy.cancel(id),
     onSuccess: () => {
+      declineWc();
       pendingSendStore.clear();
       router.push(backHref);
     },
@@ -224,20 +291,48 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
       haptic('refusal');
     }
   }, [d?.verdict, d?.decisionId]);
+  // A policy block answers the app at once with the bank's reason (SPEC §11.2: error 4001 + reason).
+  useEffect(() => {
+    if (!wcRef || !d || d.verdict !== 'block' || wcAnswered.current) return;
+    const reason = d.reasons[0] ?? copy.common.policyRefused;
+    answerWc(async () => {
+      await respondBlocked(wcRef, `Blocked by Keyline: ${reason}`);
+      logRequest(wcRef, d.simulation.decodedCalls[0]?.humanText ?? wcRef.method, 'blocked');
+    });
+  });
   const isCleared = d !== undefined && cleared(d);
   const cancelled = confirm.error instanceof PasskeyCancelledError;
   const insufficient = !draft.dapp && balance.data !== undefined && draft.amountUsdc > balance.data;
   const danger = d?.simulation.decodedCalls.find((c) => c.risk === 'danger');
   const cap = d?.suggestedCap;
   const unknownDapp = verdict === 'block' && Boolean(draft.dapp) && !d?.screening.hit;
-  const canConfirm = d !== undefined && !expired && !insufficient && isCleared && !(danger && cap);
+  const canConfirm =
+    d !== undefined && !expired && !wcExpired && !insufficient && isCleared && !(danger && cap);
   const rows = whatWillHappen(d, draft, balance.data);
 
   return (
     <>
       <ScreenHeader title={copy.review.title} backHref={backHref} />
       <section className="kl-balance">
-        {draft.dapp ? (
+        {wcReq && draft.dapp ? (
+          // DESIGN-AUDIT WC-1/WC-3: what is asked, then who asks; one Contract row says where (no hex sentence).
+          <div className="kl-stack kl-stack--tight w-full text-left">
+            <p className="kl-balance__amount text-28">
+              {wcReq.method === 'wallet_sendCalls' ? copyWc.request.batch.title : copyWc.request.tx.title}
+            </p>
+            <DappIdentityRow
+              name={draft.dapp.name}
+              url={wcReq.url}
+              iconUrl={wcReq.icon}
+              verification={wcReq.verification}
+              copy={copyWc.identity}
+            />
+            {wcReq.method === 'wallet_sendCalls' ? (
+              <p className="m-0 text-14 text-ink-2">{copyWc.request.batch.lead(draft.dapp.calls.length)}</p>
+            ) : null}
+            <p className="m-0 text-12 text-ink-3">{copyWc.request.tx.contract}</p>
+          </div>
+        ) : draft.dapp ? (
           <>
             <p className="kl-balance__amount text-28">{copyGaps.review.dappTitle(draft.dapp.name)}</p>
             <p className="kl-balance__secondary">{draft.dapp.description}</p>
@@ -337,6 +432,16 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
         />
       ) : null}
       {stage ? <StatusSequence steps={sendingSequence(stage)} /> : null}
+      {wcLine ? (
+        <p className="text-14 text-ink-2" role="status" data-testid="wc-tx-line">
+          {wcLine}
+        </p>
+      ) : null}
+      {wcExpired ? (
+        <Note tone="warn">
+          {copyWc.request.expiredTitle}. {copyWc.request.expiredBody}
+        </Note>
+      ) : null}
 
       <div className="kl-actions">
         {verdict === 'block' ? (
@@ -346,7 +451,15 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
                 {copy.dapps.requestReview}
               </Button>
             ) : null}
-            <Button variant="ghost" full href={backHref} onClick={() => pendingSendStore.clear()}>
+            <Button
+              variant="ghost"
+              full
+              href={backHref}
+              onClick={() => {
+                declineWc();
+                pendingSendStore.clear();
+              }}
+            >
               {copy.common.back}
             </Button>
           </>
@@ -361,7 +474,7 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
               loading={cancelDecision.isPending}
               onClick={() => cancelDecision.mutate(d.decisionId)}
             >
-              {copy.review.dappReject}
+              {wcReq ? copyWc.request.decline : copy.review.dappReject}
             </Button>
           </>
         ) : d && !isCleared && (verdict === 'cooling' || verdict === 'step-up') ? (
@@ -382,11 +495,23 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
               loading={confirm.isPending}
               onClick={() => d && confirm.mutate(d)}
             >
-              {copy.review.confirm}
+              {wcReq
+                ? wcReq.method === 'wallet_sendCalls'
+                  ? copyWc.request.batch.approve
+                  : copyWc.request.tx.approve
+                : copy.review.confirm}
             </Button>
             {draft.dapp && !confirm.isPending ? (
-              <Button variant="ghost" full href={backHref} onClick={() => pendingSendStore.clear()}>
-                {copy.review.dappReject}
+              <Button
+                variant="ghost"
+                full
+                href={backHref}
+                onClick={() => {
+                  declineWc();
+                  pendingSendStore.clear();
+                }}
+              >
+                {wcReq ? copyWc.request.decline : copy.review.dappReject}
               </Button>
             ) : null}
           </>
@@ -409,8 +534,6 @@ function Verdict({
   continuing: boolean;
 }) {
   const p = copy.review.policy;
-  const first = decision.reasons[0];
-  const reasons = <Reasons reasons={decision.reasons} except={first ? [first] : []} />;
   if (cleared(decision)) {
     const viaLaptop = decision.stepUp?.satisfiedBy === 'safety-key';
     const reason = capAmount
@@ -445,7 +568,6 @@ function Verdict({
             word={p.stepUp.word}
             reason={decision.reasons[0] ?? p.stepUp.reason}
           />
-          {reasons}
           <StatusSequence steps={steps} />
           <Note tone="info">
             {copyGaps.review.stepUpWaiting}. {copyGaps.review.stepUpWaitingNote}
@@ -470,10 +592,6 @@ function Verdict({
             }
             trailing={decision.screening.simulatedHit ? <SimulatedBadge /> : undefined}
           />
-          <Reasons
-            reasons={decision.reasons}
-            except={[first ?? '', ...decision.reasons.filter((r) => r.startsWith('Swissquote won'))]}
-          />
         </div>
       );
   }
@@ -486,7 +604,13 @@ function Reasons({ reasons, except = [] }: { reasons: readonly string[]; except?
     <ul className="kl-stack kl-stack--tight pl-4 text-12 text-ink-3" aria-label={copyGaps.review.reasons}>
       {shown.map((r) => (
         <li key={r} className="list-disc">
-          {r}
+          {r.replace(/\s*\(simulated\)/i, '')}
+          {/\(simulated\)/i.test(r) ? (
+            <>
+              {' '}
+              <SimulatedBadge />
+            </>
+          ) : null}
         </li>
       ))}
     </ul>
@@ -506,7 +630,6 @@ function CoolingVerdict({ decision }: { decision: PolicyDecision }) {
         word={p.cooling.word}
         reason={p.cooling.reason(formatDuration(Math.max(0, endsAt - now)))}
       />
-      <Reasons reasons={decision.reasons} except={decision.reasons[0] ? [decision.reasons[0]] : []} />
       <CountdownRing
         endsAt={endsAt}
         durationMs={60_000}
@@ -565,11 +688,15 @@ function whatWillHappen(
     for (const c of d.simulation.decodedCalls) {
       // A plain transfer is already stated by "You send"; its decoded call only earns a row when it carries a risk.
       if (!draft.dapp && c.risk === 'none') continue;
-      rows.push({
-        label: <RiskWord risk={c.risk} />,
-        value: c.humanText,
-        tone: c.risk === 'danger' ? 'danger' : undefined,
-      });
+      rows.push(
+        draft.dapp
+          ? fieldRow(c)
+          : {
+              label: <RiskWord risk={c.risk} />,
+              value: c.humanText,
+              tone: c.risk === 'danger' ? 'danger' : undefined,
+            },
+      );
     }
   }
   rows.push({
@@ -583,20 +710,42 @@ function whatWillHappen(
   });
   if (d) {
     rows.push({
-      label: copyGaps.review.screened,
-      value: d.screening.hit ? (
-        <>
-          {copyGaps.review.screenedHit} {d.screening.simulatedHit ? <SimulatedBadge /> : null}
-        </>
-      ) : (
-        <>
-          {copyGaps.review.screenedLists} <SimulatedBadge />
-        </>
+      // DESIGN-AUDIT WC-5: the SIMULATED chip sits on the label line, the value stays one line.
+      label: (
+        <span className="inline-flex items-center gap-1">
+          {copyGaps.review.screened}
+          {!d.screening.hit || d.screening.simulatedHit ? <SimulatedBadge /> : null}
+        </span>
       ),
+      value: d.screening.hit ? copyGaps.review.screenedHit : copyGaps.review.screenedLists,
       tone: d.screening.hit ? 'danger' : 'ok',
     });
   }
   return rows;
+}
+
+/**
+ * A dApp call as a field row (DESIGN-AUDIT WC-5, the TypedDataRows rule): `approve` → "Spending limit · Unlimited"
+ * (danger) or the capped amount; `transfer` → "You send · 1.00 USDC"; anything else keeps the bank's sentence.
+ */
+function fieldRow(c: DecodedCall): PanelRow {
+  const tone = c.risk === 'danger' ? ('danger' as const) : undefined;
+  const t = copyWc.request.tx;
+  const amount = (raw: string | undefined) => {
+    if (raw === undefined) return '—';
+    try {
+      const v = BigInt(raw);
+      if (v >= 1n << 255n) return copyWc.request.typed.rows.unlimited;
+      return c.to.toLowerCase() === env.usdcAddress.toLowerCase()
+        ? formatUSDC(Number(formatUnits(v, 6)))
+        : raw;
+    } catch {
+      return raw;
+    }
+  };
+  if (c.fn.startsWith('approve(')) return { label: t.spendingLimit, value: amount(c.args[1]), tone };
+  if (c.fn.startsWith('transfer(')) return { label: t.youSend, value: amount(c.args[1]), tone };
+  return { label: c.fn.split('(')[0] || c.fn, value: c.humanText, tone };
 }
 
 function TechnicalDetails({
@@ -615,6 +764,7 @@ function TechnicalDetails({
           {fallback ? copyGaps.review.providerFallback : copyGaps.review.providerLive}{' '}
           {fallback ? <SimulatedBadge /> : null}
         </p>
+        <Reasons reasons={d.reasons} except={d.reasons[0] ? [d.reasons[0]] : []} />
         {d.simulation.decodedCalls.map((c) => (
           <pre key={`${c.to}${c.fn}${c.args.join()}`} className="kl-code">
             {c.to}

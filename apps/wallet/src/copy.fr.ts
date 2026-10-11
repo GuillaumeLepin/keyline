@@ -727,7 +727,8 @@ export const copyGaps: W<'copyGaps'> = {
     dappCapApplied: (usdc: string) => `Plafonné à ${usdc}. Dans vos limites.`,
     dappEvaluating: 'Contrôle de la demande plafonnée…',
     userOpHash: 'Empreinte de la requête',
-    stepUpWaitingNote: 'Ouvrez Lea · laptop → Approuver. Le virement continue ici de lui-même.',
+    stepUpWaitingNote:
+      'Ouvrez Keyline sur votre ordinateur et approuvez. Le virement continue ici de lui-même.',
   },
   approveTransfer: {
     section: 'Virements en attente de cette clé',
@@ -1338,3 +1339,237 @@ export const copyC: W<'copyC'> = {
     contacts: 'Contacts',
   },
 };
+
+/** SPEC §11 — WalletConnect (côté portefeuille). Mêmes clés que DESIGN.md §13.3. */
+export const copyWc = {
+  nav: { apps: 'Apps', connect: 'Connecter une app', connectedApps: 'Apps connectées' },
+
+  connect: {
+    title: 'Se connecter à une app',
+    body: 'Sur le site de l’app, choisissez WalletConnect, puis copiez son lien ou affichez son code QR.',
+    fieldLabel: 'Lien WalletConnect',
+    placeholder: 'wc:…',
+    paste: 'Coller',
+    scan: 'Scanner le QR',
+    stopScan: 'Arrêter le scan',
+    connect: 'Se connecter',
+    connecting: 'Connexion…',
+    pairingLine: 'En attente de la réponse de l’app…',
+    invalid: 'Ce n’est pas un lien WalletConnect. Il commence par wc:',
+    scanHint: 'Visez le code QR de l’app avec l’appareil photo.',
+    cameraDeniedTitle: 'L’accès à l’appareil photo est désactivé',
+    cameraDeniedBody:
+      'Collez plutôt le lien, ou autorisez l’appareil photo pour ce site dans les réglages du navigateur.',
+    expired: 'Ce lien a expiré. Demandez-en un nouveau à l’app.',
+  },
+
+  identity: { verified: 'Domaine vérifié', unverified: 'Non vérifiée', flagged: 'Signalée' },
+
+  proposal: {
+    needsWallet: 'Protégez d’abord votre portefeuille. Revenez ensuite connecter des apps.',
+    unreachable: 'WalletConnect est injoignable. Vérifiez votre connexion et réessayez.',
+    reviewed: 'Vérifiée par Swissquote',
+    title: 'Se connecter à cette app ?',
+    permissions: {
+      title: 'Cette app pourra :',
+      items: [
+        'Voir votre adresse',
+        'Vous demander d’approuver des transactions',
+        'Vous demander de signer des messages',
+      ],
+      never: 'Elle ne pourra jamais déplacer d’argent sans votre accord.',
+    },
+    network: 'Réseau',
+    networkValue: 'Base Sepolia (réseau de test)',
+    account: 'Portefeuille',
+    unverifiedNote:
+      'Keyline n’a pas pu confirmer le site de cette app. Connectez-vous seulement si vous l’avez ouvert vous-même.',
+    flaggedTitle: 'L’identité de cette app n’a pas pu être vérifiée',
+    flaggedBody:
+      'Son site ne correspond pas à ce qu’elle prétend, ou elle figure sur une liste d’arnaques connues. Keyline ne s’y connectera pas.',
+    connect: 'Se connecter',
+    decline: 'Pas maintenant',
+    close: 'Fermer',
+    connectedTitle: 'Connecté',
+    connectedBody: (app: string) => `${app} peut maintenant voir votre adresse et vous envoyer des demandes.`,
+    errorTitle: 'Pas connecté',
+    errorBody: 'L’app n’a pas répondu. Rien n’a été partagé. Réessayez depuis l’app.',
+  },
+
+  apps: {
+    account: 'Portefeuille',
+    disconnecting: 'Déconnexion…',
+    outcome: {
+      approved: 'Approuvée',
+      declined: 'Refusée',
+      blocked: 'Bloquée',
+      expired: 'Expirée',
+      failed: 'Échouée',
+    },
+    title: 'Apps connectées',
+    empty: 'Aucune app connectée',
+    emptyBody: 'Connectez-vous à une app depuis son site avec WalletConnect.',
+    connectedSince: (date: string) => `Connectée ${date}`,
+    count: (n: number) => (n === 1 ? '1 app' : `${n} apps`),
+    disconnect: 'Déconnecter',
+    disconnectTitle: (app: string) => `Déconnecter ${app} ?`,
+    disconnectBody:
+      'L’app ne pourra plus voir votre adresse ni vous envoyer de demandes. Les virements passés restent dans votre relevé.',
+    disconnectYes: 'Déconnecter',
+    keep: 'Garder',
+    disconnected: (app: string) => `${app} déconnectée`,
+    activity: 'Activité de cette app',
+    activityEmpty: 'Rien pour l’instant.',
+    permissionsTitle: 'Ce qu’elle peut faire',
+    network: 'Réseau',
+    lastRequest: 'Dernière demande',
+  },
+
+  request: {
+    pendingSign: 'En attente de votre clé d’accès…',
+    passkeyCancelled: 'Clé d’accès annulée. Rien n’a été signé.',
+    notDeployed: 'Protégez d’abord votre portefeuille : avant cela, il ne peut pas signer pour des apps.',
+    errorTitle: 'Non signé',
+    errorBody: 'Rien n’a changé dans votre portefeuille. Réessayez.',
+    invalid: {
+      title: 'Demande illisible',
+      body: (reason: string) =>
+        `L’app a envoyé une demande que Keyline ne peut pas lire (${reason}). Rien n’a été signé. L’app a été informée.`,
+    },
+    networkName: (chainId: number) => (chainId === 84532 ? 'Base Sepolia' : `Réseau ${chainId}`),
+    decline: 'Pas maintenant',
+    close: 'Fermer',
+    retry: 'Réessayer',
+    expiredTitle: 'Cette demande a expiré',
+    expiredBody: 'L’app n’attend plus. Rien n’a été signé ni envoyé. Demandez à l’app de réessayer.',
+    declinedToast: 'Refusé. L’app a été informée.',
+
+    tx: {
+      contract: 'Contrat',
+      spendingLimit: 'Limite de dépense',
+      spender: 'Bénéficiaire',
+      youSend: 'Vous envoyez',
+      waitingBlock: 'Envoyé. En attente du bloc avant de répondre à l’app…',
+      answered: 'L’app a reçu la transaction.',
+      reverted: 'La transaction a échoué sur le réseau. L’app a été informée.',
+      title: 'Approuver une transaction',
+      approve: 'Approuver avec Face ID',
+      pendingLine: (step: string) => step,
+      steps: {
+        signed: 'Signé',
+        sent: 'Envoyé',
+        waiting: 'En attente du bloc',
+        included: (block: string) => `Dans le bloc ${block}`,
+      },
+      successTitle: 'Envoyé',
+      successBody: 'L’app a le résultat.',
+      announce: 'Envoyé',
+      errorTitle: 'Non envoyé',
+      errorBody: 'Rien n’a quitté votre portefeuille. L’app a été informée.',
+      firstTime: 'Première fois avec cette app',
+    },
+    batch: {
+      title: 'Approuver plusieurs actions',
+      lead: (n: number) => `${n} actions, approuvées ensemble. Toutes ont lieu, ou aucune.`,
+      item: (i: number) => `Action ${i}`,
+      approve: 'Tout approuver avec Face ID',
+    },
+    signIn: {
+      title: 'Se connecter',
+      approve: 'Se connecter avec Face ID',
+      siwe: {
+        title: (domain: string) => `Se connecter à ${domain}`,
+        as: 'en tant que',
+        validUntil: (time: string) => `Valable jusqu’à ${time}`,
+        noMoney: 'Cela ne déplace pas d’argent.',
+        mismatch: (domain: string, appHost: string) =>
+          `Cette connexion est pour ${domain}, pas pour l’app qui la demande (${appHost}). Ne la signez pas.`,
+        fields: {
+          statement: 'Déclaration',
+          domain: 'Domaine',
+          address: 'Adresse',
+          network: 'Réseau',
+          issued: 'Émise',
+          expires: 'Expire',
+          nonce: 'Nonce',
+          uri: 'URI',
+        },
+      },
+      successTitle: 'Connecté',
+      successBody: 'L’app a votre signature. Aucun argent n’a bougé.',
+      announce: 'Connecté',
+    },
+    message: {
+      title: 'Signer un message',
+      approve: 'Signer avec Face ID',
+      block: {
+        title: 'Message',
+        technical: 'Détails techniques',
+        hexLabel: 'Message brut (hex)',
+        unreadable: 'Ce message n’est pas du texte lisible. Ne le signez que si vous savez à quoi il sert.',
+      },
+      noMoney: 'Signer un message ne déplace pas d’argent.',
+      successTitle: 'Signé',
+      successBody: 'L’app a votre signature.',
+      announce: 'Signé',
+    },
+    typed: {
+      title: 'Signer des données structurées',
+      approve: 'Signer avec Face ID',
+      domain: (name: string, network: string, contract: string) => `${name} · ${network} · ${contract}`,
+      rows: {
+        unlimited: 'Illimité',
+        unlimitedNote: 'Aucune limite : le bénéficiaire peut tout prendre, maintenant et plus tard.',
+        never: 'Jamais',
+        neverNote: 'Cette autorisation n’expire jamais.',
+      },
+      permitTitle: 'Laisser une autre adresse dépenser vos jetons',
+      permitBody: (spender: string) => `${spender} pourra déplacer ces jetons sans vous redemander.`,
+      approveDanger: 'Signer quand même',
+      successTitle: 'Signé',
+      successBody: 'L’app a votre signature.',
+      announce: 'Signé',
+    },
+    eoaOnly: {
+      title: 'Cette signature n’est pas possible',
+      body: 'Ce jeton n’accepte que les signatures d’une seule clé privée. Votre Keyline est un compte intelligent protégé par 2 moyens de récupération sur 3 : il ne peut pas produire ce type de signature.',
+      alternative: 'Approuver par une transaction',
+      alternativeBody:
+        'Vous vérifierez plutôt une transaction d’approbation. Swissquote paie les frais de réseau.',
+      decline: 'Pas maintenant',
+    },
+    chainSwitch: {
+      title: 'Réseau non disponible',
+      body: (network: string) =>
+        `L’app a demandé de passer à ${network}. Ce Keyline fonctionne uniquement sur Base Sepolia. L’app a été informée ; vous pouvez continuer à l’utiliser sur Base Sepolia.`,
+    },
+    unsupported: {
+      title: 'Demande non prise en charge',
+      body: (method: string) =>
+        `L’app a demandé « ${method} », ce que Keyline ne fait jamais : cela pourrait signer quelque chose d’illisible. Rien n’a été signé. L’app a été informée.`,
+    },
+    blocked: {
+      title: 'Bloqué par vos limites',
+      body: (reason: string) => `${reason} Rien n’a été signé ni envoyé. L’app a été informée.`,
+    },
+  },
+
+  inbox: {
+    title: 'En attente de vous',
+    badge: (n: number) => (n === 1 ? '1 demande en attente' : `${n} demandes en attente`),
+    alertTitle: (app: string) => `${app} vous attend`,
+    alertBody: (what: string) => `${what}. Ouvrez pour vérifier.`,
+    open: 'Vérifier',
+    expired: 'Expirée',
+    expiredBody: 'L’app n’attend plus. Rien n’a été signé ni envoyé.',
+    kinds: {
+      tx: 'Transaction à approuver',
+      batch: 'Actions à approuver',
+      signIn: 'Demande de connexion',
+      message: 'Message à signer',
+      typed: 'Données à signer',
+    },
+  },
+
+  security: { row: 'Apps connectées', rowMeta: (n: number) => (n === 1 ? '1 app' : `${n} apps`) },
+} as const;

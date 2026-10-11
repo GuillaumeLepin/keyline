@@ -33,6 +33,7 @@ import {
   StatusSequence,
   type StatusStep,
 } from '@/src/ui';
+import { RequestInbox } from '@/src/wc/ConnectedApps';
 
 const GRACE_MS = 180_000;
 
@@ -44,6 +45,8 @@ export default function AlertsPage() {
   return (
     <>
       <ScreenHeader title={copy.alerts.title} backHref="/" />
+      {/* SPEC §11.4: WalletConnect requests that arrived while the app was elsewhere; opening one resumes it. */}
+      <RequestInbox />
       {wallet === undefined ? (
         <Skeleton kind="row" count={2} />
       ) : wallet === null ? (

@@ -15,7 +15,11 @@ import {
   type CreateRecoveryBody,
   type CreateWalletBody,
   CreateWalletResponseSchema,
+  type DappRequestEventBody,
   DappSchema,
+  DappSessionDetailSchema,
+  DappSessionSchema,
+  DappSessionsResponseSchema,
   DepositAddressResponseSchema,
   DeskQueueResponseSchema,
   EidResponseSchema,
@@ -39,6 +43,8 @@ import {
   PendingApprovalsResponseSchema,
   PolicyDecisionSchema,
   type PolicyRequest,
+  type ProposeSessionBody,
+  ProposeSessionResponseSchema,
   type RecoveryConfirmBody,
   type RecoveryIdentityBody,
   RecoveryRequestSchema,
@@ -235,6 +241,20 @@ export const api = {
     verify: (id: string) => request('POST', `/contacts/${id}/verify`, ContactVerifyResponse, {}),
   },
   dapps: async () => (await request('GET', '/dapps', DappsResponse)).dapps,
+
+  // ---- SPEC §11.3: WalletConnect sessions as the bank records them (identity, Verify context, request log) ----
+  dappSessions: {
+    propose: (body: ProposeSessionBody) =>
+      request('POST', '/dapp-sessions', ProposeSessionResponseSchema, body),
+    approve: (topic: string) => request('POST', `/dapp-sessions/${topic}/approve`, DappSessionSchema, {}),
+    refuse: (topic: string) => request('POST', `/dapp-sessions/${topic}/refuse`, DappSessionSchema, {}),
+    disconnect: (topic: string) => request('DELETE', `/dapp-sessions/${topic}`, DappSessionSchema),
+    get: (topic: string) => request('GET', `/dapp-sessions/${topic}`, DappSessionDetailSchema),
+    list: async (wallet: string) =>
+      (await request('GET', `/dapp-sessions?wallet=${wallet}`, DappSessionsResponseSchema)).sessions,
+    event: (topic: string, body: DappRequestEventBody) =>
+      request('POST', `/dapp-sessions/${topic}/events`, DappSessionSchema, body),
+  },
 
   wallets: {
     create: (body: CreateWalletBody) => request('POST', '/wallets', CreateWalletResponseSchema, body),

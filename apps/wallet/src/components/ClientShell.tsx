@@ -3,9 +3,11 @@
 import { type ReactNode, useEffect } from 'react';
 import { PhoneFrame } from '@/src/ui';
 import { bootstrapPersona, personaLabel, usePersona } from '../lib/device';
+import { WcProvider } from '../wc/WcProvider';
+import { WcSheets } from '../wc/WcSheets';
 import { OfflineBanner } from './OfflineBanner';
 
-/** Phone frame + DeviceBar for the client route group; applies `?device=` once per profile. */
+/** Phone frame + DeviceBar for the client route group; applies `?device=` once per profile; hosts WalletConnect. */
 export function ClientShell({ children }: { children: ReactNode }) {
   const persona = usePersona();
   useEffect(() => {
@@ -15,9 +17,13 @@ export function ClientShell({ children }: { children: ReactNode }) {
   // the bar text arrives with hydration.
   const effective = persona ?? 'lea-phone';
   return (
-    <PhoneFrame persona={effective} personaLabel={personaLabel(effective)}>
-      <OfflineBanner />
-      {children}
-    </PhoneFrame>
+    <WcProvider>
+      <PhoneFrame persona={effective} personaLabel={personaLabel(effective)}>
+        <OfflineBanner />
+        {children}
+        {/* SPEC §11: WalletConnect connection / request sheets, over whichever screen is open. */}
+        <WcSheets />
+      </PhoneFrame>
+    </WcProvider>
   );
 }

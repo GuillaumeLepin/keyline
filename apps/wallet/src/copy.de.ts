@@ -723,7 +723,8 @@ export const copyGaps: W<'copyGaps'> = {
     dappCapApplied: (usdc: string) => `Auf ${usdc} begrenzt. Innerhalb Ihrer Limiten.`,
     dappEvaluating: 'Begrenzte Anfrage wird geprüft…',
     userOpHash: 'Anfrage-Hash',
-    stepUpWaitingNote: 'Öffnen Sie Lea · laptop → Genehmigen. Die Überweisung läuft hier von selbst weiter.',
+    stepUpWaitingNote:
+      'Öffnen Sie Keyline auf Ihrem Laptop und geben Sie frei. Die Überweisung läuft hier von selbst weiter.',
   },
   approveTransfer: {
     section: 'Überweisungen, die auf diesen Schlüssel warten',
@@ -1336,3 +1337,240 @@ export const copyC: W<'copyC'> = {
     contacts: 'Kontakte',
   },
 };
+
+/** SPEC §11 — WalletConnect (Wallet-Seite). Gleiche Schlüssel wie DESIGN.md §13.3. */
+export const copyWc = {
+  nav: { apps: 'Apps', connect: 'App verbinden', connectedApps: 'Verbundene Apps' },
+
+  connect: {
+    title: 'Mit einer App verbinden',
+    body: 'Wählen Sie auf der Website der App WalletConnect und kopieren Sie den Link oder zeigen Sie den QR-Code an.',
+    fieldLabel: 'WalletConnect-Link',
+    placeholder: 'wc:…',
+    paste: 'Einfügen',
+    scan: 'QR scannen',
+    stopScan: 'Scannen beenden',
+    connect: 'Verbinden',
+    connecting: 'Verbinden…',
+    pairingLine: 'Warten auf die Antwort der App…',
+    invalid: 'Das ist kein WalletConnect-Link. Er beginnt mit wc:',
+    scanHint: 'Richten Sie die Kamera auf den QR-Code der App.',
+    cameraDeniedTitle: 'Kamerazugriff ist aus',
+    cameraDeniedBody:
+      'Fügen Sie stattdessen den Link ein oder erlauben Sie die Kamera für diese Website in den Browser-Einstellungen.',
+    expired: 'Dieser Link ist abgelaufen. Fordern Sie bei der App einen neuen an.',
+  },
+
+  identity: { verified: 'Domain geprüft', unverified: 'Nicht geprüft', flagged: 'Gemeldet' },
+
+  proposal: {
+    needsWallet: 'Schützen Sie zuerst Ihre Wallet. Verbinden Sie danach Apps.',
+    unreachable:
+      'WalletConnect ist nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es nochmals.',
+    reviewed: 'Von Swissquote geprüft',
+    title: 'Mit dieser App verbinden?',
+    permissions: {
+      title: 'Diese App kann:',
+      items: [
+        'Ihre Adresse sehen',
+        'Sie um die Freigabe von Transaktionen bitten',
+        'Sie bitten, Nachrichten zu signieren',
+      ],
+      never: 'Sie kann nie ohne Ihre Freigabe Geld bewegen.',
+    },
+    network: 'Netzwerk',
+    networkValue: 'Base Sepolia (Testnetz)',
+    account: 'Wallet',
+    unverifiedNote:
+      'Keyline konnte die Website dieser App nicht bestätigen. Verbinden Sie nur, wenn Sie sie selbst geöffnet haben.',
+    flaggedTitle: 'Die Identität dieser App konnte nicht geprüft werden',
+    flaggedBody:
+      'Ihre Website passt nicht zu ihren Angaben, oder sie steht auf einer Liste bekannter Betrugsseiten. Keyline verbindet sich nicht mit ihr.',
+    connect: 'Verbinden',
+    decline: 'Nicht jetzt',
+    close: 'Schliessen',
+    connectedTitle: 'Verbunden',
+    connectedBody: (app: string) => `${app} kann jetzt Ihre Adresse sehen und Ihnen Anfragen senden.`,
+    errorTitle: 'Nicht verbunden',
+    errorBody: 'Die App hat nicht geantwortet. Nichts wurde geteilt. Versuchen Sie es in der App erneut.',
+  },
+
+  apps: {
+    account: 'Wallet',
+    disconnecting: 'Trennen…',
+    outcome: {
+      approved: 'Freigegeben',
+      declined: 'Abgelehnt',
+      blocked: 'Blockiert',
+      expired: 'Abgelaufen',
+      failed: 'Fehlgeschlagen',
+    },
+    title: 'Verbundene Apps',
+    empty: 'Keine Apps verbunden',
+    emptyBody: 'Verbinden Sie sich auf der Website einer App mit WalletConnect.',
+    connectedSince: (date: string) => `Verbunden ${date}`,
+    count: (n: number) => (n === 1 ? '1 App' : `${n} Apps`),
+    disconnect: 'Trennen',
+    disconnectTitle: (app: string) => `${app} trennen?`,
+    disconnectBody:
+      'Die App kann Ihre Adresse nicht mehr sehen und Ihnen keine Anfragen mehr senden. Frühere Überweisungen bleiben in Ihrer Übersicht.',
+    disconnectYes: 'Trennen',
+    keep: 'Behalten',
+    disconnected: (app: string) => `${app} getrennt`,
+    activity: 'Aktivität dieser App',
+    activityEmpty: 'Noch nichts.',
+    permissionsTitle: 'Was sie kann',
+    network: 'Netzwerk',
+    lastRequest: 'Letzte Anfrage',
+  },
+
+  request: {
+    pendingSign: 'Warten auf Ihren Passkey…',
+    passkeyCancelled: 'Passkey abgebrochen. Nichts wurde signiert.',
+    notDeployed: 'Schützen Sie zuerst Ihre Wallet: Vorher kann sie nicht für Apps signieren.',
+    errorTitle: 'Nicht signiert',
+    errorBody: 'In Ihrer Wallet hat sich nichts geändert. Versuchen Sie es nochmals.',
+    invalid: {
+      title: 'Anfrage nicht lesbar',
+      body: (reason: string) =>
+        `Die App hat eine Anfrage gesendet, die Keyline nicht lesen kann (${reason}). Nichts wurde signiert. Die App wurde informiert.`,
+    },
+    networkName: (chainId: number) => (chainId === 84532 ? 'Base Sepolia' : `Netzwerk ${chainId}`),
+    decline: 'Nicht jetzt',
+    close: 'Schliessen',
+    retry: 'Erneut versuchen',
+    expiredTitle: 'Diese Anfrage ist abgelaufen',
+    expiredBody:
+      'Die App wartet nicht mehr. Nichts wurde signiert oder gesendet. Bitten Sie die App, es nochmals zu versuchen.',
+    declinedToast: 'Abgelehnt. Die App wurde informiert.',
+
+    tx: {
+      contract: 'Vertrag',
+      spendingLimit: 'Ausgabelimit',
+      spender: 'Berechtigter',
+      youSend: 'Sie senden',
+      waitingBlock: 'Gesendet. Warten auf den Block, bevor die App informiert wird…',
+      answered: 'Die App hat die Transaktion.',
+      reverted: 'Die Transaktion ist im Netzwerk fehlgeschlagen. Die App wurde informiert.',
+      title: 'Transaktion freigeben',
+      approve: 'Mit Face ID freigeben',
+      pendingLine: (step: string) => step,
+      steps: {
+        signed: 'Signiert',
+        sent: 'Gesendet',
+        waiting: 'Warten auf den Block',
+        included: (block: string) => `In Block ${block}`,
+      },
+      successTitle: 'Gesendet',
+      successBody: 'Die App hat das Ergebnis.',
+      announce: 'Gesendet',
+      errorTitle: 'Nicht gesendet',
+      errorBody: 'Nichts hat Ihre Wallet verlassen. Die App wurde informiert.',
+      firstTime: 'Zum ersten Mal mit dieser App',
+    },
+    batch: {
+      title: 'Mehrere Aktionen freigeben',
+      lead: (n: number) => `${n} Aktionen, gemeinsam freigegeben. Entweder alle oder keine.`,
+      item: (i: number) => `Aktion ${i}`,
+      approve: 'Alle mit Face ID freigeben',
+    },
+    signIn: {
+      title: 'Anmelden',
+      approve: 'Mit Face ID anmelden',
+      siwe: {
+        title: (domain: string) => `Bei ${domain} anmelden`,
+        as: 'als',
+        validUntil: (time: string) => `Gültig bis ${time}`,
+        noMoney: 'Dabei wird kein Geld bewegt.',
+        mismatch: (domain: string, appHost: string) =>
+          `Diese Anmeldung ist für ${domain}, nicht für die App, die fragt (${appHost}). Nicht signieren.`,
+        fields: {
+          statement: 'Erklärung',
+          domain: 'Domain',
+          address: 'Adresse',
+          network: 'Netzwerk',
+          issued: 'Ausgestellt',
+          expires: 'Läuft ab',
+          nonce: 'Nonce',
+          uri: 'URI',
+        },
+      },
+      successTitle: 'Angemeldet',
+      successBody: 'Die App hat Ihre Signatur. Es wurde kein Geld bewegt.',
+      announce: 'Angemeldet',
+    },
+    message: {
+      title: 'Nachricht signieren',
+      approve: 'Mit Face ID signieren',
+      block: {
+        title: 'Nachricht',
+        technical: 'Technische Details',
+        hexLabel: 'Rohnachricht (hex)',
+        unreadable:
+          'Diese Nachricht ist kein lesbarer Text. Signieren Sie nur, wenn Sie wissen, wofür sie ist.',
+      },
+      noMoney: 'Eine Nachricht zu signieren bewegt kein Geld.',
+      successTitle: 'Signiert',
+      successBody: 'Die App hat Ihre Signatur.',
+      announce: 'Signiert',
+    },
+    typed: {
+      title: 'Strukturierte Daten signieren',
+      approve: 'Mit Face ID signieren',
+      domain: (name: string, network: string, contract: string) => `${name} · ${network} · ${contract}`,
+      rows: {
+        unlimited: 'Unbegrenzt',
+        unlimitedNote: 'Kein Limit – der Empfänger kann alles nehmen, jetzt und später.',
+        never: 'Nie',
+        neverNote: 'Diese Berechtigung läuft nie ab.',
+      },
+      permitTitle: 'Eine andere Adresse Ihre Token ausgeben lassen',
+      permitBody: (spender: string) => `${spender} kann diese Token bewegen, ohne Sie nochmals zu fragen.`,
+      approveDanger: 'Trotzdem signieren',
+      successTitle: 'Signiert',
+      successBody: 'Die App hat Ihre Signatur.',
+      announce: 'Signiert',
+    },
+    eoaOnly: {
+      title: 'Diese Signatur ist nicht möglich',
+      body: 'Dieser Token akzeptiert nur Signaturen eines einzelnen privaten Schlüssels. Ihr Keyline ist ein Smart Account, geschützt durch 2 von 3 Wiederherstellungsmitteln – er kann diese Art Signatur nicht erzeugen.',
+      alternative: 'Stattdessen per Transaktion freigeben',
+      alternativeBody:
+        'Sie prüfen stattdessen eine Freigabe-Transaktion. Swissquote bezahlt die Netzwerkgebühr.',
+      decline: 'Nicht jetzt',
+    },
+    chainSwitch: {
+      title: 'Netzwerk nicht verfügbar',
+      body: (network: string) =>
+        `Die App wollte zu ${network} wechseln. Dieses Keyline funktioniert nur auf Base Sepolia. Die App wurde informiert; Sie können sie weiter auf Base Sepolia nutzen.`,
+    },
+    unsupported: {
+      title: 'Anfrage nicht unterstützt',
+      body: (method: string) =>
+        `Die App wollte «${method}», was Keyline nie tut: Es könnte etwas signieren, das Sie nicht lesen können. Nichts wurde signiert. Die App wurde informiert.`,
+    },
+    blocked: {
+      title: 'Durch Ihre Limiten blockiert',
+      body: (reason: string) => `${reason} Nichts wurde signiert oder gesendet. Die App wurde informiert.`,
+    },
+  },
+
+  inbox: {
+    title: 'Wartet auf Sie',
+    badge: (n: number) => (n === 1 ? '1 Anfrage wartet' : `${n} Anfragen warten`),
+    alertTitle: (app: string) => `${app} wartet auf Sie`,
+    alertBody: (what: string) => `${what}. Zum Prüfen öffnen.`,
+    open: 'Prüfen',
+    expired: 'Abgelaufen',
+    expiredBody: 'Die App wartet nicht mehr. Nichts wurde signiert oder gesendet.',
+    kinds: {
+      tx: 'Transaktion zur Freigabe',
+      batch: 'Aktionen zur Freigabe',
+      signIn: 'Anmeldeanfrage',
+      message: 'Nachricht zum Signieren',
+      typed: 'Daten zum Signieren',
+    },
+  },
+
+  security: { row: 'Verbundene Apps', rowMeta: (n: number) => (n === 1 ? '1 App' : `${n} Apps`) },
+} as const;
