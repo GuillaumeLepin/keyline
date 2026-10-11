@@ -15,7 +15,8 @@
     "demo:reset": "tsx demo-reset.ts",
     "demo:predeploy": "tsx demo-predeploy.ts",
     "demo:stage-recovery": "tsx demo-stage-recovery.ts",
-    "anvil-fork": "tsx anvil-fork.ts"
+    "anvil-fork": "tsx anvil-fork.ts",
+    "spike:erc1271": "tsx spike-erc1271.ts"
   },
   "dependencies": {
     "viem": "^2.57.3",

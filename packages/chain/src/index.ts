@@ -22,6 +22,7 @@ export {
   type VerifyAttestationResult,
 } from './attestation.js';
 export * from './constants.js';
+export * from './dapp-calls.js';
 export * as recovery from './recovery.js';
 export {
   EXECUTE_RECOVERY_TYPES,
@@ -40,6 +41,25 @@ export {
   sortGuardianSignatures,
 } from './recovery.js';
 export * from './relayer.js';
+export {
+  type CodeReader,
+  contractSignatureFromPasskey,
+  detectSignatureScheme,
+  ERC1271_ABI,
+  ERC1271_MAGIC_VALUE,
+  ERC1271_PERMIT_TOKENS,
+  hasSelector,
+  PERMIT_BYTES_SELECTOR,
+  PERMIT_VRS_SELECTOR,
+  PERMIT2_ADDRESS,
+  probeSignatureScheme,
+  type SafeMessageInput,
+  type SignatureScheme,
+  type SignatureSchemeKind,
+  safeMessageHashForMessage,
+  safeMessageHashForTypedData,
+  USDC_BASE_SEPOLIA,
+} from './safe-signatures.js';
 export * as simulation from './simulate.js';
 export {
   type CallLike,

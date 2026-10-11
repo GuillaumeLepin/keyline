@@ -285,3 +285,54 @@ Event → kind mapping (3 `eth_getLogs` per 5 000-block chunk, up to 4 chunks in
 `address=[module, USDC], topic1=wallet` (`RecoveryExecuted/Finalized/Canceled` → `recovery-*`, `GuardianAdded` → `protect`, USDC `Transfer` from wallet → `transfer`) ·
 `address=[USDC, EntryPoint], topic2=wallet` (USDC `Transfer` to wallet → `transfer`, `AccountDeployed` → `protect`, `UserOperationEvent` → `other` unless another log says more). Priority per tx: cancel > finalize > execute > protect > signer-deploy > transfer > other.
 State is one Multicall3 call (`getOwners`, `getGuardians`, `threshold`, `getRecoveryRequest`, USDC `balanceOf`) + `eth_getCode`, in parallel with the log scan; per-wallet scan cache in memory (re-scans the last 20 blocks each poll).
+
+## 20. WalletConnect day one — ERC-1271 signing, EOA-only schemes, dApp transaction results (account-chain, 11 Oct 2026)
+
+Code: `packages/chain/src/safe-signatures.ts`, `packages/chain/src/dapp-calls.ts` (both exported from `@keyline/chain`; `attestationSignatureFromPasskey` now delegates to `contractSignatureFromPasskey`, same bytes). Tests `safe-signatures.test.ts` (13) + `dapp-calls.test.ts` (4, two live) — chain suite 73/73; typecheck + `biome check packages/chain scripts` clean. Live proof: `cd scripts && pnpm exec tsx spike-erc1271.ts --keyfile ../data/test-keyfile.json --public [--skip-send]` (no package.json script added — not my file), runs 02:40–02:42 CEST, Safe **`0x2eac8081f2c00f526369AabB7492abE2ec280dea`** (owner proxy `0xed28…bE2b`, §10). Nothing installed (viem 2.57.3 incl. `viem/siwe`, abstractionkit 0.4.2; `permissionless` is not installed and not needed).
+
+### 20.1 personal_sign / eth_signTypedData_v4 through the Safe — **PASS**
+
+| Claim | Verified value |
+|---|---|
+| What the passkey signs | `safeMessageHashForMessage({ safe, chainId, message })` = `safeMessageHash(safe, chainId, hashMessage(message))`; `safeMessageHashForTypedData({ safe, chainId, typedData })` = `safeMessageHash(safe, chainId, hashTypedData(typedData))`. Same `SafeMessage(bytes)` wrapper as the attestation (§10). WalletConnect `personal_sign` params are `[hexMessage, address]` → pass `message: { raw: hexMessage }`; `hashMessage("Hello Keyline") === hashMessage({ raw: toHex("Hello Keyline") })` ✓. |
+| What the dApp receives | `contractSignatureFromPasskey(assertion, owner)` = abstractionkit `webauthnSignatureFromAssertion` → `createWebAuthnSignature` → `buildSignaturesFromSingerSignaturePairs(…, { isInit: false, …WEBAUTHN_OVERRIDES })`: the bare Safe v=0 contract signature (`r = proxy, s = 0x41, v = 0, len ‖ abi.encode(authenticatorData, clientDataFields, [r, s])`), **417 bytes**, no 4337 prefix, no ERC-6492 wrapper. |
+| (a) `"Hello Keyline"` | challenge `0x2b00d14c…9b314d` (pinned in the unit test); viem `verifyMessage({ address: safe })` **true**; `Safe.isValidSignature(hashMessage(m), sig)` → **`0x1626ba7e`**; stranger passkey → false. |
+| (b) SIWE (EIP-4361), domain `localhost:3100`, uri `http://localhost:3100`, chainId 84532, `generateSiweNonce()`, issuedAt now, expiration +10 min | `parseSiweMessage` round-trips all fields; `verifyMessage` **true**; `verifySiweMessage(client, { message, signature, domain: 'localhost:3100', nonce, address: safe })` **true**; same with `domain: 'evil.example'` → false; magic **`0x1626ba7e`**. DemoSwap can verify sign-in with stock viem — no Keyline-specific code. |
+| (c) `eth_signTypedData_v4` Mail (EIP-712 example, nested `Person`) | `verifyTypedData({ address: safe })` **true**; magic **`0x1626ba7e`**. |
+| (d) EIP-2612 `Permit` for USDC | domain `{ name: 'USDC', version: '2', chainId: 84532, verifyingContract: 0x036C…CF7e }` — `domainSeparator()` equals the token's `DOMAIN_SEPARATOR()` ✓; `nonces(safe)` = 0; `verifyTypedData` **true**; magic **`0x1626ba7e`**. |
+| (e) Permit2 `PermitSingle` | domain `{ name: 'Permit2', chainId, verifyingContract: 0x0000…78BA3 }` matches on-chain `DOMAIN_SEPARATOR()`; `verifyTypedData` **true**; magic **`0x1626ba7e`**. |
+
+### 20.2 EOA-only detection — facts
+
+| Contract | Verified | Verdict |
+|---|---|---|
+| USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (Base Sepolia) | Proxy, implementation `0xd74cc5d436923b8ba2c179b4bca2841d8a52c5b5` (ZeppelinOS slot `0x7050…f8c3`), `version()` = "2" — Circle FiatTokenV2_2. Implementation dispatcher contains `permit(address,address,uint256,uint256,bytes)` **`0x9fd5a6cf`**, the classic `permit(…,uint8,bytes32,bytes32)` `0xd505accf` and `transferWithAuthorization(…,bytes)` `0xcf092995`. `simulateContract(permit(safe, 0x…dEaD, 1 USDC, deadline, safeSig))` → **ok**; same with a stranger passkey's signature → revert `EIP2612: invalid signature`; the `(v, r, s)` overload fed with the first 65 bytes of the Safe signature → revert `EIP2612: invalid signature`. | **erc1271-ok**, but only via the `bytes` overload. A dApp/router that splits the signature into (v, r, s) cannot use it — that is the dApp's limitation, not ours. |
+| Permit2 `0x000000000022D473030F116dDEE9F6B43aC78BA3` | 9 152 bytes of code on Base Sepolia. `simulateContract(permit(safe, PermitSingle{ USDC, 1 USDC, expiration, nonce 0 }, safeSig))` → **ok**; stranger signature → revert. (Permit2's `SignatureVerification.verify` branches to `IERC1271.isValidSignature` when `claimedSigner.code.length > 0`; the simulation confirms it.) | **erc1271-ok** (AllowanceTransfer; SignatureTransfer uses the same `SignatureVerification`). |
+| DAI-style permit (`holder`, `allowed`) | DAI's `permit` requires `holder == ecrecover(…)` | **eoa-only** |
+| Tokens with only `permit(v, r, s)` (e.g. OpenZeppelin `ERC20Permit`, `ECDSA.recover`) | 65 bytes cannot carry the 417-byte Safe signature | **eoa-only** — detected on-chain by `probeSignatureScheme` (no `0x9fd5a6cf` but `0xd505accf` in the token's or its EIP-1967/ZeppelinOS implementation's bytecode) |
+
+`detectSignatureScheme(typedData) → { kind: 'erc1271-ok' | 'eoa-only' | 'unknown', family, reason }` (pure, verified table: Permit2 canonical address; USDC on 84532 for `Permit` and EIP-3009 `*WithAuthorization`; DAI shape → eoa-only; other EIP-2612 permits → `unknown`). `probeSignatureScheme(client, typedData)` refines `unknown` EIP-2612 permits from bytecode. Generic typed data (Mail, orders) → `unknown` = "valid ERC-1271 signature; the consumer must check isValidSignature" — sign it. **SPEC §11.2 correction:** Permit2 `SignatureTransfer`/`AllowanceTransfer` are NOT EOA-only (they accept ERC-1271), and USDC's EIP-2612 permit is not EOA-only either; the "Approve with a transaction instead" path is for DAI-style and `(v, r, s)`-only tokens.
+
+### 20.3 eth_sendTransaction / wallet_sendCalls — **PASS**
+
+| Run (public Candide endpoint, sponsor Trilema) | userOpHash | bundle tx | build+sponsor+sign | send → userOp receipt (1 s poll) | block ts − send | viem `waitForTransactionReceipt` after |
+|---|---|---|---|---|---|---|
+| `eth_sendTransaction` USDC `approve(0xdEaD, 0)` | `0xe1d3a018…28b04` | [`0x69ab857c…fc018`](https://sepolia.basescan.org/tx/0x69ab857cd399afbfa2f85b747bf2632d848e807506014f43196dec6943cfc018) (block 47 955 511) | 1.3 s | **3.9 s** | 3.2 s | 0.75 s, `status: success` |
+| `wallet_sendCalls` 2 × `approve(…, 0)` (`buildBatchUserOp`, MultiSend) | `0x11d25e3d…22959` | [`0x904b752f…a04b5`](https://sepolia.basescan.org/tx/0x904b752f1eaca15f8ca95ed8ba40af612694722514794b9ef9ee028ad02a04b5) | 1.3 s | **3.9 s** | 2.6 s | 0.31 s, `status: success` |
+
+- The hash a dApp gets (`eth_sendTransaction` result) is the **bundle tx hash**; it exists only once the userOp is included (~4 s), so the wallet must wait for the userOp receipt before answering the request. viem `waitForTransactionReceipt({ hash })` (= wagmi `useWaitForTransactionReceipt`) resolves on it immediately.
+- `tx.from` = bundler EOA `0x3cfdc212769c890907bce93d3d8c2c53de6a7a89`, `tx.to` = EntryPoint v0.7 `0x0000000071727De22E5E9d8BAf0edAc6f37da032` — not the Safe and not the dApp's contract. Trackers that compare `receipt.from/to` with what they asked will not match; trackers that read logs will.
+- The bundle receipt's logs contain the inner call's events: USDC `Approval(owner = Safe, spender, 0)` (6 logs for the single op, 7 for the batch with both `Approval`s). `receipt.status` = `success` even if a userOp reverted — the real outcome is `UserOperationEvent.success`.
+- **Candide quirk:** `eth_getUserOperationReceipt.logs` holds ONLY the `UserOperationEvent` (the inner `Approval`s are only in `receipt.logs`). `getCallsStatus` therefore slices `receipt.logs` between the previous `UserOperationEvent`/`BeforeExecution` and this op's `UserOperationEvent` (`userOpLogsFromBundle`).
+- `getCallsStatus(bundlerUrl, userOpHash, chainId)` returns **EIP-5792 v2.0.0**: `{ version: '2.0.0', id, chainId: '0x14a34', atomic: true, status: 100 | 200 | 500, receipts?: [{ logs, status: '0x1'|'0x0', blockHash, blockNumber, gasUsed, transactionHash }] }`; measured 100 right after send, 200 after inclusion (batch: 2 `Approval` logs, live test). viem 2.57 `getCallsStatus` maps 1xx/2xx/≥3xx to pending/success/failure and still accepts legacy `'PENDING'`/`'CONFIRMED'`; **SPEC §11 correction:** answer the numeric v2 shape, not `'PENDING'|'CONFIRMED'`. `wallet_sendCalls` → `{ id: userOpHash }`.
+
+## 21. Third-party dApps on Base Sepolia over WalletConnect (research, 11 Oct 2026; orchestrator-recorded)
+
+Checked from primary sources (GitHub configs); not yet run against Keyline (needs the wallet-side Reown project id).
+
+| Rank | dApp | Base Sepolia | WalletConnect | Demo action | Evidence |
+|---|---|---|---|---|---|
+| 1 | Reown AppKit Lab, https://lab.reown.com (`/appkit?name=wagmi`, `/appkit?name=wagmi-all` for SIWE, `/appkit?name=siwx-wagmi`) | yes — `baseSepolia` in the Lab network list | yes — AppKit modal (QR / copy link), inferred from AppKit, not opened | sign message (verified with viem `verifyMessage` → ERC-1271 ok), sign typed data, send tx, `wallet_sendCalls` | github.com/reown-com/appkit `apps/laboratory/src/utils/ConstantsUtil.ts`, `SignatureUtil.ts` |
+| 2 | Aave V3 Base Sepolia market, https://app.aave.com (testnet mode) | yes — `proto_base_sepolia_v3`, chainId 84532, faucet `0xD9145b5F45Ad4519c7ACcD6E0A4A82e83bB8A6Dc` | yes — ConnectKit with a WalletConnect project id | faucet mint → approve → supply (permit disabled on this market) | github.com/aave/interface `marketsConfig.tsx`, `wagmiConfig.ts` |
+| — | Uniswap web, WalletConnect react-dapp-v2 | no (Sepolia / Unichain Sepolia only; 84532 missing) | — | — | rejected |
+Full notes: research log kept by the orchestrator (scratchpad `dapps-base-sepolia.md`).

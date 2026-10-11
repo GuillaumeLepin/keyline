@@ -13,17 +13,13 @@
  * The signature bytes are the bare Safe signature (v = 0 contract signature pointing at the proxy), built only with
  * abstractionkit helpers; the Safe4337Module `validAfter/validUntil` prefix used for userOps is NOT part of it.
  */
-import {
-  SAFE_MESSAGE_MODULE_TYPE,
-  SafeAccountV0_3_0,
-  type SignerSignaturePair,
-  webauthnSignatureFromAssertion,
-} from 'abstractionkit';
 import type { Address, Chain, Client, Hex, Transport, TypedDataDefinition } from 'viem';
 import { getAddress, hashTypedData, isHex, size } from 'viem';
 import { verifyTypedData } from 'viem/actions';
 import type { PasskeyPublicKey, WebAuthnAssertion } from './account.js';
-import { WEBAUTHN_OVERRIDES } from './constants.js';
+import { contractSignatureFromPasskey, safeMessageHash } from './safe-signatures.js';
+
+export { safeMessageHash };
 
 export const ATTESTATION_DOMAIN_NAME = 'Keyline Ownership Attestation';
 export const ATTESTATION_DOMAIN_VERSION = '1';
@@ -83,16 +79,6 @@ function isTypedData(input: AttestationFields | AttestationTypedData): input is 
   return 'primaryType' in input;
 }
 
-/** The Safe's `SafeMessage(bytes message)` EIP-712 hash over an arbitrary 32-byte `dataHash` (Safe 1.4.1 layout). */
-export function safeMessageHash(safe: Address, chainId: bigint | number, dataHash: Hex): Hex {
-  return hashTypedData({
-    domain: { chainId: Number(chainId), verifyingContract: getAddress(safe) },
-    types: SAFE_MESSAGE_MODULE_TYPE,
-    primaryType: 'SafeMessage',
-    message: { message: dataHash },
-  });
-}
-
 /** The exact 32 bytes the passkey signs (WebAuthn `challenge`) so that the Safe's ERC-1271 check passes. */
 export function attestationChallenge(input: AttestationFields | AttestationTypedData): Hex {
   const typedData = isTypedData(input) ? input : attestationTypedData(input);
@@ -106,15 +92,10 @@ export function attestationChallenge(input: AttestationFields | AttestationTyped
  * Safe-formatted contract signature for the passkey owner (its SafeWebAuthnSignerProxy, v = 0), built with
  * abstractionkit only: `webauthnSignatureFromAssertion` → `createWebAuthnSignature` →
  * `buildSignaturesFromSingerSignaturePairs` (the bare Safe signature, without the 4337 validity-timestamp prefix).
+ * Same bytes as `contractSignatureFromPasskey` (safe-signatures.ts), which dApp signing reuses.
  */
 export function attestationSignatureFromPasskey(assertion: WebAuthnAssertion, owner: PasskeyPublicKey): Hex {
-  const signatureData = webauthnSignatureFromAssertion(assertion);
-  const webauthnSignature = SafeAccountV0_3_0.createWebAuthnSignature(signatureData);
-  const pairs: SignerSignaturePair[] = [{ signer: { x: owner.x, y: owner.y }, signature: webauthnSignature }];
-  return SafeAccountV0_3_0.buildSignaturesFromSingerSignaturePairs(pairs, {
-    isInit: false,
-    ...WEBAUTHN_OVERRIDES,
-  }) as Hex;
+  return contractSignatureFromPasskey(assertion, owner);
 }
 
 export interface VerifyAttestationInput {

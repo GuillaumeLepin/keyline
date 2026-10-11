@@ -195,11 +195,11 @@ Keyline implements the **wallet side** of WalletConnect v2 with Reown WalletKit 
 ### 11.2 Requests
 | Method | Flow | Result to the dApp |
 |---|---|---|
-| `eth_sendTransaction` | calls → `POST /policy/evaluate { kind: 'dapp', dappId: sessionTopic, origin, calls }` → review sheet → userOp → sponsor → passkey → send → inclusion | the **bundle transaction hash** from the userOp receipt (VERIFIED §20 records dApp-tracker behaviour and wait time) |
-| `wallet_sendCalls` | all calls in one batched userOp, same flow | `{ id: userOpHash }`; `wallet_getCallsStatus(id)` → status + receipts |
+| `eth_sendTransaction` | calls → `POST /policy/evaluate { kind: 'dapp', dappId: sessionTopic, origin, calls }` → review sheet → userOp → sponsor → passkey → send → inclusion | the **bundle transaction hash** from the userOp receipt — measured ≈ 4 s from send to inclusion; viem `waitForTransactionReceipt` resolves on it and its logs carry the inner events; success is read from `UserOperationEvent.success`, not `receipt.status` (VERIFIED §20) |
+| `wallet_sendCalls` | all calls in one batched userOp, same flow | `{ id: userOpHash }`; `wallet_getCallsStatus(id)` → EIP-5792 v2 shape `{ version: '2.0.0', id, chainId: '0x14a34', atomic: true, status: 100\|200\|500, receipts? }` (VERIFIED §20) |
 | `personal_sign` | EIP-4361 SIWE parsed and shown as "Sign in to <domain> as 0x… · valid until …; this does not move money"; any other message shown as text, with the hex under Technical details | ERC-1271 contract signature of the Safe (passkey signs the Safe message hash) |
 | `eth_signTypedData(_v4)` | decoded into label/value rows; Permit, Permit2 and unlimited order shapes flagged `danger` | ERC-1271 contract signature |
-| EOA-only schemes (EIP-2612 `permit` on a token whose `permit` uses `ecrecover`; Permit2 `SignatureTransfer`/`AllowanceTransfer`) | detected; the sheet explains that a smart account can't produce that signature and offers "Approve with a transaction instead" | `USER_REJECTED` with a sentence when the user picks the alternative |
+| EOA-only schemes — corrected by VERIFIED §20: **USDC (FiatTokenV2_2 `permit(…, bytes)`) and Permit2 accept the Safe's ERC-1271 signature**; EOA-only means tokens with only `permit(v,r,s)` or DAI-style permits | classified with `detectSignatureScheme` + `probeSignatureScheme`; Permit/Permit2 are signed but flagged `danger`; only EOA-only shapes get the sheet explaining a smart account can't produce that signature, with "Approve with a transaction instead" | `USER_REJECTED` with a sentence when the user picks the alternative |
 Declines answer `getSdkError('USER_REJECTED')`; policy blocks answer error 4001 with the policy reason. Requests past their WalletConnect expiry are shown as **expired**, never dropped silently.
 
 ### 11.3 Identity and policy (bank)
