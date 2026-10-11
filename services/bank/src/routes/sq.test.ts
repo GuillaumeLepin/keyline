@@ -746,6 +746,60 @@ describe('qa-demo fix: a second phone setup while Lea already has wallets', () =
     });
     expect(refused.statusCode).toBe(409);
   });
+
+  it("moves target this session's setup wallet when attested, else the newest deployed + attested wallet", async () => {
+    const byCred = (cred: string) =>
+      (
+        app.db.prepare('SELECT address FROM wallets WHERE owner_credential_id = ?').get(cred) as {
+          address: Address;
+        }
+      ).address;
+    const [oldProtected, setupWallet, newest] = [
+      byCred('cred-4097'),
+      byCred('cred-12289'),
+      byCred('cred-16385'),
+    ];
+    const deploy = (a: Address) =>
+      app.db.prepare("UPDATE wallets SET status = 'deployed' WHERE address = ?").run(a);
+    const attest = (a: Address) =>
+      app.db
+        .prepare(
+          "INSERT INTO attestations (wallet_address, client_id, nonce, chain_id, signature, verified_at, method) VALUES (?, 'SQ-48213-LK', ?, 84532, '0x', ?, 'erc1271')",
+        )
+        .run(a, `n-${a}`, new Date().toISOString());
+    const move = (headers: Record<string, string>) =>
+      app.inject({ method: 'POST', url: '/sq/moves', headers, payload: { asset: 'USDC', amount: '1' } });
+
+    // Nothing attested yet → Travel Rule refusal, no transfer.
+    const sent = state.transfers.length;
+    const refused = await move(web);
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().message).toBe("This wallet hasn't proven ownership yet");
+    expect(state.transfers).toHaveLength(sent);
+
+    // Setup wallet still pending → fall back to the newest deployed + attested one (the old protected wallet).
+    attest(oldProtected);
+    const fallback = await move(web);
+    expect(fallback.statusCode, fallback.body).toBe(201);
+    expect(fallback.json().walletAddress).toBe(oldProtected);
+    expect(state.transfers.at(-1)?.to).toBe(oldProtected);
+
+    // A newer wallet becomes deployed + attested → it wins the fallback (pending / unattested ones are skipped).
+    deploy(newest);
+    attest(newest);
+    expect((await move(web)).json().walletAddress).toBe(newest);
+
+    // This session's setup wallet, once deployed + attested, wins over the newer one.
+    deploy(setupWallet);
+    attest(setupWallet);
+    const own = await move(web);
+    expect(own.json().walletAddress).toBe(setupWallet);
+    expect(state.transfers.at(-1)?.to).toBe(setupWallet);
+
+    // A web session without a setup of its own uses the newest deployed + attested wallet.
+    const other = await app.inject({ method: 'POST', url: '/sq/login', payload: { username: 'lea' } });
+    expect((await move({ cookie: cookieOf(other) })).json().walletAddress).toBe(newest);
+  });
 });
 
 describe('handoff claim failure limiter', () => {

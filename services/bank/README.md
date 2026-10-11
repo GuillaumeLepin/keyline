@@ -91,8 +91,9 @@ Phone
   GET  /userops/:hash (included)                  → SIMULATED ledger credit once, event `sq.credit`
 ```
 
-Moves refuse unless the client's newest wallet is deployed **and** attested (403 "This wallet hasn't proven ownership
-yet"); then the SIMULATED ledger is checked (403), the funder's real ETH / token balance is checked (502 with the real
+Moves go to this web session's setup wallet if it is deployed **and** attested, else to the client's newest
+wallet that is deployed and attested (pending / unattested ones skipped; `Move.walletAddress` is the target); 403
+"This wallet hasn't proven ownership yet" only when none qualifies; then the SIMULATED ledger is checked (403), the funder's real ETH / token balance is checked (502 with the real
 numbers), the ledger is debited, the funder sends (ERC-20 `transfer` for USDC / EURC `EURC_ADDRESS`, native for ETH) and a
 failed send is refunded (502, move recorded as `failed`). BTC, CHF cash and the ETF are `movable: false`; only BTC carries
 `notMovableReason: 'bitcoin-roadmap'`. Events: `sq.login`, `sq.logout`, `handoff.opened`, `handoff.claimed`,

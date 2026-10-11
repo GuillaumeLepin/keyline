@@ -21,6 +21,7 @@ import {
   SqLoginBodySchema,
   SqPositionsResponseSchema,
   SqSessionSchema,
+  type Wallet,
 } from '@keyline/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { type Address, formatUnits, getAddress, type Hex } from 'viem';
@@ -223,8 +224,37 @@ export const registerSqRoutes = (
       at: r.created_at,
     });
 
-  /** The client's newest Keyline wallet (the one onboarding is building), or null. */
-  const newestWallet = (clientId: string) => repo.walletsForClient(clientId)[0] ?? null;
+  const qualifies = (w: Wallet) => w.status === 'deployed' && w.attested;
+  /** Registry may lag the chain (Safe deployed elsewhere): refresh a pending wallet before judging it. */
+  const synced = (w: Wallet) =>
+    w.status === 'pending' ? syncWalletStatus({ db, repo, events, chain }, w) : w;
+
+  /**
+   * Where "Move to Keyline" sends (coordinator decision, Phase D): this web session's setup wallet if it is deployed
+   * AND attested; otherwise the client's newest wallet that is deployed AND attested (pending / unattested skipped).
+   * Refusing when none qualifies IS the Travel Rule check.
+   */
+  const moveTarget = async (claims: SqWebClaims): Promise<Wallet> => {
+    const setup = latestClaimedForSession.get(claims.sid) as HandoffRow | undefined;
+    const setupWallet = setup?.wallet_address ? repo.walletByAddress(setup.wallet_address) : null;
+    if (setupWallet && setupWallet.clientId === claims.cid) {
+      const w = await synced(setupWallet);
+      if (qualifies(w)) return w;
+    }
+    const all = repo.walletsForClient(claims.cid); // newest first
+    if (all.length === 0) throw conflict('Create your Keyline wallet on your phone first');
+    for (const candidate of all) {
+      // Only an attested wallet can qualify; skip the chain read for the others.
+      if (!candidate.attested) continue;
+      const w = await synced(candidate);
+      if (qualifies(w)) return w;
+    }
+    throw policyRefused("This wallet hasn't proven ownership yet", {
+      travelRule: true,
+      setupWallet: setupWallet?.address,
+      wallets: all.map((w) => ({ address: w.address, status: w.status, attested: w.attested })),
+    });
+  };
 
   // ---- SIMULATED SSO ----
   app.post('/sq/login', async (req, reply) => {
@@ -399,15 +429,7 @@ export const registerSqRoutes = (
     }
     if (amount <= 0n) throw validationError('amount must be greater than zero');
 
-    const registered = newestWallet(clientId);
-    if (!registered) throw conflict('Create your Keyline wallet on your phone first');
-    const wallet = await syncWalletStatus({ db, repo, events, chain }, registered);
-    if (wallet.status !== 'deployed' || !wallet.attested)
-      throw policyRefused("This wallet hasn't proven ownership yet", {
-        travelRule: true,
-        deployed: wallet.status === 'deployed',
-        attested: wallet.attested,
-      });
+    const wallet = await moveTarget(claims);
 
     ledger.seed(clientId);
     const available = ledger.quantity(clientId, body.asset);
