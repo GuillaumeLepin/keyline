@@ -19,6 +19,11 @@ import type {
 import { type Address, isAddressEqual } from 'viem';
 import type { DappIdentity } from './dapp-identity';
 import { FX, formatChf } from './rates';
+import {
+  REASON_NO_SIGNATURE_FEE,
+  REASON_SIWE_OTHER_SITE,
+  REASON_UNLIMITED_PERMISSION,
+} from './signature-analysis';
 
 export const TIER1_DAILY_LIMIT_CHF = 1_000;
 export const TIER3_THRESHOLD_CHF = 10_000;
@@ -70,6 +75,8 @@ export type PolicyContext = {
   fx?: Fx;
   /** SPEC §11.3: identity of the WalletConnect dApp (kind 'dapp' with a topic). Replaces the contract allowlist check. */
   session?: { name: string; identity: DappIdentity };
+  /** kind 'dapp-signature' (DECISIONS #30): what the analysis of the payload found (policy/signature-analysis.ts). */
+  signature?: { summary: string; siweOtherSite: boolean; unlimited: boolean };
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -108,6 +115,27 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
       );
     } else {
       reasons.push(REASON_OWN_ACCOUNT, REASON_OWN_ACCOUNT_TRAVEL_RULE);
+    }
+  } else if (input.kind === 'dapp-signature') {
+    // A signature moves nothing by itself, but it can sign someone in or grant spending: screen, verify, gate.
+    const sig = ctx.signature;
+    if (ctx.screening.hit) {
+      verdict = 'block';
+      reasons.push(screeningReason(ctx.screening));
+      reasons.push("Swissquote recommends you don't sign it");
+    } else if (ctx.session?.identity.level === 'blocked') {
+      verdict = 'block';
+      reasons.push(...ctx.session.identity.reasons);
+    } else if (sig?.siweOtherSite) {
+      verdict = 'block';
+      reasons.push(REASON_SIWE_OTHER_SITE);
+    } else if (sig?.unlimited) {
+      verdict = 'step-up';
+      tier = 2;
+      stepUp = {};
+      reasons.push(REASON_UNLIMITED_PERMISSION, REASON_UNLIMITED_APPROVAL, REASON_PROTOTYPE);
+    } else {
+      reasons.push(`${sig?.summary ?? 'Sign a message'} · this does not move money`);
     }
   } else if (input.kind === 'cancel-recovery') {
     // F4b: the owner stops a recovery they did not start. Never gated — the attacker's clock is running.
@@ -205,7 +233,9 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
       reasons.push(`Indicative rate 1 USDC = CHF ${(ctx.fx ?? FX).rate.toFixed(2)} (simulated)`);
   }
 
-  if (verdict !== 'block' && !(input.kind === 'to-own-account' && sponsored)) {
+  if (input.kind === 'dapp-signature') {
+    if (verdict !== 'block') reasons.push(REASON_NO_SIGNATURE_FEE);
+  } else if (verdict !== 'block' && !(input.kind === 'to-own-account' && sponsored)) {
     reasons.push(
       sponsored
         ? `Network fee paid by Swissquote · ${remainingToday - 1} of ${SPONSORED_DAILY_CAP} free transactions left today`
@@ -226,8 +256,11 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
     simulation: ctx.simulation,
     screening: ctx.screening,
     sponsorship: {
-      sponsored: verdict !== 'block' && sponsored,
-      remainingToday: verdict !== 'block' && sponsored ? remainingToday - 1 : remainingToday,
+      sponsored: input.kind !== 'dapp-signature' && verdict !== 'block' && sponsored,
+      remainingToday:
+        input.kind !== 'dapp-signature' && verdict !== 'block' && sponsored
+          ? remainingToday - 1
+          : remainingToday,
       dailyCap: SPONSORED_DAILY_CAP,
     },
     stepUp,
@@ -243,7 +276,10 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
     suggestedCap: ctx.suggestedCap,
     dappId: input.dappId,
     topic: input.topic,
-    dappName: input.kind === 'dapp' ? (ctx.session?.name ?? dapp?.name) : undefined,
+    dappName:
+      input.kind === 'dapp' || input.kind === 'dapp-signature'
+        ? (ctx.session?.name ?? dapp?.name)
+        : undefined,
     deviceLabel: input.deviceLabel,
     recipientLabel: input.kind === 'to-own-account' ? OWN_ACCOUNT_LABEL : contact?.label,
     recipientAddress: input.recipientAddress,

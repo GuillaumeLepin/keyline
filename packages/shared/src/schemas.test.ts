@@ -679,6 +679,10 @@ const dappFixtures: Record<string, [z.ZodTypeAny, unknown]> = {
   ],
   DappSessionsResponseSchema: [D.DappSessionsResponseSchema, { sessions: [dappSession] }],
   DappRequestOutcomeSchema: [D.DappRequestOutcomeSchema, 'expired'],
+  DappSignatureRequestSchema: [
+    D.DappSignatureRequestSchema,
+    { method: 'personal_sign', message: '0x48656c6c6f', siwe: { domain: 'localhost:3100', chainId: 84532 } },
+  ],
   DappRequestLogEntrySchema: [
     D.DappRequestLogEntrySchema,
     {

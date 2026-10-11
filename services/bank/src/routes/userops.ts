@@ -101,6 +101,10 @@ export const registerUserOpRoutes = (
     const decision = loadDecision(store, events, decisionId);
     if (!decision) throw policyRefused('No policy decision for this id — call POST /policy/evaluate first');
     if (decision.status === 'cancelled') throw policyRefused('This request was cancelled — nothing was sent');
+    if (decision.kind === 'dapp-signature')
+      throw policyRefused(
+        'This decision covers a signature, not a transaction — nothing can be sent with it',
+      );
     if (decision.verdict !== 'approve')
       throw policyRefused(`This action was not approved (${decision.verdict})`, {
         reasons: decision.reasons,

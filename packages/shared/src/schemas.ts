@@ -1,6 +1,7 @@
 // HTTP contract for every Keyline service and the client (SPEC §2 entities, SPEC §4 bodies).
 // Owned by bank-backend. Extend freely; never rename or remove a field without telling the orchestrator.
 import { z } from 'zod';
+import { DappSignatureRequestSchema } from './dapps';
 import { Address, Hex, IdentityVerdictSchema } from './guardian';
 
 // ---------------------------------------------------------------------------
@@ -157,8 +158,17 @@ export type Dapp = z.infer<typeof DappSchema>;
  * - `to-own-account`: one USDC `transfer` to the bank deposit address (GET /sq/deposit-address) — "Back to Swissquote".
  *   A `transfer` whose recipient is the deposit address is reclassified to this kind. Always Tier 1, sponsored,
  *   no screening (own account); credited to the SIMULATED Swissquote ledger on inclusion (event `sq.credit`).
+ * - `dapp-signature`: a WalletConnect dApp asks for a signature (personal_sign / SIWE / EIP-712) — `topic` + `signature`.
+ *   No calls, no simulation, no sponsorship; screening covers every address in the payload (DECISIONS #30).
  */
-export const PolicyKindSchema = z.enum(['protect', 'transfer', 'cancel-recovery', 'dapp', 'to-own-account']);
+export const PolicyKindSchema = z.enum([
+  'protect',
+  'transfer',
+  'cancel-recovery',
+  'dapp',
+  'to-own-account',
+  'dapp-signature',
+]);
 export type PolicyKind = z.infer<typeof PolicyKindSchema>;
 
 export const PolicyRequestSchema = z.object({
@@ -176,6 +186,8 @@ export const PolicyRequestSchema = z.object({
   topic: z.string().min(1).optional(),
   /** Origin the request came from (informational; the recorded session's Verify origin is what counts). */
   origin: z.string().optional(),
+  /** `kind: 'dapp-signature'` only: what the dApp asks the wallet to sign. */
+  signature: DappSignatureRequestSchema.optional(),
   deviceLabel: z.string().min(1),
   requestedAt: IsoDate.optional(),
 });

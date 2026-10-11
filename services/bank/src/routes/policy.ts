@@ -52,10 +52,11 @@ import { type Db, newId } from '../db';
 import type { ChainDeps } from '../deps';
 import { conflict, forbidden, notFound, policyRefused, validationError } from '../errors';
 import type { EventStore } from '../events';
-import type { DappIdentity } from '../policy/dapp-identity';
+import { type DappIdentity, hostOf } from '../policy/dapp-identity';
 import { loadDecision, type StoredDecision, stripStored } from '../policy/decisions';
 import { evaluate, satisfyStepUp } from '../policy/engine';
 import { usdcToChf } from '../policy/rates';
+import { analyseSignature } from '../policy/signature-analysis';
 import type { Repo } from '../repo';
 import type { ScreeningService } from '../screening';
 import { loadAllowlist } from '../seed';
@@ -107,6 +108,19 @@ export const registerPolicyRoutes = (
     simulated: true,
     note: 'Not screened: your own Swissquote account (bank deposit address)',
   });
+
+  /** The recorded WalletConnect session for this request: same client, same wallet, still active. */
+  const activeSessionFor =
+    (clientId: string, walletAddress: Address) =>
+    (topic: string): { name: string; identity: DappIdentity; topic: string } => {
+      const s = dappSessions.get(topic);
+      if (!s) throw notFound('dApp session');
+      if (s.clientId !== clientId) throw forbidden('This app session belongs to another client');
+      if (!isAddressEqual(getAddress(s.walletAddress), walletAddress))
+        throw policyRefused('This app is connected to another wallet');
+      if (s.status !== 'active') throw policyRefused('This app is not connected to your wallet any more');
+      return { name: s.name, identity: s.identity, topic };
+    };
 
   const ownedDecision = (req: Parameters<typeof clientOf>[0], id: string): StoredDecision => {
     const d = loadDecision(store, events, id);
@@ -204,11 +218,14 @@ export const registerPolicyRoutes = (
         throw conflict('Registered passkey does not derive this wallet address');
     }
 
+    const activeSession = activeSessionFor(client.clientId, getAddress(wallet.address));
     let calls: Call[];
     let callData: Hex;
     let chfValue = 0;
     let counterparties: Address[] = [walletAddress];
     let kind = body.kind;
+    let signatureCtx: { summary: string; siweOtherSite: boolean; unlimited: boolean } | undefined;
+    let signatureDigest: Hex | undefined;
     let session: { name: string; identity: DappIdentity; topic: string } | undefined;
 
     if (body.kind === 'protect') {
@@ -248,20 +265,40 @@ export const registerPolicyRoutes = (
       kind = toOwnAccount ? 'to-own-account' : 'transfer';
       calls = [{ to: usdc, value: '0', data: call.data }];
       callData = encodeCallData([callToMetaTransaction(call)]);
+    } else if (body.kind === 'dapp-signature') {
+      // DECISIONS #30: personal_sign / SIWE / typed data go through the same identity + screening rules. No calls.
+      if (wallet.status === 'pending') throw conflict('Protect your wallet before using apps');
+      if (!body.topic) throw validationError('topic is required for kind "dapp-signature"');
+      if (!body.signature) throw validationError('signature is required for kind "dapp-signature"');
+      session = activeSession(body.topic);
+      const analysis = analyseSignature(body.signature);
+      const sessionHost = hostOf(dappSessions.get(body.topic)?.url ?? '');
+      signatureCtx = {
+        summary: analysis.summary,
+        siweOtherSite: analysis.siwe
+          ? analysis.siwe.host === null || analysis.siwe.host !== sessionHost
+          : false,
+        unlimited: analysis.unlimited !== undefined,
+      };
+      signatureDigest = analysis.digest;
+      calls = [];
+      callData = '0x';
+      const others = analysis.addresses.filter((a) => !isAddressEqual(a, walletAddress));
+      counterparties = analysis.unlimited?.spender
+        ? [
+            analysis.unlimited.spender,
+            ...others.filter((a) => !isAddressEqual(a, analysis.unlimited?.spender as Address)),
+          ]
+        : others.length > 0
+          ? others
+          : [walletAddress];
     } else {
       // kind: 'dapp' — the dApp's calls as requested. With a WalletConnect `topic` (or dappId = a recorded topic)
       // the session's identity decides (SPEC §11.3); otherwise every target is checked against the allowlist.
       if (wallet.status === 'pending') throw conflict('Protect your wallet before using apps');
       const topic = body.topic ?? (body.dappId && dappSessions.get(body.dappId) ? body.dappId : undefined);
-      if (topic) {
-        const s = dappSessions.get(topic);
-        if (!s) throw notFound('dApp session');
-        if (s.clientId !== client.clientId) throw forbidden('This app session belongs to another client');
-        if (!isAddressEqual(getAddress(s.walletAddress), walletAddress))
-          throw policyRefused('This app is connected to another wallet');
-        if (s.status !== 'active') throw policyRefused('This app is not connected to your wallet any more');
-        session = { name: s.name, identity: s.identity, topic };
-      } else if (!body.dappId) throw validationError('dappId or topic is required for kind "dapp"');
+      if (topic) session = activeSession(topic);
+      else if (!body.dappId) throw validationError('dappId or topic is required for kind "dapp"');
       if (body.calls.length === 0) throw validationError('A dApp request needs at least one call');
       calls = body.calls.map((c) => ({ to: getAddress(c.to), value: c.value, data: c.data }));
       callData = encodeCallData(calls.map(callToMetaTransaction));
@@ -275,7 +312,18 @@ export const registerPolicyRoutes = (
     // Compliance BEFORE simulation: every counterparty in the calldata is screened first, and a hit is the decision's
     // screening (and its recipient) even when the call would also revert (live WalletConnect finding, 11 Oct).
     const screeningResult = kind === 'to-own-account' ? ownAccountScreening() : screenAll(counterparties);
-    const simulation = await simulateOrFallback(walletAddress, calls, wallet.status !== 'pending');
+    // A signature has nothing to simulate: a static decode-only record (labelled simulated, no state read).
+    const simulation: Simulation =
+      kind === 'dapp-signature'
+        ? {
+            ok: true,
+            assetChanges: [],
+            decodedCalls: [],
+            gasEstimate: '0',
+            provider: 'fallback',
+            simulated: true,
+          }
+        : await simulateOrFallback(walletAddress, calls, wallet.status !== 'pending');
     const recipient = screeningResult.hit
       ? getAddress(screeningResult.counterparty)
       : (counterparties[0] ?? walletAddress);
@@ -300,9 +348,11 @@ export const registerPolicyRoutes = (
         // Own account: no counterparty to screen (the deposit address is Swissquote's).
         screening: screeningResult,
         simulation,
-        callsHash: callsHashOf(callData),
+        // For a signature the decision is bound to the exact digest the passkey will sign.
+        callsHash: signatureDigest ?? callsHashOf(callData),
         suggestedCap: suggestedCapFor(calls, simulation),
         session: session ? { name: session.name, identity: session.identity } : undefined,
+        signature: signatureCtx,
       },
     );
     store.saveDecision(decision, body);

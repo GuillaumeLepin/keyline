@@ -120,3 +120,27 @@ export const DappSessionDetailSchema = z.object({
   requests: z.array(DappRequestLogEntrySchema),
 });
 export type DappSessionDetail = z.infer<typeof DappSessionDetailSchema>;
+
+/**
+ * POST /policy/evaluate { kind: 'dapp-signature', topic, origin, walletAddress, deviceLabel, signature } — what the dApp
+ * asks the wallet to sign. personal_sign: `message` (hex as received, or text); SIWE: `siwe` (parsed by the wallet; the
+ * bank also parses `message`); typed data: `typedData` ({ domain, types, primaryType, message }).
+ */
+export const DappSignatureRequestSchema = z
+  .object({
+    method: z.enum(['personal_sign', 'eth_signTypedData', 'eth_signTypedData_v4']),
+    message: z.string().max(20_000).optional(),
+    typedData: z.record(z.string(), z.unknown()).optional(),
+    siwe: z
+      .object({
+        domain: z.string().min(1),
+        uri: z.string().optional(),
+        chainId: z.number().int().optional(),
+        address: z.string().optional(),
+      })
+      .optional(),
+  })
+  .refine((s) => (s.method === 'personal_sign' ? s.message !== undefined : s.typedData !== undefined), {
+    message: 'personal_sign needs `message`; eth_signTypedData(_v4) needs `typedData`',
+  });
+export type DappSignatureRequest = z.infer<typeof DappSignatureRequestSchema>;

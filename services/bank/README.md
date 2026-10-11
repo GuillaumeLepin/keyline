@@ -113,6 +113,12 @@ DELETE /dapp-sessions/:topic         → DappSession (disconnected)
 GET    /dapp-sessions?wallet=0x…     → { sessions }  ·  GET /dapp-sessions/:topic → { session, requests[] }
 POST   /dapp-sessions/:topic/events { topic, method, summary, outcome, txHash?, userOpHash?, requestId? } → DappSession
 POST   /policy/evaluate { kind: 'dapp', topic (or dappId = topic), walletAddress, calls, deviceLabel }
+POST   /policy/evaluate { kind: 'dapp-signature', topic, origin?, walletAddress, deviceLabel,
+                          signature: { method: personal_sign|eth_signTypedData|eth_signTypedData_v4, message?, typedData?, siwe? } }
+       → sanctions hit in any address of the payload → block; blocked identity → block; SIWE domain host ≠ session url
+         host → block "This sign-in is for another website"; Permit/Permit2/order with unlimited amount or no expiry
+         → step-up "Unlimited spending permission"; else Tier 1. No simulation, never sponsored ("No network fee for a
+         signature"); callsHash = keccak256 of the EIP-191 / EIP-712 digest; /userops/* refuse such decisions.
 ```
 Policy for a session (must be `active`, same wallet): sanctions hit anywhere → block; blocked identity → block;
 allowlisted host → tier by amount (Tier 1 / step-up above the daily limit / cooling above the Tier-3 threshold);
