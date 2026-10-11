@@ -184,3 +184,40 @@ Home: protection ring indicator, total in CHF, per-asset rows (USDC, EURC, ETH r
 
 ### Bank additions (§4)
 `POST /sq/login` · `POST /sq/logout` · `GET /sq/me` · `GET /sq/positions` (ledger + positions, SIMULATED) · `POST /handoff` · `GET /handoff/:code` · `POST /handoff/:code/claim` · `GET /sq/safety-key-request` · `POST /sq/safety-key` · `POST /sq/moves` · `GET /sq/moves` · `GET /sq/deposit-address` (= funder address; whitelisted as Lea's own account). Policy: a transfer to the deposit address is `kind: 'to-own-account'`, Tier 1, reason "Your Swissquote account · verified".
+
+## 11. WalletConnect — Keyline as a wallet for any EVM dApp (added 11 Oct 2026)
+
+Keyline implements the **wallet side** of WalletConnect v2 with Reown WalletKit (`@reown/walletkit`, `@walletconnect/core`, `@walletconnect/utils`). Every dApp request goes through the same policy → simulation → screening → review → sponsor → passkey flow as an in-app transfer. WalletKit runs once per browser profile as a client-side singleton, and sessions persist in that profile's storage. The relay is a real third-party service (Reown), end-to-end encrypted. `NEXT_PUBLIC_REOWN_PROJECT_ID` holds the free Reown Cloud project id.
+
+### 11.1 Session namespace
+`eip155` with chain `eip155:84532` only, account `eip155:84532:<safe>`, events `accountsChanged`, `chainChanged`. Methods: `eth_sendTransaction`, `personal_sign`, `eth_signTypedData`, `eth_signTypedData_v4`, `eth_accounts`, `eth_chainId`, `wallet_switchEthereumChain` (any chain ≠ 84532 → error 4902 plus a sentence), and EIP-5792 `wallet_getCapabilities` (`atomicBatch: { supported: true }`, `paymasterService: { supported: true }` for 0x14a34), `wallet_sendCalls`, `wallet_getCallsStatus`. Refused with a plain-language reason: `eth_sign`, `eth_signTransaction` and any other method (`getSdkError('UNSUPPORTED_METHODS')`).
+
+### 11.2 Requests
+| Method | Flow | Result to the dApp |
+|---|---|---|
+| `eth_sendTransaction` | calls → `POST /policy/evaluate { kind: 'dapp', dappId: sessionTopic, origin, calls }` → review sheet → userOp → sponsor → passkey → send → inclusion | the **bundle transaction hash** from the userOp receipt (VERIFIED §20 records dApp-tracker behaviour and wait time) |
+| `wallet_sendCalls` | all calls in one batched userOp, same flow | `{ id: userOpHash }`; `wallet_getCallsStatus(id)` → status + receipts |
+| `personal_sign` | EIP-4361 SIWE parsed and shown as "Sign in to <domain> as 0x… · valid until …; this does not move money"; any other message shown as text, with the hex under Technical details | ERC-1271 contract signature of the Safe (passkey signs the Safe message hash) |
+| `eth_signTypedData(_v4)` | decoded into label/value rows; Permit, Permit2 and unlimited order shapes flagged `danger` | ERC-1271 contract signature |
+| EOA-only schemes (EIP-2612 `permit` on a token whose `permit` uses `ecrecover`; Permit2 `SignatureTransfer`/`AllowanceTransfer`) | detected; the sheet explains that a smart account can't produce that signature and offers "Approve with a transaction instead" | `USER_REJECTED` with a sentence when the user picks the alternative |
+Declines answer `getSdkError('USER_REJECTED')`; policy blocks answer error 4001 with the policy reason. Requests past their WalletConnect expiry are shown as **expired**, never dropped silently.
+
+### 11.3 Identity and policy (bank)
+`POST /dapp-sessions` records each proposal and approval: topic, metadata (name, url, icons), origin and the Verify context (`validation: VALID|INVALID|UNKNOWN`, `isScam`). `DELETE /dapp-sessions/:topic` records a disconnect; `GET /dapp-sessions` lists sessions. Policy `kind: 'dapp'` gains these rules:
+- allowlisted dApp → tier by amount, as today;
+- verified but not allowlisted → Tier 2, with the policy line "First time with this app";
+- `INVALID`, `isScam`, or origin ≠ metadata url → **block**: "This app's identity could not be verified". Such a proposal shows no Connect button.
+- sanctioned counterparty anywhere in the calldata → block.
+Gas: the bank sponsors any userOp the policy approved, whatever the dApp, within the daily cap. Every proposal, approval, refusal, request and disconnect is a bank event, and the desk shows them.
+
+### 11.4 Screens (all from `packages/ui` and `docs/DESIGN.md`)
+- **Connect:** paste a link or scan a QR, also via `/wc?uri=`; camera denial handled; pairing state.
+- **Connection request sheet:** app icon, name, domain, verification chip (Verified domain / Unverified / Flagged; Flagged has no Connect), permissions line, Connect / Not now.
+- **Connected apps:** list and detail with Disconnect and the activity the app caused.
+- **Request sheets:** transaction (the `/send/review` content plus a dApp identity row), batch, sign-in, message, typed data, chain-switch refusal, unsupported method. Each has approve/decline, a pending state and the receipt success state.
+- **Inbox:** a badge on the dApps tab and an `/alerts` item for requests that arrive while the app is elsewhere; opening one resumes the sheet; expired items are marked expired.
+- **Security:** a "Connected apps" row with the count; dApp events in the event log.
+- **Copy:** every string in EN/FR/DE.
+
+### 11.5 DemoSwap becomes a real dApp
+`apps/demoswap`, a separate Next app with wagmi and the WalletConnect connector, on Base Sepolia. Its buttons: Sign in (SIWE, verified with viem `verifyMessage` against the Safe), approve(∞), a capped approve, a swap-like call (on a contract we deploy, or a USDC transfer to a fixed address if no contract), and "Send to sanctioned recipient". It is allowlisted in the bank. At least one real third-party Base Sepolia dApp that works over WalletConnect is verified and recorded in VERIFIED §21; it is the "any protocol" proof.

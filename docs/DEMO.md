@@ -1,11 +1,53 @@
 # Keyline — demo runbook (owned by `qa-demo`)
 
-Final wave (6 Oct 2026, code freeze 10:45 CEST). Everything in the 3-minute script below exists in the app and is
-exercised by the E2E suite: `pnpm e2e` runs **F1 → F2 → F3** (`e2e/story.spec.ts`), **F4** (`e2e/attacker.spec.ts`)
-and **F4b** (`e2e/fraud-cancel.spec.ts`) against a live stack and Base Sepolia, with every "it worked" checked
-on-chain. The suite is the executable version of this runbook; `docs/demo.webm` is the backup video.
+v2 journey (SPEC §10, DECISIONS #26–#28), updated 11 Oct 2026. The pitch now opens on **Swissquote web on the
+laptop**: sign in → portfolio → the Keyline tile → a 6-digit code → the phone. Everything in the 3-minute script
+below exists in the app and is exercised by the E2E suite: `pnpm e2e` runs **F0 → F1 → F2 → F3 → F3.5**
+(`e2e/story.spec.ts`), **F4** (`e2e/attacker.spec.ts`) and **F4b** (`e2e/fraud-cancel.spec.ts`) against a live stack
+and Base Sepolia, with every "it worked" checked on-chain, plus the `screenshots` project (every screen, v2 routes in
+light and dark). The suite is the executable version of this runbook; `docs/demo.webm` is the (v1) backup video.
 
-## 0. What is proven (QA runs, 6 Oct morning, isolated stack :3100/:4100/:4101, Base Sepolia)
+## 0. What is proven — v2 (QA runs, 11 Oct night, isolated stack :3100/:4100/:4101, Base Sepolia)
+
+Wallet under test = a snapshot of the **committed** `apps/wallet` (`git archive HEAD`, §4): `ccff1c0`/`137779e` for
+run A, `6711c0b` (Phase C + D) for the final runs. Funder `0x482B…458A` holds **0 ETH / 0 USDC**, so "Move to Keyline",
+Send and Back to Swissquote are skipped with the bank's own reason (`502 Bank funder … holds 0 ETH — not enough for
+… the network fee`, nothing debited, no hash) — they run the moment the funder is funded.
+
+Run A (00:17–00:40, `pnpm e2e`, 23.3 min, fresh bank DB): **story 11 ✓ / 4 skipped, attacker 6/6, fraud-cancel 4/4**;
+screenshots 90 ✓ / 5 ✗ (Send scenes — the bank's contacts gained a required `id` in `137779e`; fixtures fixed).
+
+| Step | Result | Proof (Base Sepolia) |
+|---|---|---|
+| F0.1 `/swissquote` one-click sign-in → portfolio, SIMULATED chips, BTC "Not movable yet" + Why? sheet | ✓ 6.8 s | — |
+| F0.2 Keyline tile → 6-digit code | ✓ | `POST /handoff` (via API in runs where an earlier spec left Lea a wallet, §7) |
+| F1.1 `/start` → "Hi Lea" → passkey → counterfactual Safe; the code can't be claimed twice (409) | ✓ 6.8 s | Safe `0xbb658b963C26A2e333A870b0E689Df04545627Ad` |
+| F1.2 laptop "Make this computer your Safety key?" → key in the laptop's IndexedDB → phone "Confirmed on your laptop" | ✓ 1.9 s | bank `safety-key` = the IndexedDB key |
+| F1.3 Emergency card shown once — hex in no request body, no storage, no cookie | ✓ | — |
+| F1.5 **Protect** — ring drew 0 → 1 → 2 → 3, closed | ✓ ring closed **12 s** after the tap | <https://sepolia.basescan.org/tx/0x59a26f34bafaf0a4d4d6289807d07d809b4d058d834185b46b22f09e671cd4f3> — 3 guardians, threshold **2** |
+| F1.6 proof (ERC-1271) → "Move your first funds" → Home v2; laptop tile "Protected · 2 of 3" from chain | ✓ | bank `method: erc1271` |
+| F1.7 Move to Keyline / F2 Send / F3.4 / F3.5 Back to Swissquote | skipped — funder 0 ETH / 0 USDC | honest refusal in the sheet |
+| F3.1 signer deploy | ✓ | <https://sepolia.basescan.org/tx/0x3308ecb6a5714587768b7ead4ed7ae14848c112f4364e1888447998fe9d60d89> |
+| F3.2 laptop Safety key + Swissquote → execute, `executeAfter` 177 s ahead | ✓ 18 s | <https://sepolia.basescan.org/tx/0x4cd7687af1a6a399802f4b74fde3b57e4e6e122e2b94b9b975e5169d8aa31a7a> |
+| F3.3 finalize → "Welcome back, Lea"; owner `0xC2eD…6DA2` → `0x00FA…3e5d` | ✓ | <https://sepolia.basescan.org/tx/0xb8f7b05517aac1f8e360488d7b94f4709e95ce05f7f950b7d30d6a789234f4f7> |
+| F4 attacker (Safe `0xcbD49d949C9020629f93BB0E3D153a1E9F9D0Bfc`) | ✓ 6/6 | protect `0x6c6c30b45bff7ead93bf5e43291593b2967edadf51dd1890446e2ef0afada0c6` |
+| F4b fraud + owner cancel (Safe `0xa9afCB9989169506Ec0367c8a61A5D1aF543bd13`) | ✓ 4/4, cancel 17 s after the tap | execute <https://sepolia.basescan.org/tx/0xfb5205e61ef5c6c7234040ec1dac14669abdf6a7278243fc7eb301bb21f451bf>, cancel <https://sepolia.basescan.org/tx/0x83569acc31ea8af3db0f3a8c96726c07bd57f39faa2cd05c8c406e7dd05d9924> |
+
+Run B was stopped when Phase C (`05bba0c`) landed (Send became three screens: selectors updated). Run C: story
+project green up to F1.6, where `next dev` restarted itself ("approaching the used memory threshold") during the push
+to `/` → heap raised to 8 GB, and the fixture reloads `/` if the push never commits. Run D: story project **21 ✓ / 4
+skipped** (story Safe `0x751aa8cC0403356340430364A67dB9ea70212fE6`, protect 8 s
+<https://sepolia.basescan.org/tx/0x837afb4933f1befc55750bd77a3439280956e871b7952bb1a49f2a8d55b34814>, execute
+<https://sepolia.basescan.org/tx/0xb9270f828ac61c3603f0a15ed9f924fa1e6adb846336e2720e6ad995e0fcbf74>, finalize
+<https://sepolia.basescan.org/tx/0x5e8e9f660e3d63ba288f01d536535898136db9fea5880ede96787212ff2d92f7>; fraud cancel
+<https://sepolia.basescan.org/tx/0x8818a6cca8976a5ffc6bfe004bccff6a5ff533d5ebc3b4b8838cb37a164d08ce>), then the wallet
+server was killed under the screenshot project by another agent's `pkill -f next-server` → the snapshot now runs as
+`node qa-server.mjs` (§4).
+
+<!-- V2-FINAL -->
+
+
+## 0b. v1 history — what was proven (QA runs, 6 Oct morning, isolated stack :3100/:4100/:4101, Base Sepolia)
 
 Run 1 (08:47–08:58 CEST) — the story in **4.5 min**, attacker + fraud-cancel in **4.3 min**. Every EOA at 0 ETH /
 0 USDC: everything below ran through Candide's public testnet sponsor and the sponsored relayer Safe.
@@ -72,18 +114,22 @@ Screens: `docs/screens/story-*.png` (21), `attacker-*.png` (9), `fraud-*.png` (5
 
 
 
-## 1. Window layout
+## 1. Window layout (v2: the story opens on Swissquote web on the laptop)
 
 `pnpm demo:open` opens five **separate Chrome instances** (one `--user-data-dir` each under `~/.keyline-chrome/`,
-nothing signed in to Google, nothing syncs), tiled for a 1440×900 laptop + a second screen:
+nothing signed in to Google, nothing syncs). Screen 1 is the laptop itself; the phones and the desk go on the second
+screen / projector (`SECOND_SCREEN_X`, default 1440 = the second screen sits right of the laptop):
 
 | Window | URL (`?device=` sets the DeviceBar + the `X-Device-Label` the bank logs) | Where |
 |---|---|---|
-| **Lea · phone** | `/?device=lea-phone` | left, 520×900 (phone frame) |
-| **Lea · laptop — Safety key** | `/approve?device=lea-laptop` | top right |
-| **Thief · stolen phone** | `/?device=thief` (red bar) | bottom right |
-| **Lea · new phone** | `/recover?device=lea-new-phone` | bottom right, behind the thief; raised at 1:40 |
-| **Swissquote desk (simulated)** | `/desk?device=desk` | second screen / projector tab |
+| **Lea · laptop — Safety key** | `/swissquote?device=lea-laptop` — Swissquote web (SIMULATED): sign in → portfolio → Keyline tile; later its **Approvals** nav → `/approve` | screen 1, **full width** 1440×900 |
+| **Lea · phone** | `/?device=lea-phone` → `/start` | screen 2, left, 520×900 (phone frame) |
+| **Lea · new phone** | `/?device=lea-new-phone` → `/recover` at 1:40 | screen 2, top middle, 460×450 |
+| **Thief · stolen phone** | `/?device=thief` (red bar) | screen 2, bottom middle, 460×450 |
+| **Swissquote desk (simulated)** | `/desk?device=desk` | screen 2, right, 940×900 |
+
+With a single screen: keep the laptop window full width and switch to the phone windows with ⌘\` — the audience
+should see Swissquote web as a real laptop page, the phone as a phone.
 
 Zoom: the script passes `--force-device-scale-factor=1.25` (`KEYLINE_CHROME_SCALE=1` to disable on a projector that
 already scales). `pnpm demo:open --reset` wipes the five profiles (fresh localStorage; platform passkeys live in the
@@ -94,10 +140,16 @@ virtual authenticators only in Playwright.
 
 - [ ] `pnpm demo:reset` → DBs wiped, balances printed. **The bank sponsors 20 userOps per client per day** (SPEC §0,
       table `sponsorships`): every Protect, Send and owner-cancel counts; a full `pnpm e2e` uses ~8. After rehearsals,
-      `pnpm demo:reset --keep-db` clears the counter without touching anything else — do it at T−30 and again at T−5. Funder needs **≥ 10 USDC + 0.02 ETH** for the top-up; relayer
+      `pnpm demo:reset --keep-db` clears the counter without touching anything else — do it at T−30 and again at T−5. Funder needs **≥ 10 USDC + 0.02 ETH** for "Move to Keyline" (otherwise the bank refuses the move with the real balance); relayer
       and sq-guardian may stay at 0 ETH (the sponsored relayer Safe handles recovery, finalize and the signer deploy).
 - [ ] `pnpm dev` → `/health` on :4000 (`paymasterEnabled: true`) and :4001 (`chainPort: "real"`, `submitter: "sponsored-safe"`).
       `DEMO_FAST_MODE=true` in `services/bank/.env` (identity verdict signed without a desk click; the desk still shows it).
+- [ ] ⚠ **v2 order matters:** the live onboarding needs the Swissquote tile's "Set up Keyline on my phone", which the
+      app only shows while Lea has **no** wallet at the bank (§7). `demo:predeploy` registers the fallback Safe and
+      the twin under Lea → the tile shows "Protected" and the 0:15 step is gone. Until the app is fixed: run
+      `demo:predeploy --bank none` (Safes on-chain only; the twin's staged recovery then has no desk/bank record) or
+      rehearse the live onboarding on a bank DB without predeployed wallets, and keep the predeployed run as the
+      fallback stack.
 - [ ] `pnpm demo:predeploy` → `data/demo-state.json` with Lea's fallback Safe + the **twin**; both "Protected" on Basescan.
 - [ ] `pnpm e2e` green within the last hour (or at least `story.spec.ts` F1–F3) → bundler, sponsor, relayer, finalizer alive.
 - [ ] **Clean profiles after rehearsals:** in each of the five profiles open `http://localhost:3000/dev/reset?device=<persona>`
@@ -105,7 +157,7 @@ virtual authenticators only in Playwright.
       it clears that profile's `keyline*` local/sessionStorage, the Safety key (IndexedDB `keyline`) and the bank session
       cookie (via `POST /auth/logout`). Then delete the leftover passkeys in
       `chrome://password-manager/passkeys` (rpId `localhost`) so Touch ID offers no stale Keyline credential.
-- [ ] `pnpm demo:open`; macOS Focus on; laptop charged; hotspot ready; `pnpm --filter @keyline/scripts anvil-fork --fund`
+- [ ] `pnpm demo:open` (the laptop window opens on `/swissquote?device=lea-laptop`, signed out); macOS Focus on; laptop charged; hotspot ready; `pnpm --filter @keyline/scripts anvil-fork --fund`
       terminal ready but not switched (§5).
 - [ ] Backup video `docs/demo.webm` (or `.mp4`) open in QuickTime, paused at 0:00.
 - [ ] The fallback Safe's Emergency card hex in a text file *outside the app* (`data/demo-state.json → lea.guardians.emergencyCard`).
@@ -116,20 +168,25 @@ virtual authenticators only in Playwright.
 
 ## 3. Minute-by-minute (3-minute slot; ≥ 5 min → run F3 live on one wallet and skip the twin)
 
-Confirmation waits are 5–30 s on Base Sepolia; the right-hand column is what to say *during* them.
+v2 journey (SPEC §10): Lea starts where she already banks — Swissquote web on her laptop — and Keyline is a tile
+there. Confirmation waits are 5–30 s on Base Sepolia; the right-hand column is what to say *during* them.
 
 | Time | Window | Do | Say | While waiting |
 |---|---|---|---|---|
-| 0:00 | Lea · phone `/onboarding` | Create with Face ID → 6-digit code → laptop `/pair` → "I stored it" → Default → **Protect my wallet** → Sign the proof → Go to my wallet. | "USD 409 M stolen through compromised keys in 2024 — Swissquote's own figure. A client who wants their own keys has to leave the bank today. Keyline: your keys, a Swiss bank as a safety net that can never move your money." | Protect (7–30 s): "One signature: the account, the recovery module and the three recoverers go on-chain in a single sponsored transaction. Swissquote pays the network fee." |
-| 0:40 | Protected screen → **View on Basescan** | Point at the module's three guardians, threshold 2. | "Three recoverers, any two restore: her Safety key on her laptop, her Emergency card in a drawer, and Swissquote — the only institution on the list. Verifiable here, not in our code." | — |
-| 0:55 | Home → **Top up** CHF 8 | 10 USDC from the bank funder. *Funder empty → the app shows the honest 502; say "the test funder is dry, the transfer is in the recording" and skip to 1:10.* | "Her Swissquote account tops this up instantly because the wallet just proved it is hers — the Travel-Rule check, signed, no screenshots." | — |
-| 1:00 | Send → Lukas Meier → CHF 2 → Review → **Confirm with Face ID** | Signed → Sent → In block → Confirmed, Basescan link. | "Before she signs we decode it in words: 2.50 USDC, counterparty screened, fee paid by Swissquote. Real transaction, Base Sepolia." | 5–20 s: "Two-second blocks; the bundler batches our operation with others. What you see next is the Basescan receipt, not our UI's opinion." |
-| 1:10 | Close Lea · phone | — | "Lea's phone is gone." | — |
+| 0:00 | Lea · laptop `/swissquote` | **Sign in** (Lea pre-filled, one click) → Portfolio: CHF cash, SMI ETF, BTC, ETH, USDC, EURC, every figure with its SIMULATED chip. | "USD 409 M stolen through compromised keys in 2024 — Swissquote's own figure. A client who wants their own keys has to leave the bank today. Keyline keeps her here: her keys, a Swiss bank as a safety net that can never move her money." | — |
+| 0:10 | Bitcoin row → **Why?** | Point at "Not movable yet", open the sheet (the Bitcoin script diagram), close it. | "Bitcoin stays in her Swissquote account for now. Keyline moves an asset only when it can give it the same protection — her key, two of three recoverers, a public waiting period. Bitcoin needs a different key design for that; it's on the roadmap, not faked." | — |
+| 0:15 | Keyline tile → **Set up Keyline on my phone** | QR + 6-digit code, "Waiting for your phone". | "One tap on the bank's page — no app store search, no seed phrase." | — |
+| 0:20 | Lea · phone `/start` | Type the code (or scan) → **"Hi Lea"** → Create my Keyline → **Create with Face ID**. The laptop tile turns "Phone connected". | "The phone knows it's Lea from the bank session — no form. Her key is created inside the phone's secure chip; it never leaves it." | — |
+| 0:30 | Lea · laptop (Swissquote page) | "Make this computer your Safety key?" appears by itself → **Make this computer my Safety key**. Phone: "Confirmed on your laptop" → Continue. | "Her laptop becomes her second key — nothing to type. It can co-approve large transfers and help restore access; it can't spend on its own." | — |
+| 0:40 | Lea · phone | Emergency card → **I stored it** → Yes → Default → **Protect my wallet**. | "The Emergency card is shown once, printed, never stored: it cannot spend, it can only restore after a waiting period." | **While the ring draws** (7–30 s): "One signature. When the block lands, each arc is one recoverer written into her wallet on-chain — her Safety key, her Emergency card, Swissquote. The ring closes at three: any two of them can restore access, none of them can spend. Swissquote pays the network fee." |
+| 0:55 | Protected → status link (**In block …** → Basescan) | Point at the module's three guardians, threshold 2. Then **Sign the proof** → "Move your first funds". | "Three recoverers, any two restore, Swissquote the only institution on the list — verifiable here, not in our code. The proof is the Travel-Rule check: the wallet signs that it is Lea's, no screenshots." | — |
+| 1:05 | Lea · laptop: tile now **Protected · 2 of 3 recoverers** → USDC **Move to Keyline** → 10 → Move | Real transfer from the bank to her Safe; the phone's Assets update within a minute. *Funder empty → the sheet says "Swissquote's test account has no funds for this asset right now. Nothing was moved and nothing was debited." Say "the test funder is dry, the transfer is in the recording" and go to 1:10.* | "No ownership check needed — the wallet is verified as hers. Real on-chain transfer; the ledger on the bank side is simulated." | Move (5–20 s): "The tile reads the wallet from the chain, never from the bank's database." |
+| 1:10 | Lea · phone (only with USDC) Send → Lukas Meier → CHF 2 → **Confirm with Face ID** | Signed → Sent → In block → Confirmed. Then close Lea · phone. | "Decoded in words before she signs, counterparty screened, fee paid by Swissquote. … Lea's phone is gone." | — |
 | 1:15 | Thief `/` → `/recover` | Home: "This device has no key for this wallet." → Create key → `lea.keller@example.ch` → code from `/mock/inbox` → e-ID form, type a wrong name → Submit → **`/refused`**. Desk: Refused tab → request → **Override** → status stays "Waiting for a 2nd recoverer". | "He has her phone and her inbox, so the e-mail code passes. He can't pass the identity check. And even if the bank were fooled — here, override — Swissquote's confirmation alone leaves the recovery waiting forever: 2 of 3 is enforced on-chain." | Signer deploy (10–60 s) after "Send code": "The bank deploys the new key's signer now — a real transaction, so a refused attempt still costs Swissquote a fee, never the client." |
-| 1:40 | Lea · new phone `/recover` + laptop `/approve` | Create key → e-mail → code → e-ID (Lea Keller, prefilled) → "Waiting for a second recoverer" (Swissquote confirmed) → laptop **Confirm with Safety key** → "Access restores at hh:mm" ring. | "Swissquote verifies her identity — simulated e-ID, badge on screen — and confirms as one recoverer; her laptop is the second. Executed. Now the chain enforces a waiting period: three minutes here, seventy-two hours in production. Public, un-shortcuttable." | Relay (5–30 s): "One transaction carries both signatures — Swissquote's held one and the laptop's. The module attributes each approval to the recoverer, not to who paid." |
+| 1:40 | Lea · new phone `/recover` + Lea · laptop **Approvals** (`/approve`) | Create key → e-mail → code → e-ID (Lea Keller, prefilled) → "Waiting for a second recoverer" (Swissquote confirmed) → laptop **Confirm with Safety key** (the key the Swissquote page created at 0:30) → "Access restores at hh:mm" ring. | "Swissquote verifies her identity — simulated e-ID, chip on screen — and confirms as one recoverer; her laptop is the second. Executed. Now the chain enforces a waiting period: three minutes here, seventy-two hours in production. Public, un-shortcuttable." | Relay (5–30 s): "One transaction carries both signatures — Swissquote's held one and the laptop's. The module attributes each approval to the recoverer, not to who paid." |
 | 2:10 | Lea · phone `/alerts` (fallback wallet) | Show "Recovery started from a new device" + **Cancel recovery — it wasn't me** (don't click unless ≥ 5 min). | "During the wait the old phone can veto with one tap: the account cancels on the module itself, sponsored. That's the fraud case — the bank fooled *and* the card photographed — stopped by the owner." | — |
 | 2:30 | Twin wallet (`/recover?device=lea-new-phone`, staged at T−2:30) | Countdown ends → bank finalizer → **"Welcome back, Lea"** → Basescan: owner = the new key only. | "This one we started before walking up so you see the end: restored, old key revoked on-chain." | If the finalizer lags (≤ 30 s): "The bank's finalizer polls the chain every five seconds and submits a sponsored finalize; the module checks the time, not the bank." |
-| 2:45 | README table | Real vs Simulated. | "Real: passkeys, the Safe, sponsored transactions, on-chain recovery with a veto window, screening, a separate guardian process. Simulated: identity check, e-mail, the Swissquote balance." | — |
+| 2:45 | Home → **Back to Swissquote** (show the review only) → README table | Review: "Your Swissquote account · verified", Tier 1, Travel Rule line. | "Money goes back the same way it came: to her own verified account, always the lowest tier. Real: passkeys, the Safe, sponsored transactions, on-chain recovery with a veto window, screening, a separate guardian process. Simulated: identity, e-mail, Swissquote web and its ledger." | — |
 | 2:55 | Close | — | "Swissquote's key cannot act alone or with any partner — that's a line on Basescan, not a promise." | — |
 
 ## 4. Isolated ports (several agents / stacks on one machine)
@@ -144,9 +201,16 @@ cd services/sq-guardian && GUARDIAN_PORT=4101 GUARDIAN_DB_PATH=./data/e2e-sq.sql
 cd services/bank && BANK_PORT=4100 BANK_DB_PATH=./data/e2e-bank.sqlite SQ_GUARDIAN_URL=http://localhost:4101 \
   WALLET_ORIGIN=http://localhost:3100 pnpm exec tsx --env-file=.env src/index.ts
 # terminal 3 — wallet, from a SNAPSHOT COPY so it has its own .next (see below)
-rsync -a --delete --exclude node_modules --exclude .next --exclude .turbo apps/wallet/ e2e/.wallet-snapshot/
+# snapshot of the COMMITTED wallet (not other agents' half-edited files): git archive → rsync
+T=$(mktemp -d) && git archive HEAD apps/wallet | tar -x -C "$T"
+rsync -a --delete --exclude node_modules --exclude .next --exclude .turbo --exclude .env.local --exclude qa-server.mjs "$T/apps/wallet/" e2e/.wallet-snapshot/
+cp apps/wallet/.env.local e2e/.wallet-snapshot/.env.local
+cp e2e/qa-server.mjs e2e/.wallet-snapshot/qa-server.mjs
 ln -sfn "$PWD/apps/wallet/node_modules" e2e/.wallet-snapshot/node_modules
-cd e2e/.wallet-snapshot && NEXT_PUBLIC_BANK_URL=http://localhost:4100 ./node_modules/.bin/next dev --port 3100
+# 8 GB heap: with the default, `next dev` restarts itself ("approaching the used memory threshold") mid-run
+# `qa-server.mjs` = `next dev` in-process (custom server): its process is `node qa-server.mjs`, not `next-server`, so
+# another agent's `pkill -f next-server` (aimed at its own :3000) no longer kills the E2E stack mid-run (11 Oct).
+cd e2e/.wallet-snapshot && NODE_OPTIONS=--max-old-space-size=8192 NEXT_PUBLIC_BANK_URL=http://localhost:4100 node qa-server.mjs
 # tests against it
 E2E_WALLET_URL=http://localhost:3100 E2E_BANK_URL=http://localhost:4100 pnpm e2e
 pnpm --filter @keyline/scripts demo:reset --only --db services/bank/data/e2e-bank.sqlite --db services/sq-guardian/data/e2e-sq.sqlite
@@ -156,7 +220,8 @@ Why the snapshot: two `next dev` servers on one `apps/wallet/.next` corrupt each
 by another agent triggers a Fast Refresh that remounts the page under test (run 1 this morning failed F1.6 exactly
 like that: `[Fast Refresh] rebuilding` in the trace, blank onboarding page). The copy must stay **inside the
 monorepo** (module resolution has to reach the root `node_modules`; outside it Next tries to `pnpm add typescript`).
-Re-sync the copy before each run to test the current code. `PersonaSession.goto` additionally retries a 5xx/ENOENT
+Re-sync the copy from `HEAD` before each run. Caveat: the snapshot resolves `@keyline/ui` / `@keyline/shared` through the
+workspace, so uncommitted edits in `packages/*` still reach it. `PersonaSession.goto` additionally retries a 5xx/ENOENT
 answer after 20 s, three times.
 
 ## 5. If Wi-Fi dies — switch to the local fork in 60 s, and say so
@@ -182,11 +247,23 @@ back. Basescan links will not resolve for fork-only transactions — don't click
 | `pnpm demo:reset [--keep-db] [--all] [--db p] [--only]` | wipe `services/*/data/*.sqlite` (never `.env`), print the five EOAs' ETH/USDC + faucets + the fallback Safes. |
 | `pnpm demo:predeploy [--fresh] [--topup 10] [--bank URL\|none]` | two protected Safes (Lea fallback + twin) with script-held Safety key / Emergency card, USDC top-up if the funder has any, bank registration, `data/demo-state.json`, the `localStorage` resume line. |
 | `pnpm demo:stage-recovery [--wallet twin\|lea] [--relayer auto\|eoa\|sponsored] [--finalize] [--status]` | new signer proxy + two guardian signatures → `multiConfirmRecovery(execute=true)`; prints `executeAfter` and the Zürich wall-clock. `--finalize` after the grace period. |
-| `pnpm demo:open [--reset]` | five Chrome instances, tiled, `?device=` URLs (`bash -n` clean). |
+| `pnpm demo:open [--reset]` | five Chrome instances (`bash -n` clean): laptop full width on `/swissquote?device=lea-laptop`, phones + desk on the second screen (`SECOND_SCREEN_X`). |
 | `pnpm --filter @keyline/scripts anvil-fork [--fund]` | offline fallback (§5). |
-| `pnpm e2e` / `pnpm screenshots` | story + attacker + fraud-cancel (videos under `e2e/test-results/**/videos/`, `docs/screens/{story,attacker,fraud}-*.png`) / every screen & state at 2×. |
+| `pnpm e2e` / `pnpm screenshots` | story v2 + attacker + fraud-cancel (videos under `e2e/test-results/**/videos/`, `docs/screens/{story,attacker,fraud}-*.png`) / every screen & state at 2×, v2 routes as `qa-v2-*-{light,dark}.png`. |
 
 ## 7. Known flakiness and the mitigation
+
+- **v2: the Keyline tile only opens a handoff for a client without a wallet** (app limitation, reported to
+  `wallet-client`/`bank-backend`): the tile and "Make this computer your Safety key?" follow Lea's *newest* wallet at
+  the bank. Once that wallet is protected the tile says "Protected · 2 of 3 recoverers" and offers no "Set up Keyline
+  on my phone"; a brand-new laptop profile even reads "This computer is already your Safety key". In the suite only
+  the first spec of a run (attacker, alphabetical) drives the tile; later specs open the code through the same
+  `POST /handoff` with the laptop's web session and carry the annotation `handoff-via-api`. **For the pitch this means
+  the bank DB must not hold a Lea wallet before 0:15** — see the pre-flight warning (§2).
+- **v2: cold routes reload open pages.** `next dev` compiles a route on first visit and then hot-reloads every open
+  page; a reload mid-onboarding drops the phone's in-memory onboarding token. The specs call `warmRoutes()` (18
+  routes, ~70 s cold, < 1 s warm) before opening any persona; pre-flight visits every window once.
+- **v2 screenshots are prefixed `qa-v2-*`** (light + dark): `docs/screens/v2-*.png` belong to the design agent.
 
 - **Shared `next dev` / Fast Refresh** (above, §4): run the wallet under test from the snapshot copy.
 - **One Playwright process at a time per `outputDir`**: a second `playwright test` wipes `test-results/.playwright-artifacts-*`
