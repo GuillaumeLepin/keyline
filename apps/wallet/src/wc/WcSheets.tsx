@@ -1,15 +1,18 @@
 'use client';
 
+import type { PolicyDecision } from '@keyline/shared';
 // SPEC §11.4 — the connection request sheet and the sign / refusal request sheets, from packages/ui primitives
 // (DESIGN.md §13, W1–W15). Transactions are not here: they open /send/review (the same review as an in-app transfer)
 // with the request attached.
 import { ShieldCheck } from '@phosphor-icons/react/dist/ssr';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getAddress, type Hex, isAddress } from 'viem';
 import { parseSiweMessage } from 'viem/siwe';
 import { copyWc } from '../copy';
 import { formatDateTime } from '../i18n/dates';
+import { api } from '../lib/api';
+import { getDeviceLabel } from '../lib/device';
 import { addressUrl, PasskeyCancelledError } from '../lib/reads';
 import { walletStore } from '../lib/storage';
 import {
@@ -27,7 +30,7 @@ import {
 } from '../ui';
 import { type DappInfo, type RequestView, useWc } from './context';
 import { hostOf, summaryOf, type TypedDataPayload } from './requests';
-import { logRequest, respondRejected, respondResult } from './respond';
+import { logRequest, respondBlocked, respondRejected, respondResult } from './respond';
 import { signatureSchemeOf, signMessageForDapp, signTypedDataForDapp } from './sign';
 
 function identity(app: DappInfo): DappIdentityRowProps {
@@ -184,10 +187,56 @@ function RequestSheetFor({ request: r }: { request: RequestView }) {
     staleTime: Number.POSITIVE_INFINITY,
   });
 
+  // DECISIONS #30: every signature request goes through the bank's policy first (identity, screening, SIWE domain,
+  // unlimited permits → laptop). Keyline's own decode above is for display only.
+  const signable = (c.kind === 'message' || c.kind === 'typed-data') && !r.answered && !r.expired;
+  const policy = useQuery({
+    queryKey: ['wc-sign-policy', r.ref.id],
+    queryFn: () => evaluateSignature(r, siwe),
+    enabled: signable,
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const decision = policy.data;
+  const waitingLaptop =
+    decision?.verdict === 'step-up' &&
+    decision.stepUp?.satisfiedBy !== 'safety-key' &&
+    decision.status !== 'cancelled';
+  const polled = useQuery({
+    queryKey: ['policy', decision?.decisionId],
+    queryFn: () => api.policy.get(decision?.decisionId as string),
+    enabled: Boolean(decision) && waitingLaptop,
+    refetchInterval: 2_000,
+    retry: false,
+  });
+  const current: PolicyDecision | undefined = polled.data ?? decision;
+  const laptopPending =
+    current?.verdict === 'step-up' &&
+    current.stepUp?.satisfiedBy !== 'safety-key' &&
+    current.status !== 'cancelled';
+  // SIWE for another website is a hard stop, whatever the bank says (it blocks it too).
+  const siweMismatchLocal = siwe ? siwe.domain !== hostOf(r.app.url) : false;
+  const blocked = current?.verdict === 'block' || siweMismatchLocal;
+  const blockReason = siweMismatchLocal
+    ? (current?.reasons[0] ?? t.signIn.siwe.mismatch(siwe?.domain ?? '', hostOf(r.app.url)))
+    : (current?.reasons[0] ?? '');
+
+  // A block answers the app at once: 4001 with the first reason.
+  const answeredBlock = useRef(false);
+  useEffect(() => {
+    if (!blocked || answeredBlock.current || r.answered || r.expired) return;
+    if (!current && !siweMismatchLocal) return;
+    answeredBlock.current = true;
+    respondBlocked(r.ref, `Blocked by Keyline: ${blockReason}`).catch(() => undefined);
+    logRequest(r.ref, summaryOf(c, r.app.name), 'blocked');
+    wc?.settle(r.ref.id);
+  });
+
   const sign = useMutation({
     mutationFn: async () => {
       const wallet = walletStore.get();
       if (wallet?.status !== 'deployed') throw new Error(t.notDeployed);
+      if (blocked || laptopPending || !current) throw new Error(t.errorBody);
       setPhase({ kind: 'pending' });
       let signature: Hex;
       if (c.kind === 'message') signature = await signMessageForDapp(wallet, c.hex);
@@ -206,12 +255,15 @@ function RequestSheetFor({ request: r }: { request: RequestView }) {
   });
 
   const decline = async (message?: string) => {
+    if (current && current.verdict === 'step-up' && current.status !== 'cancelled') {
+      api.policy.cancel(current.decisionId).catch(() => undefined);
+    }
     await respondRejected(r.ref, message).catch(() => undefined);
     logRequest(r.ref, summaryOf(c, r.app.name), 'declined');
     finish();
   };
 
-  const refused = r.answered;
+  const refused = r.answered || blocked;
   const state: RequestSheetState = r.expired
     ? 'expired'
     : refused
@@ -233,7 +285,6 @@ function RequestSheetFor({ request: r }: { request: RequestView }) {
       scheme.data?.family === 'eip3009-authorization');
   const rows = c.kind === 'typed-data' ? safeRows(c.typedData) : [];
   const danger = permitFamily || rows.some((row) => row.danger);
-  const siweMismatch = siwe ? siwe.domain !== hostOf(r.app.url) : false;
   const cancelled = phase.kind === 'error' && phase.error instanceof PasskeyCancelledError;
   const spender =
     c.kind === 'typed-data' ? String((c.typedData.message as { spender?: unknown }).spender ?? '') : '';
@@ -263,18 +314,18 @@ function RequestSheetFor({ request: r }: { request: RequestView }) {
           if (state === 'expired' || state === 'refused' || state === 'success') finish();
           else wc?.close();
         }}
-        title={state === 'success' ? r.app.name : question}
+        title={state === 'success' ? r.app.name : blocked ? t.blockedSignTitle : question}
         dapp={identity(r.app)}
         state={state}
         primaryLabel={
           refused || eoaOnly || !kindCopy
             ? undefined
-            : c.kind === 'typed-data' && (danger || siweMismatch)
+            : c.kind === 'typed-data' && danger
               ? t.typed.approveDanger
               : kindCopy.approve
         }
-        primaryVariant={danger || siweMismatch ? 'danger' : 'primary'}
-        primaryDisabled={c.kind === 'typed-data' && scheme.isPending}
+        primaryVariant={danger ? 'danger' : 'primary'}
+        primaryDisabled={(c.kind === 'typed-data' && scheme.isPending) || !current || laptopPending}
         onApprove={() => {
           blurActive();
           sign.mutate();
@@ -305,6 +356,16 @@ function RequestSheetFor({ request: r }: { request: RequestView }) {
           ) : undefined
         }
       >
+        {blocked ? (
+          <Note tone="danger">{blockReason}</Note>
+        ) : signable && policy.isPending ? (
+          <p className="m-0 text-12 text-ink-3">{t.checking}</p>
+        ) : laptopPending ? (
+          <Note tone="warn">
+            <strong>{current?.reasons[0]}</strong> {t.stepUpSign}
+          </Note>
+        ) : null}
+        {policy.isError ? <Note tone="danger">{t.errorBody}</Note> : null}
         {c.kind === 'message' ? (
           siwe ? (
             <SiweSummary
@@ -355,6 +416,43 @@ function RequestSheetFor({ request: r }: { request: RequestView }) {
       </RequestSheet>
     </div>
   );
+}
+
+/** POST /policy/evaluate { kind: 'dapp-signature' } for this request (DappSignatureRequestSchema). */
+function evaluateSignature(r: RequestView, siwe: ReturnType<typeof parseSiwe>): Promise<PolicyDecision> {
+  const wallet = walletStore.get();
+  const c = r.classified;
+  if (!wallet) throw new Error(copyWc.request.notDeployed);
+  const method = r.ref.method as 'personal_sign' | 'eth_signTypedData' | 'eth_signTypedData_v4';
+  return api.policy.evaluate({
+    kind: 'dapp-signature',
+    walletAddress: wallet.address,
+    topic: r.ref.topic,
+    origin: r.app.origin ?? r.app.url,
+    deviceLabel: getDeviceLabel(),
+    calls: [],
+    chfValue: 0,
+    signature:
+      c.kind === 'message'
+        ? {
+            method,
+            message: c.hex,
+            ...(siwe?.domain
+              ? {
+                  siwe: {
+                    domain: siwe.domain,
+                    ...(siwe.uri ? { uri: siwe.uri } : {}),
+                    ...(siwe.chainId ? { chainId: siwe.chainId } : {}),
+                    ...(siwe.address ? { address: siwe.address } : {}),
+                  },
+                }
+              : {}),
+          }
+        : {
+            method,
+            typedData: (c as { typedData: TypedDataPayload }).typedData as unknown as Record<string, unknown>,
+          },
+  });
 }
 
 function shortAddress(value: string | undefined): string {

@@ -1405,6 +1405,14 @@ export const copyWc = {
   },
 
   apps: {
+    kinds: {
+      approval: 'Approval',
+      transfer: 'Transfer',
+      signIn: 'Sign-in',
+      signature: 'Signature',
+      batch: 'Batch',
+      other: 'Request',
+    },
     account: 'Wallet',
     disconnecting: 'Disconnecting…',
     outcome: {
@@ -1434,6 +1442,12 @@ export const copyWc = {
   },
 
   request: {
+    blockedTitle: 'Blocked · nothing was sent',
+    blockedSignTitle: 'Blocked · nothing was signed',
+    notEnough: (have: string, need: string) => `Not enough USDC · You have ${have}, this needs ${need}`,
+    stepUpSign:
+      'Waiting for your Safety key. Open Keyline on your laptop and approve; you sign here right after.',
+    checking: 'Checking the request…',
     pendingSign: 'Waiting for your passkey…',
     passkeyCancelled: 'Passkey cancelled. Nothing was signed.',
     notDeployed: 'Protect your wallet first: until then it can’t sign for apps.',
@@ -1561,6 +1575,13 @@ export const copyWc = {
       title: 'Blocked by your limits',
       body: (reason: string) => `${reason} Nothing was signed or sent. The app was told.`,
     },
+  },
+
+  laptop: {
+    unlimitedTitle: (app: string) => `Approve unlimited USDC spending for ${app}?`,
+    txTitle: (app: string) => `Approve a transaction for ${app}?`,
+    signTitle: (app: string) => `Approve a signature for ${app}?`,
+    fromPhone: (ago: string) => `Requested from your phone, ${ago}.`,
   },
 
   inbox: {

@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { formatUnits, getAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { copy, copyGaps } from '@/src/copy';
+import { copy, copyGaps, copyWc } from '@/src/copy';
 import { env } from '@/src/env';
 import { api } from '@/src/lib/api';
 import { addressUrl, signRecoveryConfirmation } from '@/src/lib/chain';
@@ -190,13 +190,33 @@ function TransferPrompt({
       )}`,
     });
   }
+  // WC-23: an approve() reads as the field it sets ("Spending limit · Unlimited", red when unlimited).
+  const isUnlimited = (c: { fn: string; args: string[] }) => {
+    try {
+      return c.fn.startsWith('approve(') && BigInt(c.args[1] ?? '0') >= 1n << 255n;
+    } catch {
+      return false;
+    }
+  };
+  const unlimited = decision.simulation.decodedCalls.some(isUnlimited);
   for (const c of decision.simulation.decodedCalls) {
+    if (c.fn.startsWith('approve(')) {
+      rows.push({
+        label: copyWc.request.tx.spendingLimit,
+        value: isUnlimited(c)
+          ? copyWc.request.typed.rows.unlimited
+          : formatUSDC(Number(formatUnits(BigInt(c.args[1] ?? '0'), 6))),
+        tone: isUnlimited(c) ? 'danger' : undefined,
+      });
+      continue;
+    }
     rows.push({
       label: c.risk === 'danger' ? copy.review.permission : (c.fn.split('(')[0] ?? c.fn),
       value: c.humanText,
       tone: c.risk === 'danger' ? 'danger' : undefined,
     });
   }
+  const appName = decision.dappName ?? decision.recipientLabel ?? decision.dappId ?? '';
   rows.push({
     label: copy.review.networkFee,
     value: decision.sponsorship.sponsored ? copy.common.networkFeePaid : copyGaps.review.feeCapExhausted,
@@ -206,17 +226,19 @@ function TransferPrompt({
     <div className="kl-stack">
       <div className="kl-stack kl-stack--tight">
         <h1 className="kl-title">
-          {decision.kind === 'dapp'
-            ? copyGaps.approveTransfer.dappTitle(
-                decision.simulation.decodedCalls[0]?.humanText ?? decision.dappId ?? '',
-              )
-            : copy.approve.title(formatCHF(decision.chfValue), recipient)}
+          {decision.kind === 'dapp' && unlimited
+            ? copyWc.laptop.unlimitedTitle(appName)
+            : decision.kind === 'dapp'
+              ? copyWc.laptop.txTitle(appName)
+              : decision.kind === 'dapp-signature'
+                ? decision.reasons[0] === 'Unlimited spending permission'
+                  ? copyWc.laptop.unlimitedTitle(appName)
+                  : copyWc.laptop.signTitle(appName)
+                : copy.approve.title(formatCHF(decision.chfValue), recipient)}
         </h1>
         <p className="kl-lead">
-          {copy.approve.requested(
-            decision.deviceLabel ?? copy.device['lea-phone'],
-            formatRelative(new Date(decision.decidedAt), now),
-          )}
+          {/* No persona labels in client copy (WC-23 / R-16). */}
+          {copyWc.laptop.fromPhone(formatRelative(new Date(decision.decidedAt), now))}
         </p>
       </div>
       <Panel title={copyGaps.approveTransfer.decodedTitle} rows={rows} />

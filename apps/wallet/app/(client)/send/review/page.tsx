@@ -330,6 +330,8 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
       return evaluateDraft(wallet, draft, [call]);
     },
     onSuccess: (dec, source) => {
+      // The unlimited decision is replaced: withdraw it so it never waits on the laptop.
+      if (source.decisionId !== dec.decisionId) api.policy.cancel(source.decisionId).catch(() => undefined);
       waitingId.current = null;
       setCapAmount(source.suggestedCap?.amount ?? null);
       setCapped(dec);
@@ -372,7 +374,11 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
           // DESIGN-AUDIT WC-1/WC-3: what is asked, then who asks; one Contract row says where (no hex sentence).
           <div className="kl-stack kl-stack--tight w-full text-left">
             <p className="kl-balance__amount text-28">
-              {wcReq.method === 'wallet_sendCalls' ? copyWc.request.batch.title : copyWc.request.tx.title}
+              {verdict === 'block'
+                ? copyWc.request.blockedTitle
+                : wcReq.method === 'wallet_sendCalls'
+                  ? copyWc.request.batch.title
+                  : copyWc.request.tx.title}
             </p>
             <DappIdentityRow
               name={draft.dapp.name}
@@ -415,6 +421,7 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
           unknownDapp={unknownDapp}
           capAmount={capAmount}
           continuing={confirm.isPending}
+          blockReason={wcReq && d.verdict === 'block' ? plainBlockReason(d, balance.data) : undefined}
         />
       ) : null}
       {insufficient && verdict !== 'block' ? (
@@ -437,7 +444,7 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
       <Panel
         title={copy.review.panelTitle}
         rows={rows}
-        footnote={copy.common.cantUndo}
+        footnote={wcReq && verdict === 'block' ? undefined : copy.common.cantUndo}
         tone={verdict === 'block' || danger ? 'danger' : 'default'}
       />
       {danger && d ? (
@@ -472,7 +479,13 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
         <ApiErrorState error={polled.error} body={copy.common.errorBody} onRetry={() => polled.refetch()} />
       ) : null}
 
-      {d ? <TechnicalDetails decision={d} userOpHash={userOpHash} /> : null}
+      {d ? (
+        <TechnicalDetails
+          decision={d}
+          userOpHash={userOpHash}
+          allReasons={Boolean(wcReq) && verdict === 'block'}
+        />
+      ) : null}
 
       {cancelled ? <Note tone="warn">{copy.review.passkeyCancelled}</Note> : null}
       {confirm.isError && !cancelled ? (
@@ -510,7 +523,7 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
               </Button>
             ) : null}
             <Button
-              variant="ghost"
+              variant={wcReq ? 'secondary' : 'ghost'}
               full
               href={backHref}
               onClick={() => {
@@ -598,11 +611,14 @@ function Verdict({
   unknownDapp,
   capAmount,
   continuing,
+  blockReason,
 }: {
   decision: PolicyDecision;
   unknownDapp: boolean;
   capAmount: string | null;
   continuing: boolean;
+  /** DESIGN-AUDIT WC-21: a plain-language block reason (the raw one goes to Technical details). */
+  blockReason?: string;
 }) {
   const p = copy.review.policy;
   if (cleared(decision)) {
@@ -655,11 +671,13 @@ function Verdict({
             verdict="block"
             word={p.block.word}
             reason={
-              unknownDapp
-                ? copyGaps.review.dappUnknownBlock
-                : decision.screening.hit
-                  ? p.block.reason
-                  : (decision.reasons[0] ?? copy.common.policyRefused)
+              blockReason
+                ? blockReason
+                : unknownDapp
+                  ? copyGaps.review.dappUnknownBlock
+                  : decision.screening.hit
+                    ? p.block.reason
+                    : (decision.reasons[0] ?? copy.common.policyRefused)
             }
             trailing={decision.screening.simulatedHit ? <SimulatedBadge /> : undefined}
           />
@@ -800,6 +818,17 @@ function whatWillHappen(
   return rows;
 }
 
+/** WC-21: "Not enough USDC · You have 0.00 USDC, this needs 1.00 USDC" instead of the raw ERC-20 revert. */
+function plainBlockReason(d: PolicyDecision, balance: number | undefined): string | undefined {
+  const raw = d.reasons[0] ?? '';
+  if (!/exceeds balance|insufficient/i.test(raw)) return undefined;
+  const need = d.simulation.decodedCalls
+    .filter((c) => c.fn.startsWith('transfer(') && c.to.toLowerCase() === env.usdcAddress.toLowerCase())
+    .reduce((sum, c) => sum + Number(formatUnits(BigInt(c.args[1] ?? '0'), 6)), 0);
+  if (need <= 0) return undefined;
+  return copyWc.request.notEnough(formatUSDC(balance ?? 0), formatUSDC(need));
+}
+
 /**
  * A dApp call as a field row (DESIGN-AUDIT WC-5, the TypedDataRows rule): `approve` → "Spending limit · Unlimited"
  * (danger) or the capped amount; `transfer` → "You send · 1.00 USDC"; anything else keeps the bank's sentence.
@@ -836,9 +865,12 @@ function heroAmount(calls: readonly DecodedCall[]): string | undefined {
 function TechnicalDetails({
   decision: d,
   userOpHash,
+  allReasons = false,
 }: {
   decision: PolicyDecision;
   userOpHash: string | null;
+  /** The headline shows a rewritten reason: keep the bank's raw first reason here too. */
+  allReasons?: boolean;
 }) {
   const fallback = d.simulation.provider === 'fallback';
   return (
@@ -849,7 +881,7 @@ function TechnicalDetails({
           {fallback ? copyGaps.review.providerFallback : copyGaps.review.providerLive}{' '}
           {fallback ? <SimulatedBadge /> : null}
         </p>
-        <Reasons reasons={d.reasons} except={d.reasons[0] ? [d.reasons[0]] : []} />
+        <Reasons reasons={d.reasons} except={!allReasons && d.reasons[0] ? [d.reasons[0]] : []} />
         {d.simulation.decodedCalls.map((c) => (
           <pre key={`${c.to}${c.fn}${c.args.join()}`} className="kl-code">
             {c.to}

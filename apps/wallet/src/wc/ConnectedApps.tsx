@@ -14,6 +14,7 @@ import {
   Address,
   Button,
   DappIdentityRow,
+  DappPermissionsList,
   EmptyState,
   Note,
   Panel,
@@ -31,6 +32,8 @@ function sessionAccount(s: WcSession): string | undefined {
 export function ConnectedApps() {
   const wc = useWc();
   const [selected, setSelected] = useState<string | null>(null);
+  // WC-22: the disconnect confirmation is its own sheet (danger confirm + Keep), opened from the detail sheet.
+  const [confirming, setConfirming] = useState<string | null>(null);
   const wallet = typeof window === 'undefined' ? null : walletStore.get();
   // The bank's record carries each session's Verify context (verification chip); the relay doesn't keep it.
   const recorded = useQuery({
@@ -42,6 +45,7 @@ export function ConnectedApps() {
   if (!wc) return null;
   const c = copyWc.apps;
   const session = wc.sessions.find((s) => s.topic === selected) ?? null;
+  const toDisconnect = wc.sessions.find((s) => s.topic === confirming) ?? null;
   return (
     <section className="kl-stack" data-testid="wc-sessions">
       <div className="kl-section">
@@ -88,25 +92,60 @@ export function ConnectedApps() {
         onClose={() => setSelected(null)}
         closeLabel={copyWc.request.close}
       >
-        {session ? <SessionDetail session={session} onDone={() => setSelected(null)} /> : null}
+        {session ? (
+          <SessionDetail
+            session={session}
+            onDisconnect={() => {
+              setConfirming(session.topic);
+              setSelected(null);
+            }}
+          />
+        ) : null}
+      </SheetV2>
+      <SheetV2
+        contained
+        open={toDisconnect !== null}
+        title={toDisconnect ? c.disconnectTitle(toDisconnect.peer.metadata.name) : ''}
+        onClose={() => setConfirming(null)}
+        closeLabel={copyWc.request.close}
+      >
+        {toDisconnect ? (
+          <DisconnectConfirm
+            session={toDisconnect}
+            onKeep={() => {
+              setSelected(toDisconnect.topic);
+              setConfirming(null);
+            }}
+            onDone={() => setConfirming(null)}
+          />
+        ) : null}
       </SheetV2>
     </section>
   );
 }
 
-function SessionDetail({ session, onDone }: { session: WcSession; onDone: () => void }) {
-  const wc = useWc();
+/** WC-22: "Approval · 100 USDC", "Transfer · 1 USDC", "Sign-in" — never the bank's long sentence. */
+function shortActivity(method: string, summary: string): string {
+  const k = copyWc.apps.kinds;
+  const amount = /(?:up to|send|Send)\s+([\d.,]+\s*[A-Z]{3,5}|an unlimited amount of [A-Z]{3,5})/.exec(
+    summary,
+  )?.[1];
+  const value = amount?.startsWith('an unlimited') ? copyWc.request.typed.rows.unlimited : amount;
+  if (/spend|approv/i.test(summary)) return value ? `${k.approval} · ${value}` : k.approval;
+  if (/^send|transfer/i.test(summary)) return value ? `${k.transfer} · ${value}` : k.transfer;
+  if (method === 'wallet_sendCalls') return k.batch;
+  if (/sign in|sign-in/i.test(summary)) return k.signIn;
+  if (method === 'personal_sign' || method.startsWith('eth_signTypedData')) return k.signature;
+  return k.other;
+}
+
+function SessionDetail({ session, onDisconnect }: { session: WcSession; onDisconnect: () => void }) {
   const c = copyWc.apps;
   const meta = session.peer.metadata;
-  const [confirming, setConfirming] = useState(false);
   const detail = useQuery({
     queryKey: ['dapp-session', session.topic],
     queryFn: () => api.dappSessions.get(session.topic),
     retry: false,
-  });
-  const disconnect = useMutation({
-    mutationFn: () => wc?.disconnect(session.topic) ?? Promise.resolve(),
-    onSuccess: () => setTimeout(onDone, 1_200),
   });
   const account = sessionAccount(session);
   const recorded = detail.data?.session;
@@ -119,20 +158,22 @@ function SessionDetail({ session, onDone }: { session: WcSession; onDone: () => 
         verification={recorded ? verificationOf(recorded.verify, recorded.url) : 'unverified'}
         copy={copyWc.identity}
       />
+      <DappPermissionsList copy={copyWc.proposal.permissions} />
       <Panel
         rows={[
           { label: c.network, value: copyWc.proposal.networkValue },
           ...(account
             ? [{ label: c.account, value: <Address value={account} explorerUrl={addressUrl(account)} /> }]
             : []),
+          ...(recorded ? [{ label: c.connectedSince(''), value: formatRelative(recorded.createdAt) }] : []),
           ...(recorded?.lastRequestAt
             ? [{ label: c.lastRequest, value: formatRelative(recorded.lastRequestAt) }]
             : []),
         ]}
       />
-      {recorded ? (
-        <p className="m-0 text-12 text-ink-3">{c.connectedSince(formatRelative(recorded.createdAt))}</p>
-      ) : null}
+      <Button variant="secondary" full onClick={onDisconnect} data-testid="wc-disconnect">
+        {c.disconnect}
+      </Button>
       <div className="kl-section">
         <h3 className="kl-section__title">{c.activity}</h3>
       </div>
@@ -145,21 +186,56 @@ function SessionDetail({ session, onDone }: { session: WcSession; onDone: () => 
           {detail.data.requests.slice(0, 20).map((r) => (
             <StatementRow
               key={r.id}
-              label={r.summary}
-              meta={formatRelative(r.at)}
-              status={r.outcome === 'approved' ? 'ok' : r.outcome === 'expired' ? 'pending' : 'danger'}
-              statusWord={c.outcome[r.outcome]}
+              label={shortActivity(r.method, r.summary)}
+              // WC-22: colour on the status word only, never on the row.
+              meta={
+                <>
+                  {formatRelative(r.at)} ·{' '}
+                  <span
+                    className={
+                      r.outcome === 'approved'
+                        ? 'text-ok'
+                        : r.outcome === 'expired'
+                          ? 'text-pending'
+                          : 'text-danger'
+                    }
+                  >
+                    {c.outcome[r.outcome]}
+                  </span>
+                </>
+              }
               chevron={false}
             />
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function DisconnectConfirm({
+  session,
+  onKeep,
+  onDone,
+}: {
+  session: WcSession;
+  onKeep: () => void;
+  onDone: () => void;
+}) {
+  const wc = useWc();
+  const c = copyWc.apps;
+  const name = session.peer.metadata.name;
+  const disconnect = useMutation({
+    mutationFn: () => wc?.disconnect(session.topic) ?? Promise.resolve(),
+    onSuccess: () => setTimeout(onDone, 1_200),
+  });
+  return (
+    <div className="kl-stack" data-testid="wc-disconnect-confirm">
+      <p className="m-0 text-14 text-ink-2">{c.disconnectBody}</p>
       {disconnect.isSuccess ? (
-        <Note tone="ok">{c.disconnected(meta.name)}</Note>
-      ) : confirming ? (
-        <div className="kl-stack kl-stack--tight" data-testid="wc-disconnect-confirm">
-          <p className="m-0 text-16 font-semibold">{c.disconnectTitle(meta.name)}</p>
-          <p className="m-0 text-14 text-ink-2">{c.disconnectBody}</p>
+        <Note tone="ok">{c.disconnected(name)}</Note>
+      ) : (
+        <>
           <Button
             variant="danger"
             full
@@ -169,14 +245,10 @@ function SessionDetail({ session, onDone }: { session: WcSession; onDone: () => 
           >
             {c.disconnectYes}
           </Button>
-          <Button variant="ghost" full onClick={() => setConfirming(false)} disabled={disconnect.isPending}>
+          <Button variant="ghost" full onClick={onKeep} disabled={disconnect.isPending}>
             {c.keep}
           </Button>
-        </div>
-      ) : (
-        <Button variant="secondary" full onClick={() => setConfirming(true)} data-testid="wc-disconnect">
-          {c.disconnect}
-        </Button>
+        </>
       )}
     </div>
   );

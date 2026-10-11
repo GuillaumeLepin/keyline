@@ -1397,6 +1397,14 @@ export const copyWc = {
   },
 
   apps: {
+    kinds: {
+      approval: 'Autorisation',
+      transfer: 'Virement',
+      signIn: 'Connexion',
+      signature: 'Signature',
+      batch: 'Lot',
+      other: 'Demande',
+    },
     account: 'Portefeuille',
     disconnecting: 'Déconnexion…',
     outcome: {
@@ -1426,6 +1434,12 @@ export const copyWc = {
   },
 
   request: {
+    blockedTitle: 'Bloqué · rien n’a été envoyé',
+    blockedSignTitle: 'Bloqué · rien n’a été signé',
+    notEnough: (have: string, need: string) => `Pas assez d’USDC · Vous avez ${have}, il faut ${need}`,
+    stepUpSign:
+      'En attente de votre clé de sécurité. Ouvrez Keyline sur votre ordinateur et approuvez ; vous signez ici juste après.',
+    checking: 'Vérification de la demande…',
     pendingSign: 'En attente de votre clé d’accès…',
     passkeyCancelled: 'Clé d’accès annulée. Rien n’a été signé.',
     notDeployed: 'Protégez d’abord votre portefeuille : avant cela, il ne peut pas signer pour des apps.',
@@ -1553,6 +1567,13 @@ export const copyWc = {
       title: 'Bloqué par vos limites',
       body: (reason: string) => `${reason} Rien n’a été signé ni envoyé. L’app a été informée.`,
     },
+  },
+
+  laptop: {
+    unlimitedTitle: (app: string) => `Autoriser ${app} à dépenser des USDC sans limite ?`,
+    txTitle: (app: string) => `Approuver une transaction pour ${app} ?`,
+    signTitle: (app: string) => `Approuver une signature pour ${app} ?`,
+    fromPhone: (ago: string) => `Demandé depuis votre téléphone, ${ago}.`,
   },
 
   inbox: {

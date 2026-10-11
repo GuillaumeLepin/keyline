@@ -133,6 +133,7 @@ function DappSection({
               verification={d.allowlisted ? 'verified' : 'flagged'}
               copy={copyWc.identity}
               compact
+              badge={d.simulated ? <SimulatedBadge /> : undefined}
               trailing={
                 d.demoRequest ? (
                   <button type="button" className="kl2-textbtn" onClick={() => onSelect(d)}>
@@ -151,13 +152,6 @@ function DappSection({
                 )
               }
             />
-            {/* WC-18: the chip belongs right after the name; DappIdentityRow has no badge slot yet (asked of
-                design-system), so it sits directly under the name for now. */}
-            {d.simulated ? (
-              <span className="ml-[52px] inline-block">
-                <SimulatedBadge />
-              </span>
-            ) : null}
           </li>
         ))}
       </ul>
