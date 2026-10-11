@@ -356,6 +356,247 @@ Count: 50 screens, ≈ 150 states including the global loading / error / offline
 - No shadow except sheets; radii 6/10; no gradient, blur, purple, emoji, stock imagery.
 - Focus visible; targets ≥ 44 px; nothing clipped or horizontally scrolling at 390 px.
 
+## 13. WalletConnect (SPEC §11, VERIFIED §20) — screens, primitives, copy
+
+Keyline as the wallet for any EVM dApp. Every request goes through the same review → sponsor → passkey path as an in-app transfer, so every sheet is a **RequestSheet**: the app's identity on top (who is asking), the request in plain words, one primary, `Not now`. Nothing here may look bolted on: same type scale, same 56 px statement grid, same ring for success, same chip weight. All states on `/design/wc` (light / dark switch at the top).
+
+### 13.1 Primitives (`packages/ui/src/v2/wc/`, styles in `v2.css`)
+
+| Primitive | Props | Notes |
+|---|---|---|
+| `DappIdentityRow` | `name`, `url`, `iconUrl?`, `verification: verified\|unverified\|flagged`, `copy?`, `trailing?`, `compact?` | 40 px icon (radius 10; 32 px / radius 6 compact) with a **monogram fallback** (first letter on surface-2) when there is no icon or it fails, even before hydration; name 16/600; **domain = URL host in mono 12** (the part the person can check); verification chip = icon + word, 1 px status border, no fill: `Verified domain` ok + SealCheck · `Unverified` pending + Question · `Flagged` danger + ShieldWarning. Helpers `dappHost`, `dappMonogram`. |
+| `DappPermissionsList` | `copy?` | `This app will be able to:` + three check lines; under a hairline, the ok shield line `It can never move money without your approval.` |
+| `RequestSheet` | `open`, `onClose`, `title`, `dapp`, `state: review\|pending\|success\|error\|expired\|refused`, `children`, `primaryLabel?`, `primaryVariant?: primary\|danger`, `primaryDisabled?`, `onApprove?`, `onDecline`, `pendingLine?`, `successTitle?`, `successBody?`, `successAnnounce?`, `errorTitle?`, `errorBody?`, `secondaryAction?`, `copy?` | SheetV2 (contained). **review**: content + `[P]` + `Not now`. **pending**: primary loading (label stays), content at .6, `pendingLine` under it (`Signed · Sent · Waiting for the block`), `Not now` disabled. **success**: the receipt treatment — 64 px ring `success` (closed `--ok`) + drawn check, word + one line, `Close`. **error**: danger note (what did and didn't happen), primary becomes `Try again`. **expired** (Clock in a 64 px hairline circle) and **refused** (chain switch, unsupported method, flagged app, SIWE domain mismatch, policy block): one `Close`. |
+| `SiweSummary` | `domain`, `address`, `expiresAt?`, `issuedAt?`, `statement?`, `network?`, `nonce?`, `uri?`, `appHost?`, `copy?` | `Sign in to <domain>` (20/600) · `as 0x12AB … 9F3C` (Address) · `Valid until …` · ok shield `This does not move money.` · fields on the statement grid. If `appHost` ≠ `domain` the shield becomes a danger line and the sheet is **refused** (Keyline never signs a sign-in for another site). |
+| `MessageBlock` | `text?`, `hex`, `copy?`, `noMoney?` | readable text in a 10 px object (pre-wrap, max 240 px, scrolls); non-text bytes → pending-bordered `This message isn’t readable text…`; optional ok shield line; hex only under `Technical details`. |
+| `TypedDataRows` + `typedDataRows(data, copy?, { formatTime? })` | `rows`, `title?`, `domain?`, `addressLabels?` | EIP-712 flattened in type order (pure, tested): nested structs as uppercase group headers indented 16 px per level; addresses as `Address` (compact, expandable); unix deadlines formatted; **2^256−1 / 2^160−1 amounts → `Unlimited`, max-uint48 expirations → `Never`, both `danger` with their reason under the row**. |
+| `ConnectPanel` | `state: idle\|invalid\|scanning\|camera-denied\|pairing\|expired`, `value`, `onChange`, `onConnect`, `onPaste?`, `onScan?`, `onStopScan?`, `scanner?`, `copy?` | title 28, one line of how-to, mono `wc:` field, `Paste` + `Scan QR code` as equal secondaries, `[P] Connect` (ActionButton; loading `Connecting…` + `Waiting for the app to answer…`). Camera refused = warn note pointing back to pasting (never a dead end). Invalid / expired = field error. |
+| `InboxBadge` | `count`, `label` | ink pill, 20 px, tabular; nothing at 0, `9+` above 9; `label` is the screen-reader sentence. Not accent (accent = focus, active, ring). |
+
+### 13.2 Screens
+
+| # | Screen | Built from | Rules |
+|---|---|---|---|
+| W1 | **Connect** `/dapps/connect` (also `/wc?uri=` → pre-filled, pairs at once) | `StackView` (title `Connect an app`) + `ConnectPanel` | primary docked; camera denied → note + field; pairing → loading; on proposal the **W2 sheet** opens over it. |
+| W2 | **Connection request** | `RequestSheet` title `Connect to this app?` + `DappPermissionsList` + `Panel` (Network `Base Sepolia (test network)`, Wallet `0x12AB…9F3C`) | verified → `[P] Connect` / `Not now`; unverified → warn note above the permissions, same buttons; **flagged / INVALID / isScam / origin ≠ url → `refused`: danger note, no Connect**; success `Connected` + `{app} can now see your address…`. |
+| W3 | **Connected apps** (list) `/dapps` | `StackView` + `DappIdentityRow compact` rows (56 px, chevron) with meta `Connected 11 Oct, 14:32`; header count in Security row | empty: `No apps connected` + `Connect an app` button; `InboxBadge` on the Apps tab while requests wait. |
+| W4 | **Connected app** (detail) | `DappIdentityRow` · `What it can do` (`DappPermissionsList`) · Network · Last request · `Activity from this app` (StatementRows, the same rows as Home) · `Disconnect` (`kl-btn--danger-text`) → confirm sheet with `ActionButton variant="danger"` | after disconnect: back to the list, toast `{app} disconnected`. |
+| W5 | **Transaction** (`eth_sendTransaction`) | `RequestSheet` title `Approve a transaction`: PolicyLine (incl. `First time with this app`) + the `/send/review` Panel (`What will happen`) | `[P] Approve with Face ID`; pending line follows the real steps; success `Sent` / `The app has the result.` (the dApp gets the bundle hash ≈ 4 s after send, VERIFIED §20.3); policy block → `refused` with the PolicyLine and the block sentence. |
+| W6 | **Batch** (`wallet_sendCalls`) | same, title `Approve several actions`, lead `{n} actions, approved together. Either all happen or none.`, one Panel per action (`Action 1`…) | `[P] Approve all with Face ID`. |
+| W7 | **Sign-in** (SIWE `personal_sign`) | `SiweSummary` | `[P] Sign in with Face ID`; domain mismatch → `refused`; success `Signed in` / `The app has your signature. No money moved.` |
+| W8 | **Message** (`personal_sign`, not SIWE) | `MessageBlock` with `noMoney` | `[P] Sign with Face ID`; unreadable bytes → pending-bordered sentence, same buttons. |
+| W9 | **Typed data** (`eth_signTypedData_v4`) | `TypedDataRows` (title = primary type, domain line `name · network · contract`) | `[P] Sign with Face ID`. **Permit / Permit2 with an unlimited or never-expiring value**: title `Let another address spend your tokens`, block PolicyLine `Unlimited · {spender} will be able to move these tokens without asking you again.`, primary `Sign anyway` (`primaryVariant="danger"`). |
+| W10 | **EOA-only permit** (`permit(v,r,s)` / DAI-style, VERIFIED §20.2) | `RequestSheet` title `This signature isn’t possible`, body sentence + meta `You’ll review an approval transaction instead…` | no sign button: `secondaryAction` = primary `Approve with a transaction instead` (opens W5 with the `approve` call) + `Not now` (answers `USER_REJECTED`). |
+| W11 | **Chain-switch refusal** (`wallet_switchEthereumChain` ≠ 84532) | `refused` | `Network not available` + sentence naming the network; `Close`. |
+| W12 | **Unsupported method** (`eth_sign`, `eth_signTransaction`, other) | `refused` | `Request not supported` + sentence quoting the method; `Close`. |
+| W13 | **Inbox** | `InboxBadge` on the Apps tab; `/alerts` item: `DappIdentityRow compact` + title `{app} is waiting for you` + meta `Transaction to approve · 14:32` + `Review` | opening resumes the exact sheet; past WalletConnect expiry the item reads `Expired` (ink-3 + Clock) and opening it shows the **expired** sheet — never dropped silently. |
+| W14 | **Expired** | `RequestSheet state="expired"` | `This request expired` / `The app stopped waiting. Nothing was signed or sent. Ask the app to try again.` |
+| W15 | **Security row** | `StatementRow` `Connected apps` · meta `2 apps` · chevron → W3 | dApp events appear in the Security event log with the app name. |
+
+Motion: only M2 (sheet), M5–M8 (button), M13 (success ring), M1 (StackView between list and detail). Nothing else animates.
+
+### 13.3 Copy (EN, keyed for `copy.ts` as `copyWc`; the wallet adds FR/DE with the same keys)
+
+Source of truth: `apps/wallet/app/design/wc/copy.ts` (the `/design/wc` page renders from it). Functions take already-formatted values (`formatDateTime`, `formatShortDateTime`, the app name, the host).
+
+```ts
+export const copyWc = {
+  nav: { apps: 'Apps', connect: 'Connect an app', connectedApps: 'Connected apps' },
+
+  connect: {
+    title: 'Connect to an app',
+    body: 'On the app’s website choose WalletConnect, then copy its link or show its QR code.',
+    fieldLabel: 'WalletConnect link',
+    placeholder: 'wc:…',
+    paste: 'Paste',
+    scan: 'Scan QR code',
+    stopScan: 'Stop scanning',
+    connect: 'Connect',
+    connecting: 'Connecting…',
+    pairingLine: 'Waiting for the app to answer…',
+    invalid: 'This isn’t a WalletConnect link. It starts with wc:',
+    scanHint: 'Point the camera at the app’s QR code.',
+    cameraDeniedTitle: 'Camera access is off',
+    cameraDeniedBody: 'Paste the link instead, or allow the camera for this site in your browser settings.',
+    expired: 'This link has expired. Ask the app for a new one.',
+  },
+
+  identity: { verified: 'Verified domain', unverified: 'Unverified', flagged: 'Flagged' },
+
+  proposal: {
+    title: 'Connect to this app?',
+    permissions: {
+      title: 'This app will be able to:',
+      items: ['See your address', 'Ask you to approve transactions', 'Ask you to sign messages'],
+      never: 'It can never move money without your approval.',
+    },
+    network: 'Network',
+    networkValue: 'Base Sepolia (test network)',
+    account: 'Wallet',
+    unverifiedNote: 'Keyline couldn’t confirm this app’s website. Connect only if you opened it yourself.',
+    flaggedTitle: 'This app’s identity could not be verified',
+    flaggedBody:
+      'Its website doesn’t match what it claims, or it is on a list of known scams. Keyline won’t connect to it.',
+    connect: 'Connect',
+    decline: 'Not now',
+    close: 'Close',
+    connectedTitle: 'Connected',
+    connectedBody: (app: string) => `${app} can now see your address and send you requests.`,
+    errorTitle: 'Not connected',
+    errorBody: 'The app didn’t answer. Nothing was shared. Try again from the app.',
+  },
+
+  apps: {
+    title: 'Connected apps',
+    empty: 'No apps connected',
+    emptyBody: 'Connect to an app from its website with WalletConnect.',
+    connectedSince: (date: string) => `Connected ${date}`,
+    count: (n: number) => (n === 1 ? '1 app' : `${n} apps`),
+    disconnect: 'Disconnect',
+    disconnectTitle: (app: string) => `Disconnect ${app}?`,
+    disconnectBody:
+      'The app can no longer see your address or send you requests. Past transfers stay in your statement.',
+    disconnectYes: 'Disconnect',
+    keep: 'Keep',
+    disconnected: (app: string) => `${app} disconnected`,
+    activity: 'Activity from this app',
+    activityEmpty: 'Nothing yet.',
+    permissionsTitle: 'What it can do',
+    network: 'Network',
+    lastRequest: 'Last request',
+  },
+
+  request: {
+    decline: 'Not now',
+    close: 'Close',
+    retry: 'Try again',
+    expiredTitle: 'This request expired',
+    expiredBody: 'The app stopped waiting. Nothing was signed or sent. Ask the app to try again.',
+    declinedToast: 'Declined. The app was told.',
+
+    tx: {
+      title: 'Approve a transaction',
+      approve: 'Approve with Face ID',
+      pendingLine: (step: string) => step,
+      steps: {
+        signed: 'Signed',
+        sent: 'Sent',
+        waiting: 'Waiting for the block',
+        included: (block: string) => `In block ${block}`,
+      },
+      successTitle: 'Sent',
+      successBody: 'The app has the result.',
+      announce: 'Sent',
+      errorTitle: 'Not sent',
+      errorBody: 'Nothing left your wallet. The app was told.',
+      firstTime: 'First time with this app',
+    },
+    batch: {
+      title: 'Approve several actions',
+      lead: (n: number) => `${n} actions, approved together. Either all happen or none.`,
+      item: (i: number) => `Action ${i}`,
+      approve: 'Approve all with Face ID',
+    },
+    signIn: {
+      title: 'Sign in',
+      approve: 'Sign in with Face ID',
+      siwe: {
+        title: (domain: string) => `Sign in to ${domain}`,
+        as: 'as',
+        validUntil: (time: string) => `Valid until ${time}`,
+        noMoney: 'This does not move money.',
+        mismatch: (domain: string, appHost: string) =>
+          `This sign-in is for ${domain}, not for the app that asked (${appHost}). Don’t sign it.`,
+        fields: {
+          statement: 'Statement',
+          domain: 'Domain',
+          address: 'Address',
+          network: 'Network',
+          issued: 'Issued',
+          expires: 'Expires',
+          nonce: 'Nonce',
+          uri: 'URI',
+        },
+      },
+      successTitle: 'Signed in',
+      successBody: 'The app has your signature. No money moved.',
+      announce: 'Signed in',
+    },
+    message: {
+      title: 'Sign a message',
+      approve: 'Sign with Face ID',
+      block: {
+        title: 'Message',
+        technical: 'Technical details',
+        hexLabel: 'Raw message (hex)',
+        unreadable: 'This message isn’t readable text. Only sign it if you know what it is for.',
+      },
+      noMoney: 'Signing a message does not move money.',
+      successTitle: 'Signed',
+      successBody: 'The app has your signature.',
+      announce: 'Signed',
+    },
+    typed: {
+      title: 'Sign structured data',
+      approve: 'Sign with Face ID',
+      domain: (name: string, network: string, contract: string) => `${name} · ${network} · ${contract}`,
+      rows: {
+        unlimited: 'Unlimited',
+        unlimitedNote: 'No limit — the spender can take all of it, now and later.',
+        never: 'Never',
+        neverNote: 'This permission never expires.',
+      },
+      permitTitle: 'Let another address spend your tokens',
+      permitBody: (spender: string) =>
+        `${spender} will be able to move these tokens without asking you again.`,
+      approveDanger: 'Sign anyway',
+      successTitle: 'Signed',
+      successBody: 'The app has your signature.',
+      announce: 'Signed',
+    },
+    eoaOnly: {
+      title: 'This signature isn’t possible',
+      body: 'This token only accepts signatures from a single private key. Your Keyline is a smart account protected by 2 of 3 recoverers, so it can’t produce that kind of signature.',
+      alternative: 'Approve with a transaction instead',
+      alternativeBody: 'You’ll review an approval transaction instead. Swissquote pays the network fee.',
+      decline: 'Not now',
+    },
+    chainSwitch: {
+      title: 'Network not available',
+      body: (network: string) =>
+        `The app asked to switch to ${network}. This Keyline works on Base Sepolia only. The app was told; you can keep using it on Base Sepolia.`,
+    },
+    unsupported: {
+      title: 'Request not supported',
+      body: (method: string) =>
+        `The app asked for “${method}”, which Keyline never does: it could sign something you can’t read. Nothing was signed. The app was told.`,
+    },
+    blocked: {
+      title: 'Blocked by your limits',
+      body: (reason: string) => `${reason} Nothing was signed or sent. The app was told.`,
+    },
+  },
+
+  inbox: {
+    badge: (n: number) => (n === 1 ? '1 request waiting' : `${n} requests waiting`),
+    alertTitle: (app: string) => `${app} is waiting for you`,
+    alertBody: (what: string) => `${what}. Open it to review.`,
+    open: 'Review',
+    expired: 'Expired',
+    expiredBody: 'The app stopped waiting. Nothing was signed or sent.',
+    kinds: {
+      tx: 'Transaction to approve',
+      batch: 'Actions to approve',
+      signIn: 'Sign-in request',
+      message: 'Message to sign',
+      typed: 'Data to sign',
+    },
+  },
+
+  security: { row: 'Connected apps', rowMeta: (n: number) => (n === 1 ? '1 app' : `${n} apps`) },
+} as const;
+```
+
 ---
 
 # Appendix V2 — journey copy (Phase B, keyed for `apps/wallet/src/copy.ts`)

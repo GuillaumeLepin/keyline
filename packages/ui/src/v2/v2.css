@@ -1216,3 +1216,472 @@
 .kl2-bpd__track {
   stroke: var(--ring-track);
 }
+
+/* =====================================================================================================
+ * WalletConnect primitives (DESIGN.md §13). Tokens only; statement grid; one primary per sheet.
+ * ===================================================================================================== */
+
+/* ---------- DappIdentityRow ---------- */
+.kl2-dapp {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  align-items: center;
+  min-height: 56px;
+}
+.kl2-dapp--compact {
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+}
+.kl2-dapp__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sheet);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.kl2-dapp--compact .kl2-dapp__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-control);
+}
+.kl2-dapp__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.kl2-dapp__mono {
+  font-size: var(--text-16);
+  line-height: 1;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+.kl2-dapp__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.kl2-dapp__name {
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.kl2-dapp__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.kl2-dapp__host {
+  font-family: var(--font-mono);
+  font-feature-settings: "zero" 1;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.kl2-dapp__trail {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-3);
+}
+
+/* Verification: icon + word, a 1 px status border, no fill (same weight as the SIMULATED chip). */
+.kl2-verif {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-control);
+  font-size: var(--text-12);
+  line-height: 1;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.kl2-verif--verified {
+  color: var(--ok);
+}
+.kl2-verif--unverified {
+  color: var(--pending);
+}
+.kl2-verif--flagged {
+  color: var(--danger);
+}
+
+/* ---------- DappPermissionsList ---------- */
+.kl2-perms {
+  display: grid;
+  gap: var(--space-2);
+}
+.kl2-perms__title {
+  margin: 0;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+  font-weight: 600;
+}
+.kl2-perms__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+.kl2-perms__list li {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
+}
+.kl2-perms__list svg {
+  color: var(--ink-3);
+  transform: translateY(2px);
+}
+.kl2-perms__never {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: var(--space-2);
+  align-items: start;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+  font-weight: 600;
+}
+.kl2-perms__never svg {
+  color: var(--ok);
+}
+
+/* ---------- InboxBadge ---------- */
+.kl2-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: var(--text-12);
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- MessageBlock ---------- */
+.kl2-msg {
+  display: grid;
+  gap: var(--space-2);
+}
+.kl2-msg__title,
+.kl2-typed__title {
+  margin: 0;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.kl2-msg__text {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sheet);
+  background: var(--surface);
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.kl2-msg__text--unreadable {
+  color: var(--pending);
+  border-color: var(--pending);
+}
+.kl2-msg__hex {
+  font-family: var(--font-mono);
+  font-feature-settings: "zero" 1;
+  font-size: var(--text-12);
+  line-height: var(--leading-14);
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+}
+
+/* ---------- TypedDataRows ---------- */
+.kl2-typed {
+  display: grid;
+  gap: var(--space-1);
+}
+.kl2-typed__domain {
+  margin: 0;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.kl2-typed__rows {
+  margin: var(--space-2) 0 0;
+}
+.kl2-typed__row {
+  display: grid;
+  grid-template-columns: minmax(35%, auto) minmax(0, 1fr);
+  column-gap: var(--space-4);
+  align-items: first baseline;
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+}
+.kl2-typed__row dt {
+  color: var(--ink-2);
+}
+.kl2-typed__row dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-1);
+}
+.kl2-typed__row--group {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.kl2-typed__row--group dt {
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.kl2-typed__row--danger dt,
+.kl2-typed__row--danger dd {
+  color: var(--danger);
+  font-weight: 600;
+}
+.kl2-typed__note {
+  grid-column: 1 / -1;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
+  color: var(--danger);
+}
+.kl2-typed__mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "zero" 1;
+  font-size: var(--text-12);
+}
+
+/* ---------- SiweSummary ---------- */
+.kl2-siwe {
+  display: grid;
+  gap: var(--space-2);
+}
+.kl2-siwe__title {
+  margin: 0;
+  font-size: var(--text-20);
+  line-height: var(--leading-20);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.kl2-siwe__as {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--ink-2);
+}
+.kl2-siwe__valid {
+  margin: 0;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+  color: var(--ink-2);
+}
+.kl2-siwe__line {
+  margin: var(--space-2) 0 0;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: var(--space-2);
+  align-items: start;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+  font-weight: 600;
+}
+.kl2-siwe__line svg {
+  color: var(--ok);
+}
+.kl2-siwe__line--danger,
+.kl2-siwe__line--danger svg {
+  color: var(--danger);
+}
+.kl2-siwe__fields {
+  margin: var(--space-2) 0 0;
+}
+.kl2-siwe__field {
+  display: grid;
+  grid-template-columns: minmax(30%, auto) minmax(0, 1fr);
+  column-gap: var(--space-4);
+  align-items: first baseline;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+}
+.kl2-siwe__field dt {
+  color: var(--ink-2);
+}
+.kl2-siwe__field dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- ConnectPanel ---------- */
+.kl2-connect {
+  display: grid;
+  gap: var(--space-4);
+}
+.kl2-connect__title {
+  margin: 0;
+  font-size: var(--text-28);
+  line-height: var(--leading-28);
+  letter-spacing: var(--tracking-28);
+  font-weight: 600;
+  text-wrap: balance;
+}
+.kl2-connect__body {
+  margin: 0;
+  color: var(--ink-2);
+  max-width: var(--measure);
+}
+.kl2-connect__ways {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+.kl2-connect__ways .kl-btn {
+  min-width: 0;
+  white-space: normal;
+  text-align: center;
+}
+.kl2-connect__go {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.kl2-connect__pairing {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+  color: var(--ink-2);
+}
+.kl2-connect__scan {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+}
+.kl2-connect__viewport {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 280px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sheet);
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+  overflow: hidden;
+}
+.kl2-connect__hint {
+  margin: 0;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+  color: var(--ink-2);
+}
+
+/* ---------- RequestSheet ---------- */
+.kl2-req {
+  display: grid;
+  gap: var(--space-4);
+}
+.kl2-req > .kl2-dapp {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.kl2-req__content {
+  display: grid;
+  gap: var(--space-4);
+  transition: opacity var(--duration-fade) var(--ease-standard);
+}
+.kl2-req__content[aria-busy="true"] {
+  opacity: 0.6;
+}
+.kl2-req__result {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  text-align: center;
+}
+.kl2-req__result-title {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-20);
+  line-height: var(--leading-20);
+  font-weight: 600;
+}
+.kl2-req__result-body {
+  margin: 0;
+  color: var(--ink-2);
+  max-width: 36ch;
+}
+.kl2-req__glyph {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-3);
+}
+.kl2-req__actions {
+  display: grid;
+  gap: var(--space-2);
+}
+.kl2-req__pending {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kl2-req__content {
+    transition: none;
+  }
+}
+.kl2-typed__row dd .kl-addr {
+  justify-content: flex-end;
+}

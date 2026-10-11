@@ -149,3 +149,6 @@ export {
   useThemePreference,
 } from './v2/ThemeSwitch';
 export { type TickerCell, tickerCells } from './v2/ticker';
+
+// ---- v2 WalletConnect primitives (DESIGN.md §13, SPEC §11.4) ----
+export * from './v2/wc';
