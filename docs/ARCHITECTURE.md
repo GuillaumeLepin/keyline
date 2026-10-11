@@ -252,7 +252,7 @@ sequenceDiagram
   K->>B: POST /dapp-sessions/:topic/events (outcome, txHash)
 ```
 
-`wallet_sendCalls` takes the same path with every call in one batched userOp and answers `{ id: userOpHash }`; `wallet_getCallsStatus` then answers the EIP-5792 v2 shape from the bundler receipt. Sign-in, `personal_sign` and typed data stay in the wallet: decoded on a review sheet, signed by the passkey as a Safe message (ERC-1271), answered through the relay and logged as a bank event; they do not go through `/policy/evaluate`. A declined request answers `USER_REJECTED`; one past its WalletConnect expiry is shown as expired.
+`wallet_sendCalls` takes the same path with every call in one batched userOp and answers `{ id: userOpHash }`; `wallet_getCallsStatus` then answers the EIP-5792 v2 shape from the bundler receipt. Sign-in, `personal_sign` and typed data stay in the wallet: decoded on a review sheet, signed by the passkey as a Safe message (ERC-1271), answered through the relay and logged as a bank event; before signing they go through `/policy/evaluate` as `kind: 'dapp-signature'` (session and identity, sanctions screening of every address, SIWE domain mismatch blocked, unlimited permits → laptop step-up, no sponsorship). A declined request answers `USER_REJECTED`; one past its WalletConnect expiry is shown as expired.
 
 ### F3 Lose the phone and recover (Option A, DECISIONS #15)
 
