@@ -1,4 +1,6 @@
-const { chromium } = require('/Users/guillaume/Documents/Hackathon BSA 2026/node_modules/.pnpm/playwright@1.63.0/node_modules/playwright');
+const {
+  chromium,
+} = require('/Users/guillaume/Documents/Hackathon BSA 2026/node_modules/.pnpm/playwright@1.63.0/node_modules/playwright');
 const BASE = process.env.BASE ?? 'http://localhost:3000';
 // A wallet the local bank knows (deployed), so Home's bank reads succeed.
 const SAFE = '0x74DedAEce5CD9d4dCA25e2beeA6E9b45F41F679F';

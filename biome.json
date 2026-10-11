@@ -59,11 +59,12 @@
   },
   "overrides": [
     {
-      "includes": ["scripts/**", "e2e/**", "**/*.config.*", "**/spike-*.ts"],
+      "includes": ["scripts/**", "e2e/**", "**/*.config.*", "**/spike-*.ts", "docs/lighthouse/scripts/**"],
       "linter": {
         "rules": {
           "suspicious": {
-            "noConsole": "off"
+            "noConsole": "off",
+            "noUndeclaredEnvVars": "off"
           }
         }
       }
