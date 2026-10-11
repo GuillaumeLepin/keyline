@@ -48,6 +48,18 @@ export const LocalTransferSchema = z.object({
   decisionId: z.string().optional(),
   /** dApp operations: the bank's decode of the call (shown instead of an amount on /activity). */
   summary: z.string().optional(),
+  /** WalletConnect operations: the receipt hero (amount / limit) and who asked (DESIGN-AUDIT WC-14). */
+  dapp: z
+    .object({
+      amount: z.string().optional(),
+      /** The signed call grants an unlimited allowance (maxUint256): the receipt says so in danger tone. */
+      unlimited: z.boolean().optional(),
+      name: z.string(),
+      url: z.string(),
+      icon: z.string().optional(),
+      verification: z.enum(['verified', 'unverified', 'flagged']),
+    })
+    .optional(),
 });
 export type LocalTransfer = z.infer<typeof LocalTransferSchema>;
 
@@ -151,6 +163,9 @@ export const PendingSendSchema = z.object({
     .optional(),
 });
 export type PendingSend = z.infer<typeof PendingSendSchema>;
+
+/** Fired on window when a new draft replaces the one /send/review may be showing (WalletConnect requests). */
+export const PENDING_SEND_EVENT = 'keyline:pending-send';
 
 export const pendingSendStore = {
   get: (): PendingSend | null => read(KEYS.pendingSend, PendingSendSchema),

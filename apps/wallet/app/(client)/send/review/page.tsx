@@ -10,7 +10,7 @@ import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { copy, copyGaps, copyWc } from '@/src/copy';
 import { env } from '@/src/env';
-import { api } from '@/src/lib/api';
+import { api, isApiError } from '@/src/lib/api';
 import {
   addressUrl,
   buildOpFromDecision,
@@ -21,7 +21,7 @@ import {
 } from '@/src/lib/chain';
 import { getDeviceLabel } from '@/src/lib/device';
 import { useLocalWallet, useNow, useUsdcBalance } from '@/src/lib/hooks';
-import { type PendingSend, pendingSendStore, transferStore } from '@/src/lib/storage';
+import { PENDING_SEND_EVENT, type PendingSend, pendingSendStore, transferStore } from '@/src/lib/storage';
 import {
   Address,
   Button,
@@ -59,7 +59,13 @@ export default function ReviewPage() {
   const router = useRouter();
   const { wallet } = useLocalWallet();
   const [draft, setDraft] = useState<PendingSend | null | undefined>(undefined);
-  useEffect(() => setDraft(pendingSendStore.get()), []);
+  useEffect(() => {
+    const read = () => setDraft(pendingSendStore.get());
+    read();
+    // A WalletConnect request opened while this page is already showing another one.
+    window.addEventListener(PENDING_SEND_EVENT, read);
+    return () => window.removeEventListener(PENDING_SEND_EVENT, read);
+  }, []);
 
   if (wallet === undefined || draft === undefined) return <Skeleton kind="amount" />;
   if (wallet === null) {
@@ -82,7 +88,7 @@ export default function ReviewPage() {
       </>
     );
   }
-  return <Review wallet={wallet} draft={draft} />;
+  return <Review key={draft.dapp?.wc?.requestId ?? 'draft'} wallet={wallet} draft={draft} />;
 }
 
 type Wallet = NonNullable<ReturnType<typeof useLocalWallet>['wallet']>;
@@ -126,7 +132,16 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
   const backHref = draft.dapp ? '/dapps' : '/send';
   const balance = useUsdcBalance(wallet.address);
   const evaluated = useQuery({
-    queryKey: ['decision', wallet.address, draft.to, draft.amountUsdc, draft.dapp?.id],
+    // Every WalletConnect request is its own decision (same app + same token contract must not share one).
+    queryKey: [
+      'decision',
+      wallet.address,
+      draft.to,
+      draft.amountUsdc,
+      draft.dapp?.id,
+      draft.dapp?.wc?.requestId,
+      JSON.stringify(draft.dapp?.calls ?? []),
+    ],
     queryFn: () => evaluateDraft(wallet, draft),
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
@@ -135,8 +150,20 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
   const [capped, setCapped] = useState<PolicyDecision | null>(null);
   const [capAmount, setCapAmount] = useState<string | null>(null);
   const base = capped ?? evaluated.data;
+  // DESIGN-AUDIT WC-17: an unlimited approval with a suggested cap is first an offer — the cap (primary) or the
+  // unlimited path (secondary). Nothing waits on the laptop and nothing auto-continues until one is chosen.
+  const [choice, setChoice] = useState<'cap' | 'full' | null>(null);
+  const offer =
+    !capped &&
+    base?.verdict !== 'block' &&
+    Boolean(base?.suggestedCap) &&
+    Boolean(base?.simulation.decodedCalls.some((c) => c.risk === 'danger'));
+  const offerOpen = offer && choice !== 'full';
   const waiting =
-    base !== undefined && !cleared(base) && (base.verdict === 'step-up' || base.verdict === 'cooling');
+    !offerOpen &&
+    base !== undefined &&
+    !cleared(base) &&
+    (base.verdict === 'step-up' || base.verdict === 'cooling');
   // Step-up and cooling are resolved by the bank (laptop signature / clock): poll until it clears.
   const polled = useQuery({
     queryKey: ['policy', base?.decisionId],
@@ -236,18 +263,44 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
         timeline: { signedAt: now, sentAt: now },
         decisionId: dec.decisionId,
         summary: draft.dapp ? dec.simulation.decodedCalls[0]?.humanText : undefined,
+        dapp:
+          draft.dapp && wcReq
+            ? {
+                amount: heroAmount(dec.simulation.decodedCalls),
+                unlimited: heroAmount(dec.simulation.decodedCalls) === copyWc.request.typed.rows.unlimited,
+                name: draft.dapp.name,
+                url: wcReq.url,
+                icon: wcReq.icon,
+                verification: wcReq.verification,
+              }
+            : undefined,
       });
       pendingSendStore.clear();
       return result.userOpHash;
     },
     onSuccess: (hash) => router.push(`/activity/${hash}`),
-    onError: () => setStage(null),
+    onError: (error) => {
+      setStage(null);
+      // A cancelled passkey can be retried here; any other failure (sponsor refused, bundler down) is final for the
+      // app's request — answer it now with the reason instead of leaving it waiting until it expires.
+      if (wcRef && !(error instanceof PasskeyCancelledError)) {
+        const reason = isApiError(error)
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : String(error);
+        answerWc(async () => {
+          await respondError(wcRef, { code: -32603, message: `Not sent by Keyline: ${reason}` });
+          logRequest(wcRef, draft.dapp?.description ?? wcRef.method, 'failed');
+        });
+      }
+    },
   });
 
   // Auto-continue: the moment a step-up / cooling decision clears, run the usual sponsor → sign → send.
   const confirmMutate = confirm.mutate;
   useEffect(() => {
-    if (!d) return;
+    if (!d || offerOpen) return;
     if (!cleared(d)) {
       if (d.verdict === 'step-up' || d.verdict === 'cooling') waitingId.current = d.decisionId;
       return;
@@ -258,7 +311,7 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
       if (d.stepUp?.satisfiedBy === 'safety-key') haptic('success');
       confirmMutate(d);
     }
-  }, [d, confirm.isPending, confirm.isSuccess, confirm.isError, confirmMutate]);
+  }, [d, offerOpen, confirm.isPending, confirm.isSuccess, confirm.isError, confirmMutate]);
 
   const cancelDecision = useMutation({
     mutationFn: (id: string) => api.policy.cancel(id),
@@ -270,6 +323,7 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
   });
 
   const applyCap = useMutation({
+    onMutate: () => setChoice('cap'),
     mutationFn: (dec: PolicyDecision) => {
       const call = dec.suggestedCap?.call;
       if (!call) throw new Error('no cap');
@@ -305,9 +359,9 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
   const insufficient = !draft.dapp && balance.data !== undefined && draft.amountUsdc > balance.data;
   const danger = d?.simulation.decodedCalls.find((c) => c.risk === 'danger');
   const cap = d?.suggestedCap;
-  const unknownDapp = verdict === 'block' && Boolean(draft.dapp) && !d?.screening.hit;
-  const canConfirm =
-    d !== undefined && !expired && !wcExpired && !insufficient && isCleared && !(danger && cap);
+  // Mock (allowlist) dApps only: a WalletConnect block always shows the bank's own reason.
+  const unknownDapp = verdict === 'block' && Boolean(draft.dapp) && !wcReq && !d?.screening.hit;
+  const canConfirm = d !== undefined && !expired && !wcExpired && !insufficient && isCleared && !offerOpen;
   const rows = whatWillHappen(d, draft, balance.data);
 
   return (
@@ -355,7 +409,7 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
         </div>
       ) : null}
       {/* An expired approval replaces the verdict: never show "Approved" next to "Approval expired". */}
-      {d && !(expired && !confirm.isPending) ? (
+      {d && !offerOpen && !(expired && !confirm.isPending) ? (
         <Verdict
           decision={d}
           unknownDapp={unknownDapp}
@@ -393,7 +447,11 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
       ) : null}
       {verdict === 'block' ? (
         <p className="text-14 text-ink-2">
-          {unknownDapp ? copyGaps.review.dappUnknownBody : copy.review.blockBody}
+          {wcReq
+            ? copyWc.request.blocked.body('').trim()
+            : unknownDapp
+              ? copyGaps.review.dappUnknownBody
+              : copy.review.blockBody}
         </p>
       ) : null}
       {evaluated.isError ? (
@@ -460,22 +518,35 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
                 pendingSendStore.clear();
               }}
             >
-              {copy.common.back}
+              {wcReq ? copyWc.request.close : copy.common.back}
             </Button>
           </>
-        ) : danger && cap && d ? (
+        ) : offerOpen && cap && d ? (
+          // Once one option is chosen only that option stays, with its own pending state.
           <>
             <Button variant="primary" full loading={applyCap.isPending} onClick={() => applyCap.mutate(d)}>
               {copy.review.dappCap(`${formatUSDC(Number(cap.amount))}`)}
             </Button>
-            <Button
-              variant="ghost"
-              full
-              loading={cancelDecision.isPending}
-              onClick={() => cancelDecision.mutate(d.decisionId)}
-            >
-              {wcReq ? copyWc.request.decline : copy.review.dappReject}
-            </Button>
+            {choice === null ? (
+              <>
+                <Button
+                  variant="secondary"
+                  full
+                  onClick={() => setChoice('full')}
+                  data-testid="approve-unlimited"
+                >
+                  {copyWc.request.tx.approveUnlimited}
+                </Button>
+                <Button
+                  variant="ghost"
+                  full
+                  loading={cancelDecision.isPending}
+                  onClick={() => cancelDecision.mutate(d.decisionId)}
+                >
+                  {wcReq ? copyWc.request.decline : copy.review.dappReject}
+                </Button>
+              </>
+            ) : null}
           </>
         ) : d && !isCleared && (verdict === 'cooling' || verdict === 'step-up') ? (
           <Button
@@ -712,9 +783,14 @@ function whatWillHappen(
     rows.push({
       // DESIGN-AUDIT WC-5: the SIMULATED chip sits on the label line, the value stays one line.
       label: (
-        <span className="inline-flex items-center gap-1">
+        <span>
           {copyGaps.review.screened}
-          {!d.screening.hit || d.screening.simulatedHit ? <SimulatedBadge /> : null}
+          {!d.screening.hit || d.screening.simulatedHit ? (
+            <>
+              {' '}
+              <SimulatedBadge />
+            </>
+          ) : null}
         </span>
       ),
       value: d.screening.hit ? copyGaps.review.screenedHit : copyGaps.review.screenedLists,
@@ -746,6 +822,15 @@ function fieldRow(c: DecodedCall): PanelRow {
   if (c.fn.startsWith('approve(')) return { label: t.spendingLimit, value: amount(c.args[1]), tone };
   if (c.fn.startsWith('transfer(')) return { label: t.youSend, value: amount(c.args[1]), tone };
   return { label: c.fn.split('(')[0] || c.fn, value: c.humanText, tone };
+}
+
+/** The receipt hero for a dApp operation: the first call's amount or limit, as the review's field row shows it. */
+function heroAmount(calls: readonly DecodedCall[]): string | undefined {
+  const first = calls[0];
+  if (!first) return undefined;
+  const v = fieldRow(first).value;
+  if (typeof v !== 'string' || v === '—') return undefined;
+  return first.fn.startsWith('transfer(') ? `– ${v}` : v;
 }
 
 function TechnicalDetails({

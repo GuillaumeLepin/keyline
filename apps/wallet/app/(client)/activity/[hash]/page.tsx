@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { bundleFor, copy, copyC, usePrefs } from '@/src/copy';
+import { bundleFor, copy, copyC, copyWc, usePrefs } from '@/src/copy';
 import { formatFiat } from '@/src/i18n/money';
 import { api, isApiError } from '@/src/lib/api';
 import { failureSentence, statusFailure } from '@/src/lib/failure';
@@ -14,6 +14,7 @@ import { type LocalTransfer, pendingSendStore, transferStore } from '@/src/lib/s
 import {
   Address,
   Button,
+  DappIdentityRow,
   Disclosure,
   DrawnCheck,
   EmptyState,
@@ -104,7 +105,17 @@ export default function ActivityPage() {
   const steps = receiptSteps(local, current, blockNumber);
   const r = copyC.receipt;
   const a = copyC.activity;
-  const word = failed ? r.failed : confirmed ? copy.home.status.confirmed : r.waitingBlock;
+  // DESIGN-AUDIT WC-13: once in a block the header says "In block N" (clock); only confirmed gets the ring + check.
+  const included = current === 'included' && Boolean(txHash);
+  const word = failed
+    ? r.failed
+    : confirmed
+      ? copy.home.status.confirmed
+      : included
+        ? blockNumber
+          ? copy.review.inBlock(formatInteger(blockNumber))
+          : copy.home.status.confirmed
+        : r.waitingBlock;
   const fail = statusFailure(s as Record<string, unknown> | undefined);
   // Only the bank's own sentence adds information; the generic fallback would just repeat the title (D-7).
   const bankReason = failureSentence(bundleFor(lang), fail.code, fail.reason);
@@ -163,16 +174,38 @@ export default function ActivityPage() {
         <p className="m-0 flex items-center gap-1 text-14 font-semibold" data-testid="receipt-status">
           {word}
         </p>
-        <p className={`kl-balance__amount m-0 ${failed ? 'text-ink-3 line-through' : ''}`}>
-          {isDapp ? local.toLabel : formatSignedUSDC(-local.amountUsdc)}
+        {/* DESIGN-AUDIT WC-14: the amount (or the limit granted) is the hero; the app that asked sits under it. */}
+        {/* The hero comes from the decoded calldata of the userOp that was signed and sent (never the cap offer). */}
+        <p
+          className={`kl-balance__amount m-0 ${failed ? 'text-ink-3 line-through' : local.dapp?.unlimited ? 'text-danger' : ''}`}
+        >
+          {isDapp ? (local.dapp?.amount ?? local.toLabel) : formatSignedUSDC(-local.amountUsdc)}
         </p>
-        <p className="kl-balance__secondary m-0">
-          {isDapp ? local.summary : r.line(formatFiat(local.amountChf), local.toLabel)}
-        </p>
+        {local.dapp ? (
+          // DESIGN-AUDIT WC-20: the identity row is left-aligned under the amount.
+          <div className="w-full justify-self-stretch text-left">
+            <DappIdentityRow
+              name={local.dapp.name}
+              url={local.dapp.url}
+              iconUrl={local.dapp.icon}
+              verification={local.dapp.verification}
+              copy={copyWc.identity}
+              compact
+            />
+          </div>
+        ) : null}
+        {local.dapp?.unlimited ? (
+          <Note tone="danger">{copy.review.dappDangerNote(local.dapp.name)}</Note>
+        ) : null}
+        {local.dapp?.unlimited ? null : (
+          <p className="kl-balance__secondary m-0 [overflow-wrap:anywhere]">
+            {isDapp ? local.summary : r.line(formatFiat(local.amountChf), local.toLabel)}
+          </p>
+        )}
       </section>
 
       <StatusSequence steps={steps} />
-      {!failed && !confirmed ? (
+      {!failed && !confirmed && !included ? (
         <p className="m-0 text-14 text-ink-2" data-testid="receipt-pending">
           {r.waitingBody}
         </p>
@@ -282,12 +315,13 @@ function receiptSteps(
     },
     {
       label: status === 'failed' ? copy.activity.failedStep : blockLabel,
-      state: status === 'failed' ? 'failed' : rank > 3 ? 'done' : rank === 3 ? 'active' : 'todo',
+      state: status === 'failed' ? 'failed' : rank >= 3 ? 'done' : 'todo',
       meta: meta(t.includedAt),
     },
     {
       label: labels[3],
       state: rank === 4 ? 'done' : status === 'failed' ? 'todo' : rank === 3 ? 'active' : 'todo',
+      // (with the block step marked done below when included, so exactly one step is current)
       meta: meta(t.confirmedAt),
     },
   ];

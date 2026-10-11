@@ -236,7 +236,7 @@ const base = {
     blockBody: 'Swissquote won’t pay the network fee for this transfer and recommends you don’t send it.',
     dappDangerRow: (name: string) => `${name} could spend all your USDC, forever`,
     dappDangerNote: (name: string) =>
-      `This lets ${name} spend up to an unlimited amount of USDC. We recommend a cap.`,
+      `This lets ${name} spend all of your USDC, now and later. We recommend a limit.`,
     dappCap: (usdc: string) => `Approve ${usdc} instead`,
     dappReject: 'Reject',
     sequence: ['Signed', 'Sent', 'In block', 'Confirmed'],
@@ -1453,6 +1453,7 @@ export const copyWc = {
     declinedToast: 'Declined. The app was told.',
 
     tx: {
+      approveUnlimited: 'Approve unlimited',
       contract: 'Contract',
       spendingLimit: 'Spending limit',
       spender: 'Spender',

@@ -283,7 +283,7 @@ export const copy: W<'copy'> = {
       'Swissquote ne paiera pas les frais de réseau de ce virement et vous recommande de ne pas l’envoyer.',
     dappDangerRow: (name: string) => `${name} pourrait dépenser tous vos USDC, sans limite de durée`,
     dappDangerNote: (name: string) =>
-      `Cela permet à ${name} de dépenser un montant illimité d’USDC. Nous recommandons un plafond.`,
+      `Cela permet à ${name} de dépenser tous vos USDC, maintenant et plus tard. Nous recommandons une limite.`,
     dappCap: (usdc: string) => `Approuver ${usdc} à la place`,
     dappReject: 'Refuser',
     sequence: ['Signé', 'Envoyé', 'Dans un bloc', 'Confirmé'],
@@ -1445,6 +1445,7 @@ export const copyWc = {
     declinedToast: 'Refusé. L’app a été informée.',
 
     tx: {
+      approveUnlimited: 'Approuver sans limite',
       contract: 'Contrat',
       spendingLimit: 'Limite de dépense',
       spender: 'Bénéficiaire',

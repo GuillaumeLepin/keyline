@@ -282,7 +282,7 @@ export const copy: W<'copy'> = {
       'Swissquote bezahlt die Netzwerkgebühr für diese Überweisung nicht und rät davon ab, sie zu senden.',
     dappDangerRow: (name: string) => `${name} könnte all Ihre USDC ausgeben, unbefristet`,
     dappDangerNote: (name: string) =>
-      `Damit kann ${name} einen unbegrenzten Betrag an USDC ausgeben. Wir empfehlen eine Obergrenze.`,
+      `Damit kann ${name} all Ihre USDC ausgeben, jetzt und später. Wir empfehlen ein Limit.`,
     dappCap: (usdc: string) => `Stattdessen ${usdc} genehmigen`,
     dappReject: 'Ablehnen',
     sequence: ['Signiert', 'Gesendet', 'Im Block', 'Bestätigt'],
@@ -1445,6 +1445,7 @@ export const copyWc = {
     declinedToast: 'Abgelehnt. Die App wurde informiert.',
 
     tx: {
+      approveUnlimited: 'Unbegrenzt genehmigen',
       contract: 'Vertrag',
       spendingLimit: 'Ausgabelimit',
       spender: 'Berechtigter',

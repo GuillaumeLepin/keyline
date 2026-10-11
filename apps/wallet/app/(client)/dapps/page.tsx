@@ -126,32 +126,38 @@ function DappSection({
       </div>
       <ul className="kl-list">
         {dapps.map((d) => (
-          <li key={d.id} className="flex items-center gap-3 border-b border-line py-2">
-            <div className="min-w-0 flex-1">
-              <DappIdentityRow
-                name={d.name}
-                url={d.url}
-                verification={d.allowlisted ? 'verified' : 'flagged'}
-                copy={copyWc.identity}
-                compact
-                trailing={d.simulated ? <SimulatedBadge /> : undefined}
-              />
-            </div>
-            {d.demoRequest ? (
-              <button type="button" className="kl2-textbtn" onClick={() => onSelect(d)}>
-                {copyGaps.dapps.connect}
-              </button>
-            ) : (
-              <a
-                className="kl2-textbtn inline-flex items-center gap-1"
-                href={d.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {safeHost(d.url)}
-                <ArrowSquareOut size={14} aria-hidden="true" />
-              </a>
-            )}
+          <li key={d.id} className="border-b border-line py-2">
+            <DappIdentityRow
+              name={d.name}
+              url={d.url}
+              verification={d.allowlisted ? 'verified' : 'flagged'}
+              copy={copyWc.identity}
+              compact
+              trailing={
+                d.demoRequest ? (
+                  <button type="button" className="kl2-textbtn" onClick={() => onSelect(d)}>
+                    {copyGaps.dapps.connect}
+                  </button>
+                ) : (
+                  <a
+                    className="kl2-iconbtn"
+                    href={d.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`${d.name} (${safeHost(d.url)})`}
+                  >
+                    <ArrowSquareOut size={20} aria-hidden="true" />
+                  </a>
+                )
+              }
+            />
+            {/* WC-18: the chip belongs right after the name; DappIdentityRow has no badge slot yet (asked of
+                design-system), so it sits directly under the name for now. */}
+            {d.simulated ? (
+              <span className="ml-[52px] inline-block">
+                <SimulatedBadge />
+              </span>
+            ) : null}
           </li>
         ))}
       </ul>

@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Address, getAddress } from 'viem';
 import { api, isApiError } from '../lib/api';
-import { pendingSendStore, walletStore } from '../lib/storage';
+import { PENDING_SEND_EVENT, pendingSendStore, walletStore } from '../lib/storage';
 import {
   type DappInfo,
   type ProposalView,
@@ -118,6 +118,8 @@ export function WcProvider({ children }: { children: ReactNode }) {
           },
         });
         setActiveId(null);
+        // Already on /send/review (another request): the page re-reads the draft on this event and remounts.
+        window.dispatchEvent(new Event(PENDING_SEND_EVENT));
         router.push(`/send/review?wc=${id}`);
         return;
       }
@@ -195,9 +197,17 @@ export function WcProvider({ children }: { children: ReactNode }) {
         answered,
       };
       upsert(view);
-      if (activeRef.current === null) {
+      // Open it unless another request is still waiting for an answer in its sheet; a sheet that only shows a
+      // finished result (signed, refused, expired) gives way to the new request.
+      const current = requestsRef.current.find((r) => r.ref.id === activeRef.current);
+      const busy = current !== undefined && !current.settled && !current.answered && !current.expired;
+      if (!busy) {
         // Let state settle before opening (open() reads the ref).
-        requestsRef.current = [...requestsRef.current.filter((r) => r.ref.id !== id), view];
+        requestsRef.current = [
+          ...requestsRef.current.filter((r) => r.ref.id !== id && r.ref.id !== activeRef.current),
+          view,
+        ];
+        if (current) setRequests((list) => list.filter((r) => r.ref.id !== current.ref.id));
         open(id);
       }
     },
