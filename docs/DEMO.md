@@ -7,6 +7,38 @@ below exists in the app and is exercised by the E2E suite: `pnpm e2e` runs **F0 
 and Base Sepolia, with every "it worked" checked on-chain, plus the `screenshots` project (every screen, v2 routes in
 light and dark). The suite is the executable version of this runbook; `docs/demo.webm` is the (v1) backup video.
 
+## 0a. What is proven — WalletConnect (QA runs, 11 Oct, LIVE stack :3000/:4000/:4001 + DemoSwap :3100, Base Sepolia)
+
+`e2e/walletconnect.spec.ts` (project `story`, serial, 9 tests): a protected wallet from the onboarding fixture; a
+third browser context plays the laptop screen running **DemoSwap** (Reown AppKit + wagmi) over the **public Reown
+relay**. **Two consecutive green runs, 9/9 each** (run A 1.6 min, run B 1.1 min). Funder still 0 ETH, so "Move to
+Keyline" is refused honestly and the Safe holds 0 USDC (the swap takes its "unfunded" branch).
+
+| Step | Result | Proof |
+|---|---|---|
+| DemoSwap **Connect wallet** → AppKit modal → **Copy link** → clipboard | ✓ the link read from the clipboard equals the QR's `uri` | `navigator.clipboard.readText()` with clipboard permissions |
+| Paste in Keyline **Connect** (`/dapps`) → sheet "DemoSwap · localhost:3100 · **Verified domain** · Reviewed by Swissquote" → Connect | ✓ ~7–12 s | DemoSwap header + "Connected address" = the Safe; bank `dapp-sessions` VALID, `verifyUrl` verify.walletconnect.org |
+| **Sign in (SIWE)** → phone sheet → Face ID | ✓ | DemoSwap: "Signed in as 0x… (smart account, ERC-1271). verifyMessage → true; 417-byte signature" |
+| **Approve unlimited** → phone flags it (`approve-unlimited` secondary) → **Approve 100.00 USDC instead** → Face ID | ✓ ~16 s | run A <https://sepolia.basescan.org/tx/0xf64de3fe27cef5908a28687b06523c3cffdacf716642781e27b69fef6a6191cc>, run B <https://sepolia.basescan.org/tx/0x5f3c4394ae9f2fbee1933420151f1f9b1bd0a1f869bf9b73e989028d7435a882>; `allowance(safe, 0xDe30…00dE) == 100 000 000` read on-chain |
+| **Swap (test)** with 0 USDC | ✓ honest block | DemoSwap: "Refused by the wallet (code 4001) … Blocked by Keyline: This transaction would fail …" (with USDC the spec asserts the hash instead) |
+| **Send to sanctioned recipient** `0x42b1…0A73` (read by DemoSwap from the same bank :4000) | ✓ | bank decision `verdict: block`, `reasons[0]` "Counterparty appears on the OFAC SDN list — simulated test entry" (screened before simulation, so it wins over the 0-balance revert); same sentence on the phone and in DemoSwap's 4001 |
+| Reload the phone → **Connected apps** still lists DemoSwap → detail → **Disconnect** → confirm | ✓ | DemoSwap back to "Connect wallet" / "Not connected" |
+| Negative, bank: `POST /dapp-sessions` with Verify `INVALID`, `isScam`, origin ≠ metadata url | ✓ 3/3 `verdict: block` | "This app's identity could not be verified" |
+| Negative, wallet sheet: a real DemoSwap proposal over the relay, the bank's answer for it rewritten to that block verdict (Playwright route on the phone) | ✓ sheet `refused`, no Connect button, DemoSwap never connects | **substituted**: only the bank verdict for that one proposal. Reown Verify attests localhost:3100 as VALID, and rewriting DemoSwap's metadata url in its JS bundle (verified in-page) still produced a proposal with url `http://localhost:3100`, so a genuine Verify mismatch could not be produced from localhost |
+
+Full `pnpm e2e` right after (18.4 min, live stack): **121 ✓ / 1 ✗ / 13 not run** — attacker 6/6, fraud-cancel 4/4,
+walletconnect **9/9 (third consecutive green;** capped approve
+<https://sepolia.basescan.org/tx/0x6b9c432c84935579cc34332f7ece498f3272b8e44c189a9a3f7fcd62f3545e2b>**)**, screenshots
+101/101; story failed at F0.2: Lea already had protected wallets from attacker/fraud-cancel, and the tile now offers
+"Set up Keyline on another phone" (`tile-start-another`), which `openHandoff` did not know. Fixture fixed
+(`e2e/fixtures/onboard.ts`), `story.spec.ts` re-run alone: **11 ✓ / 4 skipped** (F1.7, F2, F3.4, F3.5: funder 0 ETH).
+
+Protect txs: run A <https://sepolia.basescan.org/tx/0xaec9ac6fadc34d477afaab06fa3e4c40f56765ae5b4102593a8a68f1cefff3fb>
+(Safe `0xc71fE45f23C39AE2309E1BBD443417D61A6CAe5B`), run B
+<https://sepolia.basescan.org/tx/0x6b6f565609e222508cae9ba0f5fd23937aa0bb0431426ef4e82a9e67cd37192b>
+(Safe `0xC765081C74Eec2a87bc6eb7CB7f0A850eceb4725`). Run: `pnpm --filter @keyline/e2e exec playwright test
+walletconnect.spec.ts --project=story` with the four dev servers up.
+
 ## 0. What is proven — v2 (QA runs, 11 Oct night, isolated stack :3100/:4100/:4101, Base Sepolia)
 
 Wallet under test = a snapshot of the **committed** `apps/wallet` (`git archive HEAD`, §4): `ccff1c0`/`137779e` for
@@ -147,6 +179,7 @@ screen / projector (`SECOND_SCREEN_X`, default 1440 = the second screen sits rig
 | Window | URL (`?device=` sets the DeviceBar + the `X-Device-Label` the bank logs) | Where |
 |---|---|---|
 | **Lea · laptop — Safety key** | `/swissquote?device=lea-laptop` — Swissquote web (SIMULATED): sign in → portfolio → Keyline tile; later its **Approvals** nav → `/approve` | screen 1, **full width** 1440×900 |
+| **Lea · laptop, tab 2 — DemoSwap** | `http://localhost:3100` (`apps/demoswap`, a real WalletConnect dApp: Reown AppKit + wagmi, Base Sepolia; `DEMOSWAP_URL` overrides) — same Chrome profile as the laptop | screen 1, tab next to Swissquote |
 | **Lea · phone** | `/?device=lea-phone` → `/start` | screen 2, left, 520×900 (phone frame) |
 | **Lea · new phone** | `/?device=lea-new-phone` → `/recover` at 1:40 | screen 2, top middle, 460×450 |
 | **Thief · stolen phone** | `/?device=thief` (red bar) | screen 2, bottom middle, 460×450 |
@@ -174,6 +207,7 @@ virtual authenticators only in Playwright.
       `demo:predeploy --bank none` (Safes on-chain only; the twin's staged recovery then has no desk/bank record) or
       rehearse the live onboarding on a bank DB without predeployed wallets, and keep the predeployed run as the
       fallback stack.
+- [ ] DemoSwap on :3100 (`pnpm --filter @keyline/demoswap dev` or the turbo `dev`), `NEXT_PUBLIC_REOWN_PROJECT_ID` set in `apps/demoswap/.env.local` and the wallet's env; it talks to the same bank :4000 as the wallet. Phone **Apps** tab shows no stale DemoSwap session (Disconnect it after rehearsals). `pnpm e2e -- walletconnect.spec.ts` green within the hour = relay + Verify + sponsor alive.
 - [ ] `pnpm demo:predeploy` → `data/demo-state.json` with Lea's fallback Safe + the **twin**; both "Protected" on Basescan.
 - [ ] `pnpm e2e` green within the last hour (or at least `story.spec.ts` F1–F3) → bundler, sponsor, relayer, finalizer alive.
 - [ ] **Clean profiles after rehearsals:** in each of the five profiles open `http://localhost:3000/dev/reset?device=<persona>`
@@ -206,6 +240,7 @@ there. Confirmation waits are 5–30 s on Base Sepolia; the right-hand column is
 | 0:55 | Protected → status link (**In block …** → Basescan) | Point at the module's three guardians, threshold 2. Then **Sign the proof** → "Move your first funds". | "Three recoverers, any two restore, Swissquote the only institution on the list — verifiable here, not in our code. The proof is the Travel-Rule check: the wallet signs that it is Lea's, no screenshots." | — |
 | 1:05 | Lea · laptop: tile now **Protected · 2 of 3 recoverers** → USDC **Move to Keyline** → 10 → Move | Real transfer from the bank to her Safe; the phone's Assets update within a minute. *Funder empty → the sheet says "Swissquote's test account has no funds for this asset right now. Nothing was moved and nothing was debited." Say "the test funder is dry, the transfer is in the recording" and go to 1:10.* | "No ownership check needed — the wallet is verified as hers. Real on-chain transfer; the ledger on the bank side is simulated." | Move (5–20 s): "The tile reads the wallet from the chain, never from the bank's database." |
 | 1:10 | Lea · phone (only with USDC) Send → Lukas Meier → CHF 2 → **Confirm with Face ID** | Signed → Sent → In block → Confirmed. Then close Lea · phone. | "Decoded in words before she signs, counterparty screened, fee paid by Swissquote. … Lea's phone is gone." | — |
+| 1:12 (+25 s) | **Connect to a real protocol** — laptop: DemoSwap tab (`http://localhost:3100`, opened by `demo:open`); Lea · phone: **Apps** tab | DemoSwap **Connect wallet** → AppKit modal → **Copy link** → paste into Keyline **Connect** on the phone → sheet: DemoSwap · localhost:3100 · **Verified domain** + "Reviewed by Swissquote" → **Connect** (DemoSwap header shows the Safe). DemoSwap **Sign in** → phone "Sign in to localhost:3100" → **Sign in with Face ID** → DemoSwap: "Signed in … (smart account, ERC-1271)". DemoSwap **Approve unlimited** → phone flags it (danger) → **Approve 100.00 USDC instead** → **Approve with Face ID** → DemoSwap: Confirmed + tx hash, `value = 100 USDC`. *Short slot: show only Connect + approve(∞) → capped; skip Sign in.* | "Any WalletConnect app works the same way — this is a real dApp over Reown's public relay. Every request goes through the same review, screening and sponsor as a transfer: an unlimited approval is flagged and capped before she signs. Sign-in is a real ERC-1271 signature the dApp verifies with stock viem." **Any-protocol line:** "Not just our test app — Reown's AppKit Lab (lab.reown.com/appkit?name=wagmi), a third-party dApp on Base Sepolia, connects the same way; sign message verifies." (show only if asked, or in the ≥ 5 min version) | Approve inclusion (≈ 4–10 s): "The dApp gets the real transaction hash and reads the Approval event from the receipt — the allowance on-chain is 100, not infinity." |
 | 1:15 | Thief `/` → `/recover` | Home: "This device has no key for this wallet." → Create key → `lea.keller@example.ch` → code from `/mock/inbox` → e-ID form, type a wrong name → Submit → **`/refused`**. Desk: Refused tab → request → **Override** → status stays "Waiting for a 2nd recoverer". | "He has her phone and her inbox, so the e-mail code passes. He can't pass the identity check. And even if the bank were fooled — here, override — Swissquote's confirmation alone leaves the recovery waiting forever: 2 of 3 is enforced on-chain." | Signer deploy (10–60 s) after "Send code": "The bank deploys the new key's signer now — a real transaction, so a refused attempt still costs Swissquote a fee, never the client." |
 | 1:40 | Lea · new phone `/recover` + Lea · laptop **Approvals** (`/approve`) | Create key → e-mail → code → e-ID (Lea Keller, prefilled) → "Waiting for a second recoverer" (Swissquote confirmed) → laptop **Confirm with Safety key** (the key the Swissquote page created at 0:30) → "Access restores at hh:mm" ring. | "Swissquote verifies her identity — simulated e-ID, chip on screen — and confirms as one recoverer; her laptop is the second. Executed. Now the chain enforces a waiting period: three minutes here, seventy-two hours in production. Public, un-shortcuttable." | Relay (5–30 s): "One transaction carries both signatures — Swissquote's held one and the laptop's. The module attributes each approval to the recoverer, not to who paid." |
 | 2:10 | Lea · phone `/alerts` (fallback wallet) | Show "Recovery started from a new device" + **Cancel recovery — it wasn't me** (don't click unless ≥ 5 min). | "During the wait the old phone can veto with one tap: the account cancels on the module itself, sponsored. That's the fraud case — the bank fooled *and* the card photographed — stopped by the owner." | — |

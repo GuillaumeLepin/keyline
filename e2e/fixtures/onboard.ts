@@ -74,7 +74,17 @@ export async function openHandoff(laptop: PersonaSession): Promise<string> {
     (r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/handoff',
     { timeout: 30_000 },
   );
-  await start.click();
+  // Once Lea already holds a protected Keyline (an earlier spec in the same run) the tile shows "Protected" and
+  // offers "Set up Keyline on another phone" instead — the same POST /handoff.
+  const another = tile.getByRole('button', { name: 'Set up Keyline on another phone' });
+  await expect(start.or(another)).toBeVisible({ timeout: 30_000 });
+  if (await start.isVisible()) await start.click();
+  else {
+    test
+      .info()
+      .annotations.push({ type: 'handoff-another-phone', description: 'tile Protected → "another phone"' });
+    await another.click();
+  }
   const res = await response;
   expect(res.status(), 'POST /handoff').toBeLessThan(300);
   const { code } = (await res.json()) as { code: string };

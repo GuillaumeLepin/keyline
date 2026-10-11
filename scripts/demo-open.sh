@@ -17,6 +17,8 @@
 set -euo pipefail
 
 WALLET_URL="${WALLET_URL:-http://localhost:3000}"
+# DemoSwap (apps/demoswap, a real WalletConnect dApp) opens as a second tab in the laptop profile (SPEC §11.5).
+DEMOSWAP_URL="${DEMOSWAP_URL:-http://localhost:3100}"
 PROFILES_ROOT="${KEYLINE_CHROME_PROFILES:-$HOME/.keyline-chrome}"
 SCALE="${KEYLINE_CHROME_SCALE:-1.25}"
 CHROME_APP="${CHROME_APP:-Google Chrome}"
@@ -59,11 +61,17 @@ for entry in "${LAYOUT[@]}"; do
   open_persona "$persona" "$path" "$x" "$y" "$w" "$h"
 done
 
+# Same --user-data-dir as the laptop window → Chrome adds a tab to that running instance (no new profile, no new
+# window). The laptop tab stays the Swissquote page; switch to DemoSwap at 1:12 (docs/DEMO.md §3).
+echo "→ lea-laptop (tab 2): ${DEMOSWAP_URL}"
+open -na "$CHROME_APP" --args --user-data-dir="${PROFILES_ROOT}/lea-laptop" "$DEMOSWAP_URL"
+
 cat <<EOF
 
 Five Chrome windows opened from ${WALLET_URL}.
   Lea · laptop         screen 1, full width (/swissquote: sign in → portfolio → Keyline tile → Safety key prompt;
-                                             later /approve for the recovery confirmation)
+                                             later /approve for the recovery confirmation;
+                                             tab 2 = DemoSwap ${DEMOSWAP_URL} for the WalletConnect beat at 1:12)
   Lea · phone          screen 2, left       (phone frame: /start → onboarding → home)
   Lea · new phone      screen 2, top middle (used at 1:40 of the pitch)
   Thief · stolen phone screen 2, bottom     (red bar, no key)

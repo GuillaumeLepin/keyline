@@ -34,7 +34,7 @@ export default defineConfig({
   projects: [
     {
       name: 'story',
-      testMatch: ['story.spec.ts', 'attacker.spec.ts', 'fraud-cancel.spec.ts'],
+      testMatch: ['story.spec.ts', 'attacker.spec.ts', 'fraud-cancel.spec.ts', 'walletconnect.spec.ts'],
       timeout: 15 * 60 * 1000,
       expect: { timeout: 20_000 },
       use: {
