@@ -172,6 +172,10 @@ export const PolicyRequestSchema = z.object({
   /** Defaults to the wallet itself for `protect`; must equal the decoded ERC-20 recipient for `transfer`. */
   recipientAddress: Address.optional(),
   dappId: z.string().min(1).optional(),
+  /** SPEC §11.3: WalletConnect session topic (POST /dapp-sessions). For `kind: 'dapp'`, `dappId` = topic also works. */
+  topic: z.string().min(1).optional(),
+  /** Origin the request came from (informational; the recorded session's Verify origin is what counts). */
+  origin: z.string().optional(),
   deviceLabel: z.string().min(1),
   requestedAt: IsoDate.optional(),
 });
@@ -291,6 +295,9 @@ export const PolicyDecisionSchema = z.object({
   suggestedCap: SuggestedCapSchema.optional(),
   /** Echo of the request for `kind: 'dapp'`. */
   dappId: z.string().optional(),
+  /** WalletConnect session the decision was made for (SPEC §11.3) and its app name. */
+  topic: z.string().optional(),
+  dappName: z.string().optional(),
   /** Device that asked (the laptop's /approve screen shows "Requested from Lea · phone"). */
   deviceLabel: z.string().optional(),
   /** Best-effort label of the recipient when it is a saved contact. */

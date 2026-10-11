@@ -1,3 +1,4 @@
+export * from './dapps';
 export * from './guardian';
 export * from './policy-typed-data';
 export * from './schemas';

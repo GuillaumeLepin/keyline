@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
+import * as D from './dapps';
 import { GuardianIdentitySchema, GuardianRecoveryRequestSchema, IdentityVerdictSchema } from './guardian';
 import * as S from './schemas';
 import * as Q from './sq';
@@ -639,6 +640,95 @@ describe('sq schemas (SPEC §10)', () => {
       Q.HandoffSchema.safeParse({ code: '12345', expiresAt: at, status: 'open', qrUrl: 'http://x/start' })
         .success,
     ).toBe(false);
+  });
+});
+
+// SPEC §11.3 (dapps.ts) — one fixture per exported schema.
+const topic = 'a1'.repeat(32);
+const verify = { validation: 'VALID', isScam: false, origin: 'http://localhost:3100' } as const;
+const dappSession = {
+  topic,
+  walletAddress: addr,
+  name: 'DemoSwap',
+  url: 'http://localhost:3100',
+  icons: ['http://localhost:3100/icon.png'],
+  verify,
+  status: 'active',
+  verdict: 'allow',
+  reasons: [],
+  dappId: 'demoswap',
+  allowlisted: true,
+  createdAt: at,
+  lastRequestAt: at,
+  requests: 2,
+};
+const dappFixtures: Record<string, [z.ZodTypeAny, unknown]> = {
+  DappValidationSchema: [D.DappValidationSchema, 'UNKNOWN'],
+  DappVerifySchema: [D.DappVerifySchema, { ...verify, verifyUrl: 'https://verify.walletconnect.org' }],
+  DappSessionStatusSchema: [D.DappSessionStatusSchema, 'proposed'],
+  DappVerdictSchema: [D.DappVerdictSchema, 'block'],
+  DappTopic: [D.DappTopic, topic],
+  DappSessionSchema: [D.DappSessionSchema, dappSession],
+  ProposeSessionBodySchema: [
+    D.ProposeSessionBodySchema,
+    { topic, walletAddress: addr, name: 'DemoSwap', url: 'http://localhost:3100', icons: [], verify },
+  ],
+  ProposeSessionResponseSchema: [
+    D.ProposeSessionResponseSchema,
+    { session: dappSession, verdict: 'allow', reasons: [] },
+  ],
+  DappSessionsResponseSchema: [D.DappSessionsResponseSchema, { sessions: [dappSession] }],
+  DappRequestOutcomeSchema: [D.DappRequestOutcomeSchema, 'expired'],
+  DappRequestLogEntrySchema: [
+    D.DappRequestLogEntrySchema,
+    {
+      id: 'dreq_1',
+      topic,
+      method: 'personal_sign',
+      summary: 'Sign in to localhost:3100',
+      outcome: 'approved',
+      at,
+    },
+  ],
+  DappSessionDetailSchema: [
+    D.DappSessionDetailSchema,
+    {
+      session: dappSession,
+      requests: [
+        { id: 'dreq_1', topic, method: 'eth_sendTransaction', summary: 'Swap', outcome: 'blocked', at },
+      ],
+    },
+  ],
+  DappRequestEventBodySchema: [
+    D.DappRequestEventBodySchema,
+    {
+      topic,
+      method: 'eth_sendTransaction',
+      summary: 'Approve 100 USDC',
+      outcome: 'approved',
+      txHash: hash,
+      userOpHash: hex32,
+    },
+  ],
+};
+
+describe('dapps schemas (SPEC §11.3)', () => {
+  for (const [name, [schema, fixture]] of Object.entries(dappFixtures)) {
+    it(`${name} accepts its fixture`, () => {
+      const result = schema.safeParse(fixture);
+      if (!result.success) throw new Error(`${name}: ${result.error.message}`);
+      expect(result.success).toBe(true);
+    });
+  }
+  it('every schema exported from dapps.ts has a fixture', () => {
+    const exported = Object.keys(D).filter((k) => k.endsWith('Schema') || k === 'DappTopic');
+    expect(exported.filter((k) => !(k in dappFixtures))).toEqual([]);
+  });
+  it('rejects an unknown outcome and a validation outside the Verify enum', () => {
+    expect(
+      D.DappRequestEventBodySchema.safeParse({ topic, method: 'x', summary: 'y', outcome: 'ok' }).success,
+    ).toBe(false);
+    expect(D.DappVerifySchema.safeParse({ ...verify, validation: 'MAYBE' }).success).toBe(false);
   });
 });
 

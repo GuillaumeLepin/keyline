@@ -85,6 +85,15 @@ const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS sq_credits (
     user_op_hash TEXT PRIMARY KEY, client_id TEXT NOT NULL, wallet_address TEXT NOT NULL, asset TEXT NOT NULL,
     amount TEXT NOT NULL, value_chf TEXT NOT NULL, tx_hash TEXT, created_at TEXT NOT NULL)`,
+  // ---- SPEC §11.3: WalletConnect dApp sessions + request log ----
+  `CREATE TABLE IF NOT EXISTS dapp_sessions (
+    topic TEXT PRIMARY KEY, wallet_address TEXT NOT NULL, client_id TEXT NOT NULL, name TEXT NOT NULL, url TEXT NOT NULL,
+    icons TEXT NOT NULL, description TEXT, verify TEXT NOT NULL, status TEXT NOT NULL, requests INTEGER NOT NULL DEFAULT 0,
+    last_request_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS dapp_requests (
+    id TEXT PRIMARY KEY, topic TEXT NOT NULL, method TEXT NOT NULL, summary TEXT NOT NULL, outcome TEXT NOT NULL,
+    tx_hash TEXT, user_op_hash TEXT, request_id TEXT, created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS dapp_requests_topic_idx ON dapp_requests(topic, created_at)`,
   `CREATE TRIGGER IF NOT EXISTS sq_ledger_no_update BEFORE UPDATE ON sq_ledger
     BEGIN SELECT RAISE(ABORT, 'sq_ledger is append-only'); END`,
   // Append-only guarantee enforced in the database itself, not only by the TS module surface.

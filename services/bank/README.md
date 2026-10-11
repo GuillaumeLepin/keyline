@@ -100,6 +100,25 @@ failed send is refunded (502, move recorded as `failed`). BTC, CHF cash and the 
 `handoff.wallet-bound`, `guardian.paired` (`via: 'sq-web'`), `sq.move.sent|failed|confirmed`, `sq.credit`.
 The old `/pairings*` and `POST /topups` endpoints still work (old E2E) but the v2 UI does not use them.
 
+## WalletConnect dApp sessions (SPEC §11.3)
+
+Schemas: `packages/shared/src/dapps.ts`. Client routes (passkey session / onboarding token / DEMO_FAST_MODE `X-Device-Label`).
+
+```
+POST   /dapp-sessions { topic, walletAddress, name, url, icons[], description?, verify: { validation, isScam, origin, verifyUrl? } }
+                                     → 201 { session, verdict: allow|block, reasons[] } (200 for a known topic)
+POST   /dapp-sessions/:topic/approve → DappSession (active)   · 403 "This app's identity could not be verified" when blocked
+POST   /dapp-sessions/:topic/refuse  → DappSession (refused)
+DELETE /dapp-sessions/:topic         → DappSession (disconnected)
+GET    /dapp-sessions?wallet=0x…     → { sessions }  ·  GET /dapp-sessions/:topic → { session, requests[] }
+POST   /dapp-sessions/:topic/events { topic, method, summary, outcome, txHash?, userOpHash?, requestId? } → DappSession
+POST   /policy/evaluate { kind: 'dapp', topic (or dappId = topic), walletAddress, calls, deviceLabel }
+```
+Policy for a session (must be `active`, same wallet): sanctions hit anywhere → block; blocked identity → block;
+allowlisted host → tier by amount (Tier 1 / step-up above the daily limit / cooling above the Tier-3 threshold);
+VALID not allowlisted → Tier 2 "First time with this app"; UNKNOWN → Tier 2 "This app's domain isn't verified".
+Sponsored like any approved userOp, within the daily cap. POST with `content-type: application/json` needs a body (`{}`).
+
 ## Layout
 
 | File | Role |

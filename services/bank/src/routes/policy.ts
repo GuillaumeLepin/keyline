@@ -31,6 +31,7 @@ import {
   erc20Abi,
   getAddress,
   type Hex,
+  isAddress,
   isAddressEqual,
   maxUint256,
   verifyTypedData,
@@ -46,10 +47,12 @@ import {
 } from '../chain/calldata';
 import { fallbackSimulation, parseErc20Transfer } from '../chain/decode';
 import type { BankConfig } from '../config';
+import type { DappSessionStore } from '../dapp-sessions';
 import { type Db, newId } from '../db';
 import type { ChainDeps } from '../deps';
 import { conflict, forbidden, notFound, policyRefused, validationError } from '../errors';
 import type { EventStore } from '../events';
+import type { DappIdentity } from '../policy/dapp-identity';
 import { loadDecision, type StoredDecision, stripStored } from '../policy/decisions';
 import { evaluate, satisfyStepUp } from '../policy/engine';
 import { usdcToChf } from '../policy/rates';
@@ -67,6 +70,7 @@ type Deps = {
   store: Store;
   chain: Pick<ChainDeps, 'simulate' | 'walletHasCode' | 'onchainGuardians'>;
   screening: ScreeningService;
+  dappSessions: DappSessionStore;
 };
 const IdParam = z.object({ id: z.string().min(1) });
 const AddressParam = z.object({ address: z.string().regex(/^0x[0-9a-fA-F]{40}$/) });
@@ -76,10 +80,24 @@ export const SUGGESTED_CAP_USDC = '100';
 
 export const registerPolicyRoutes = (
   app: FastifyInstance,
-  { config, db, events, repo, store, chain, screening }: Deps,
+  { config, db, events, repo, store, chain, screening, dappSessions }: Deps,
 ): void => {
   const usdc = getAddress(config.USDC_ADDRESS);
   const recoveryModule = getAddress(config.RECOVERY_MODULE_ADDRESS);
+  /** 32-byte ABI words after the selector that look like an address (incl. inside arrays / tuples / multicalls). */
+  const addressWordsIn = (data: Hex): Address[] => {
+    const body = data.slice(10);
+    const found: Address[] = [];
+    for (let i = 0; i + 64 <= body.length; i += 64) {
+      const word = body.slice(i, i + 64);
+      if (!/^0{24}/.test(word)) continue;
+      const addr = word.slice(24);
+      // Skip small integers (offsets, lengths, amounts) that merely have leading zeros.
+      if (/^0{16}/.test(addr)) continue;
+      found.push(getAddress(`0x${addr}`));
+    }
+    return found;
+  };
   const depositAddress = getAddress(config.addresses.funder);
   const ownAccountScreening = (): Screening => ({
     counterparty: depositAddress,
@@ -113,7 +131,12 @@ export const registerPolicyRoutes = (
       const call = calls[i];
       if (call) push(call.to);
     });
-    return out;
+    // SPEC §11.3: "sanctioned counterparty anywhere in the calldata" — every decoded address-like argument, and every
+    // ABI word shaped like an address (12 zero bytes + 20 non-zero bytes) for calls whose ABI we do not know.
+    for (const d of decodeCalls(calls, { wallet }))
+      for (const a of d.args) if (isAddress(a, { strict: false })) push(a);
+    for (const c of calls) for (const a of addressWordsIn(c.data as Hex)) push(a);
+    return out.filter((a) => !isAddressEqual(a, wallet) || out.length === 1);
   };
 
   /** Screen every counterparty; a hit anywhere is the decision's screening, otherwise the primary one. */
@@ -186,6 +209,7 @@ export const registerPolicyRoutes = (
     let chfValue = 0;
     let counterparties: Address[] = [walletAddress];
     let kind = body.kind;
+    let session: { name: string; identity: DappIdentity; topic: string } | undefined;
 
     if (body.kind === 'protect') {
       if (wallet.status !== 'pending') throw conflict('This wallet is already protected');
@@ -225,9 +249,19 @@ export const registerPolicyRoutes = (
       calls = [{ to: usdc, value: '0', data: call.data }];
       callData = encodeCallData([callToMetaTransaction(call)]);
     } else {
-      // kind: 'dapp' — the dApp's calls as requested; the engine checks every target against the allowlist.
+      // kind: 'dapp' — the dApp's calls as requested. With a WalletConnect `topic` (or dappId = a recorded topic)
+      // the session's identity decides (SPEC §11.3); otherwise every target is checked against the allowlist.
       if (wallet.status === 'pending') throw conflict('Protect your wallet before using apps');
-      if (!body.dappId) throw validationError('dappId is required for kind "dapp"');
+      const topic = body.topic ?? (body.dappId && dappSessions.get(body.dappId) ? body.dappId : undefined);
+      if (topic) {
+        const s = dappSessions.get(topic);
+        if (!s) throw notFound('dApp session');
+        if (s.clientId !== client.clientId) throw forbidden('This app session belongs to another client');
+        if (!isAddressEqual(getAddress(s.walletAddress), walletAddress))
+          throw policyRefused('This app is connected to another wallet');
+        if (s.status !== 'active') throw policyRefused('This app is not connected to your wallet any more');
+        session = { name: s.name, identity: s.identity, topic };
+      } else if (!body.dappId) throw validationError('dappId or topic is required for kind "dapp"');
       if (body.calls.length === 0) throw validationError('A dApp request needs at least one call');
       calls = body.calls.map((c) => ({ to: getAddress(c.to), value: c.value, data: c.data }));
       callData = encodeCallData(calls.map(callToMetaTransaction));
@@ -249,6 +283,7 @@ export const registerPolicyRoutes = (
         chfValue,
         recipientAddress: recipient,
         dappId: body.dappId,
+        topic: session?.topic,
         deviceLabel: body.deviceLabel,
         requestedAt: new Date(),
       },
@@ -262,6 +297,7 @@ export const registerPolicyRoutes = (
         simulation,
         callsHash: callsHashOf(callData),
         suggestedCap: suggestedCapFor(calls, simulation),
+        session: session ? { name: session.name, identity: session.identity } : undefined,
       },
     );
     store.saveDecision(decision, body);
@@ -269,6 +305,9 @@ export const registerPolicyRoutes = (
       decisionId: id,
       kind,
       dappId: body.dappId,
+      topic: session?.topic,
+      dappName: decision.dappName,
+      dappIdentity: session?.identity.level,
       verdict: decision.verdict,
       tier: decision.tier,
       chfValue: decision.chfValue,

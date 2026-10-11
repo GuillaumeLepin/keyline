@@ -1,5 +1,5 @@
 {
-  "$comment": "dApp allowlist for the policy engine (kind: 'dapp' — every call.to must be one of the dApp's contracts). Addresses are Base Sepolia (chainId 84532). Entries with simulated:true are mock protocols for the demo. 'unknown-dapp' is deliberately NOT allowlisted so F2 can show a blocked request. Re-synced into the dapps table on every bank start.",
+  "$comment": "dApp allowlist for the policy engine. Legacy in-app requests (kind: 'dapp' with dappId = an id here): every call.to must be one of the dApp's contracts. WalletConnect sessions (SPEC §11.3, kind: 'dapp' with topic): matched by url HOST; allowlisted → tier by amount. Addresses are Base Sepolia (chainId 84532). Entries with simulated:true are mock protocols for the demo. 'unknown-dapp' is deliberately NOT allowlisted so F2 can show a blocked request. Re-synced into the dapps table on every bank start.",
   "dapps": [
     {
       "id": "keyline-usdc-transfer",
@@ -59,6 +59,31 @@
       "allowlisted": true,
       "contracts": ["0x036CbD53842c5426634e7929541eC2318f3dCF7e"],
       "note": "Official Circle testnet USDC (developers.circle.com)"
+    },
+    {
+      "id": "demoswap-wc",
+      "name": "DemoSwap",
+      "url": "http://localhost:3100",
+      "allowlisted": true,
+      "contracts": ["0x036CbD53842c5426634e7929541eC2318f3dCF7e"],
+      "simulated": true,
+      "note": "apps/demoswap over WalletConnect (SPEC §11.5). WalletConnect sessions are allowlisted by url host; contracts are informational for this entry"
+    },
+    {
+      "id": "reown-lab",
+      "name": "Reown Lab",
+      "url": "https://lab.reown.com",
+      "allowlisted": true,
+      "contracts": [],
+      "note": "Reown's WalletConnect test dApp (third-party 'any protocol' proof, SPEC §11.5). Allowlisted by url host"
+    },
+    {
+      "id": "reown-appkit-lab",
+      "name": "Reown AppKit Lab",
+      "url": "https://appkit-lab.reown.com",
+      "allowlisted": true,
+      "contracts": [],
+      "note": "Reown AppKit test dApp (SPEC §11.5). Allowlisted by url host"
     },
     {
       "id": "unknown-dapp",

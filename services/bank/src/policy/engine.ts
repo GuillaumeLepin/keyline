@@ -17,6 +17,7 @@ import type {
   SuggestedCap,
 } from '@keyline/shared';
 import { type Address, isAddressEqual } from 'viem';
+import type { DappIdentity } from './dapp-identity';
 import { FX, formatChf } from './rates';
 
 export const TIER1_DAILY_LIMIT_CHF = 1_000;
@@ -49,6 +50,8 @@ export type PolicyInput = {
   /** Transfer recipient, or the dApp contract for `dapp`, or the wallet itself for protect / cancel. */
   recipientAddress: Address;
   dappId?: string;
+  /** SPEC §11.3: the WalletConnect session this request came through. */
+  topic?: string;
   deviceLabel: string;
   requestedAt: Date;
 };
@@ -65,6 +68,8 @@ export type PolicyContext = {
   /** Pre-computed by the caller when a decoded call is an unlimited approve (needs the chain helper). */
   suggestedCap?: SuggestedCap;
   fx?: Fx;
+  /** SPEC §11.3: identity of the WalletConnect dApp (kind 'dapp' with a topic). Replaces the contract allowlist check. */
+  session?: { name: string; identity: DappIdentity };
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -111,20 +116,30 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
     const total = round2(ctx.dailySpentChf + input.chfValue);
     const danger = ctx.simulation.decodedCalls.some((c) => c.risk === 'danger');
     const isDapp = input.kind === 'dapp';
-    // Known = a saved contact (any contact, verified or not) or an allowlisted dApp target.
-    const knownRecipient = isDapp ? dappAllowed(dapp, input.calls) : contact != null;
+    const session = isDapp ? ctx.session : undefined;
+    const appName = session?.name ?? dapp?.name;
+    // Known = a saved contact (any contact, verified or not), an allowlisted dApp target, or a connected
+    // WalletConnect app whose identity holds (its own tier rules below replace "first transfer to a new address").
+    const knownRecipient = isDapp
+      ? session
+        ? session.identity.level !== 'blocked'
+        : dappAllowed(dapp, input.calls)
+      : contact != null;
 
     // Compliance first: a sanctions hit is the reason the client must see even when the call would also revert.
     if (ctx.screening.hit) {
       verdict = 'block';
       reasons.push(screeningReason(ctx.screening));
       reasons.push("Swissquote won't pay the network fee for this transfer and recommends you don't send it");
+    } else if (session?.identity.level === 'blocked') {
+      verdict = 'block';
+      reasons.push(...session.identity.reasons);
     } else if (!ctx.simulation.ok) {
       verdict = 'block';
       reasons.push(
         `This transaction would fail${ctx.simulation.revertReason ? `: ${ctx.simulation.revertReason}` : ''} · nothing was sent`,
       );
-    } else if (isDapp && !dappAllowed(dapp, input.calls)) {
+    } else if (isDapp && !session && !dappAllowed(dapp, input.calls)) {
       verdict = 'block';
       reasons.push(REASON_UNKNOWN_DAPP);
       reasons.push(
@@ -145,6 +160,19 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
         `Waiting period accelerated for the demo: ${COOLING_MS / 1000} s instead of ${COOLING_PROD_LABEL}`,
       );
       if (danger) reasons.push(REASON_UNLIMITED_APPROVAL);
+    } else if (session && session.identity.level !== 'allowlisted') {
+      // Verified-but-new or unverified domain: Tier 2 at minimum — the laptop's Safety key co-approves.
+      verdict = 'step-up';
+      tier = 2;
+      stepUp = {};
+      reasons.push(...session.identity.reasons);
+      if (danger) reasons.push(REASON_UNLIMITED_APPROVAL);
+      if (ctx.suggestedCap) reasons.push(ctx.suggestedCap.humanText);
+      if (total > TIER1_DAILY_LIMIT_CHF)
+        reasons.push(
+          `Above your ${formatChf(TIER1_DAILY_LIMIT_CHF)} daily limit (${formatChf(total)} today)`,
+        );
+      reasons.push(REASON_PROTOTYPE);
     } else if (danger) {
       verdict = 'step-up';
       tier = 2;
@@ -166,8 +194,8 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
       reasons.push(REASON_PROTOTYPE);
     } else {
       reasons.push(
-        isDapp && dapp
-          ? `${dapp.name} is reviewed by Swissquote · within your ${formatChf(TIER1_DAILY_LIMIT_CHF)} daily limit`
+        isDapp && appName
+          ? `${appName} is reviewed by Swissquote · within your ${formatChf(TIER1_DAILY_LIMIT_CHF)} daily limit`
           : `Within your ${formatChf(TIER1_DAILY_LIMIT_CHF)} daily limit · no second approval needed`,
       );
       if (contact && !contact.verifiedOwnership && !isDapp)
@@ -214,6 +242,8 @@ export const evaluate = (input: PolicyInput, ctx: PolicyContext): PolicyDecision
     status: 'open',
     suggestedCap: ctx.suggestedCap,
     dappId: input.dappId,
+    topic: input.topic,
+    dappName: input.kind === 'dapp' ? (ctx.session?.name ?? dapp?.name) : undefined,
     deviceLabel: input.deviceLabel,
     recipientLabel: input.kind === 'to-own-account' ? OWN_ACCOUNT_LABEL : contact?.label,
     recipientAddress: input.recipientAddress,
