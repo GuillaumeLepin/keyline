@@ -1,6 +1,6 @@
 # Architecture
 
-Owner: `docs-submission`. State of the code: the freeze of 6 Oct 2026, 09:15 CEST (commit `ae4f253`). Every box below is a process, package or contract that exists in the repository. Dashed boxes carry the word SIMULATED and are listed in `docs/MOCKS.md`. Anything the strategy promised that the code lacks is marked "not built".
+Owner: `docs-submission`. State of the code: the freeze of 6 Oct 2026, 09:15 CEST (commit `ae4f253`). Every box below is a process, package or contract that exists in the repository. Dashed boxes carry the word SIMULATED and are listed in `docs/MOCKS.md`. Anything the strategy promised that the code lacks is marked "not built". The WalletConnect parts (SPEC §11: WalletKit in the wallet, the Reown relay, `apps/demoswap`, the bank's `/dapp-sessions`) were added on 11 Oct 2026 from the code as it stands that day.
 
 ## 1. Components
 
@@ -11,7 +11,12 @@ flowchart LR
     PK[("Phone passkey<br/>platform authenticator, P-256<br/>never leaves the device")]
     SK[("Safety key<br/>laptop browser profile, IndexedDB<br/>software EOA (viem generatePrivateKey)")]
     EC[("Emergency card<br/>EOA key shown once at onboarding<br/>never stored by the app")]
+    WK["WalletKit (Reown) in apps/wallet<br/>one per browser profile<br/>sessions in that profile's storage"]
   end
+
+  DS["apps/demoswap · Next.js · :3100<br/>separate process, wagmi + Reown AppKit (WalletConnect)<br/>test dApp: SIWE, approve, 1 USDC test 'swap' to a fixed vault"]
+  RELAY["WalletConnect relay (Reown)<br/>external third-party service<br/>end-to-end encrypted, signs nothing"]
+  TP["Any third-party Base Sepolia dApp<br/>(e.g. Reown AppKit Lab)"]
 
   subgraph Bank["services/bank · Fastify · :4000 (Swissquote core, mocked)"]
     B["policy engine · screening · simulation<br/>paymaster gateway · userOp relay<br/>attestation verify · recovery orchestration · desk API"]
@@ -55,6 +60,12 @@ flowchart LR
   W --- PK
   W --- SK
   W -. shown once .- EC
+  W --- WK
+  DS <-->|"session, requests, results (encrypted)"| RELAY
+  TP <-->|"encrypted"| RELAY
+  RELAY <-->|"encrypted"| WK
+  W -->|"POST /dapp-sessions (topic, Verify context)<br/>POST /policy/evaluate {kind: dapp, topic}"| B
+  DS -->|"verifyMessage (ERC-1271), receipts"| SAFE
   W -->|"policy, sponsor, send, attest, recover"| B
   W -->|"gas estimate, unsigned op"| CANDIDE
   B --- BK
@@ -91,6 +102,7 @@ flowchart LR
 
 Notes on the diagram.
 
+- WalletConnect: the relay only carries end-to-end encrypted messages between a dApp and the wallet's WalletKit; it holds no key to the Safe, cannot read the requests and cannot sign anything. DemoSwap is a dApp like any other: it reaches Keyline only through the relay, and the wallet answers with the bank's policy in the loop (sequence below).
 - The wallet builds every unsigned userOp itself (`apps/wallet/src/lib/chain.ts`, `buildUserOp` from `packages/chain`) and estimates gas on the public Candide endpoint. The bank only sponsors and relays (DECISIONS #14).
 - The partner guardian is the same `guardian-core` server with `GUARDIAN_KIND=partner`. No code adds it to a guardian set. Assisted mode is not built; onboarding shows it greyed out with a SIMULATED badge.
 - The OFAC SDN ETH address list is real (live fetch at startup, vendored snapshot offline, `services/bank/src/screening/ofac.ts`). Only the one seeded demo address is simulated.
@@ -104,6 +116,8 @@ Notes on the diagram.
 | `services/bank` (:4000) | Verdict key, relayer key, funder key, bank.sqlite | Evaluate policy (tiers, limits, allowlist, screening, simulation), attach paymaster data to an unsigned userOp whose `callData` hashes to the evaluated calls, relay a client-signed userOp, verify the ERC-1271 attestation, sign an EIP-712 identity verdict, collect guardian signatures and submit one `multiConfirmRecovery`, deploy the new passkey's signer proxy, run the finalizer loop, serve the desk | Build or sign a Safe transaction (it holds no owner key and recomputes `encodeCallData` only to verify), act as a guardian (the verdict key is not in any guardian list), move funds, finalize before `executeAfter` (the module refuses) |
 | `services/sq-guardian` (:4001) | Guardian key, sq-guardian.sqlite; refuses to start with any `BANK_*` secret or `WALLET_*` variable in its environment | Verify the bank's verdict signature against `BANK_VERDICT_ADDRESS`, check it is an on-chain guardian of that wallet, sign `ExecuteRecovery` at the live module nonce (one approval of two), record an execution after checking the chain, send `finalizeRecovery` after `executeAfter` | Build any Safe transaction (the chain port exposes recovery reads, `confirmRecovery`, `finalizeRecovery` only), reach the threshold alone, finalize early, act with the partner on a default-mode wallet (the partner is not in the guardian list) |
 | `services/partner-guardian` (:4002) | Its own key and SQLite | Start, answer `/identity` and `/health` | Anything in the story: it is never a guardian of any Safe the prototype creates. Not built into onboarding or recovery |
+| `apps/demoswap` (:3100) | Nothing but its own UI state; it never sees a key | Propose a WalletConnect session, ask for sign-in, signatures, transactions and batches, verify the Safe's signature with viem `verifyMessage`, read receipts | Sign for the client, reach the bank (except a server-side read of the seeded sanctioned address via `GET /contacts`), bypass the wallet's review |
+| WalletConnect relay (Reown) | Encrypted envelopes in transit | Deliver messages between a dApp and the wallet | Read them (end-to-end encrypted), sign anything, approve a session or a request |
 | Candide bundler + paymaster | Sponsorship policy | Include userOps, pay gas on the testnet | Sign for anyone; the bank's sponsorship decision gates which ops reach it |
 
 ## 3. Sequence diagrams
@@ -192,6 +206,54 @@ sequenceDiagram
 
 Enforcement note. Tier 2 and Tier 3 are policy-layer verdicts: they decide whether the bank sponsors and relays. A userOp paid with the Safe's own ETH through any bundler bypasses them. The on-chain production path (Safe AllowanceModule, threshold 2 above the allowance, delay module) is not built. The laptop screen that signs the Tier-2 step-up (`apps/wallet/app/(laptop)/approve/page.tsx`), the phone's step-up and cooling states (`send/review/page.tsx`) and the bank routes are all built; Gate 3 confirmed a Tier-2 operation on-chain (wallet `0x3cfC079f1fFA8C66DC40B2B115fAcc8963F0D7E2`, DECISIONS #22).
 
+### F2b dApp transaction over WalletConnect (SPEC §11)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant D as dApp (DemoSwap :3100 or any Base Sepolia dApp)
+  participant X as WalletConnect relay (Reown)
+  participant K as WalletKit in Keyline (Lea · phone)
+  participant B as bank :4000
+  participant L as Lea · laptop (Safety key)
+  participant C as Candide
+  participant S as Base Sepolia
+
+  Note over D,K: Pairing: Lea pastes or scans the wc: link. Proposal → Reown Verify context (VALID / INVALID / UNKNOWN, isScam, origin)
+  K->>B: POST /dapp-sessions {topic, metadata, verify}
+  B-->>K: verdict allow | block (INVALID, scam, origin host ≠ app URL host → no Connect button, session rejected)
+  K->>X: approveSession eip155:84532:<Safe>
+  X->>D: session (end-to-end encrypted)
+  D->>X: eth_sendTransaction {to, data, value}
+  X->>K: request (topic, id, verifyContext)
+  K->>B: POST /policy/evaluate {kind: dapp, topic, origin, calls}
+  B->>B: session active for this wallet? identity: allowlisted host / first time / unverified / blocked
+  B->>B: screening: every call target, decoded address and address-shaped word of calldata
+  B->>S: eth_simulateV1 (asset changes)
+  B-->>K: decision {verdict, tier, decodedCalls, assetChanges, suggestedCap?, sponsorship}
+  alt block (sanctions hit, blocked identity, revert)
+    K->>X: error 4001 + policy reason
+    X->>D: error
+  else step-up (first-time or unverified app, approve(∞), above the daily limit)
+    L->>B: POST /policy/:id/step-up (Safety-key EIP-712 signature)
+  end
+  K->>K: review sheet (same as /send/review, plus the dApp identity row), Lea approves
+  K->>B: POST /userops/sponsor {decisionId, userOp}
+  B->>B: keccak256(callData) == decision.callsHash
+  B->>C: pm_sponsorUserOperation (within 20 sponsored ops a day)
+  B-->>K: op with paymaster fields
+  K->>K: passkey signs the SafeOp hash
+  K->>B: POST /userops/send
+  B->>C: eth_sendUserOperation
+  C->>S: handleOps → Safe executes the dApp's call
+  K->>B: GET /userops/:hash (until included, about 4 s)
+  K->>X: result = bundle transaction hash
+  X->>D: tx hash (waitForTransactionReceipt resolves, logs carry the inner events)
+  K->>B: POST /dapp-sessions/:topic/events (outcome, txHash)
+```
+
+`wallet_sendCalls` takes the same path with every call in one batched userOp and answers `{ id: userOpHash }`; `wallet_getCallsStatus` then answers the EIP-5792 v2 shape from the bundler receipt. Sign-in, `personal_sign` and typed data stay in the wallet: decoded on a review sheet, signed by the passkey as a Safe message (ERC-1271), answered through the relay and logged as a bank event; they do not go through `/policy/evaluate`. A declined request answers `USER_REJECTED`; one past its WalletConnect expiry is shown as expired.
+
 ### F3 Lose the phone and recover (Option A, DECISIONS #15)
 
 ```mermaid
@@ -272,9 +334,9 @@ Variant F4b, fraud while Lea still has her phone: if the attacker also held the 
 
 | Store | Process | Content |
 |---|---|---|
-| `services/bank/data/bank.sqlite` | bank | clients (seeded Lea, SIMULATED balance), wallets, pairings, guardians, decisions, sponsorships, attestations, recoveries, inbox, events (append-only, SQLite triggers) |
+| `services/bank/data/bank.sqlite` | bank | clients (seeded Lea, SIMULATED balance), wallets, pairings, guardians, decisions, sponsorships, attestations, recoveries, inbox, events (append-only, SQLite triggers); dApp sessions (topic, metadata, Verify context, status) |
 | `services/sq-guardian/data/sq-guardian.sqlite` | sq-guardian | recovery confirmations, executions, events (append-only) |
-| Browser profile | wallet | `localStorage`: device label, Safe address, local transfer list, pending recovery; IndexedDB: Safety key (laptop only) |
+| Browser profile | wallet | `localStorage`: device label, Safe address, local transfer list, pending recovery; IndexedDB: Safety key (laptop only); WalletKit's default store (IndexedDB / `localStorage`): WalletConnect sessions and their encryption keys, per profile |
 | Platform authenticator | phone | passkey private key (never exported) |
 | Paper | client | Emergency card (32-byte hex) |
 

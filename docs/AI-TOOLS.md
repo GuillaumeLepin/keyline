@@ -102,3 +102,29 @@ They did not design the cryptography (none was written; `CLAUDE.md` rule 1). The
 ## 8. Open at submission
 
 Video link and the final Playwright pass counts (`TODO-FINAL` in `README.md`); the repository URL; whether the Candide API key replaced the public endpoint before the demo (it had not at the freeze); the USDC transfer hash, which does not exist until the faucet delivers.
+
+## 9. WalletConnect wave (11 Oct 2026, after the freeze)
+
+Added after the 6 Oct freeze at the human's request (DECISIONS #29), in parallel with the Phase D close-out: Keyline as the wallet side of WalletConnect v2 (SPEC §11). Same rules as before: agents own their directories, one tool call at a time, no installs by agents.
+
+| Who | What they did |
+|---|---|
+| Human | Asked for the feature (DECISIONS #29). A Reown project id is now set in `apps/wallet/.env.local`; who created the Reown Cloud project is not recorded in the repository |
+| Orchestrator (main session) | Added SPEC §11; gave DemoSwap port 3100 and moved `qa-demo`'s isolated stack to 3150/4150/4151 (DECISIONS #29); installed the dependencies once, never through an agent (`@reown/walletkit`, `@walletconnect/core`, `@walletconnect/utils`, `qr-scanner`, and wagmi with Reown AppKit for DemoSwap); researched third-party Base Sepolia dApps from their GitHub configs and recorded VERIFIED §21 (not yet run against Keyline); design calls in DECISIONS #30 |
+| `account-chain` | `packages/chain/src/safe-signatures.ts` and `dapp-calls.ts` with 17 tests; live spike `scripts/spike-erc1271.ts` on Safe `0x2eac…0dea` proving ERC-1271 for `personal_sign`, SIWE, typed data, USDC permit and Permit2; measured the dApp transaction result (bundle hash, about 4 s); recorded VERIFIED §20, which corrected SPEC §11 twice (USDC permits and Permit2 are not EOA-only; `wallet_getCallsStatus` answers the numeric EIP-5792 v2 shape) |
+| `bank-backend` | `/dapp-sessions` routes and table, the dApp identity verdict (`policy/dapp-identity.ts`), `kind: 'dapp'` evaluation by session topic, screening of every address-shaped word in calldata, allowlist entries for DemoSwap and the Reown Labs, `dapp.*` events, the MOCKS.md row |
+| `wallet-client` | `apps/wallet/src/wc/`: the WalletKit singleton, request classifier (9 unit tests), connection and request sheets, connected apps with disconnect, the dApp path through `/send/review`, inbox and expiry handling; the `wc-*` captures |
+| `design-system` | `packages/ui/src/v2/wc/` primitives (request sheet, identity row, SIWE summary, typed-data rows), DESIGN.md §13 with EN/FR/DE copy, and the WalletConnect screens audit in DESIGN-AUDIT.md (23 findings) |
+| DemoSwap (`apps/demoswap`) | Built in this wave as a separate Next.js app; the repository does not record which agent wrote it |
+| `docs-submission` | This section, README §9 and the Real / Simulated rows, the ARCHITECTURE diagram and sequence, THREAT-MODEL §3.14, the SUBMISSION bonus line; written by reading the code, not the SPEC |
+
+Where the models were wrong or the docs had to correct the plan:
+
+| Issue | Caught by |
+|---|---|
+| SPEC §11 listed Permit2 and USDC's permit as EOA-only | `account-chain`'s on-chain simulation (VERIFIED §20.2) |
+| SPEC §11 gave `wallet_getCallsStatus` the legacy `PENDING` / `CONFIRMED` shape | `account-chain` against viem 2.57 (VERIFIED §20.3) |
+| DECISIONS #30 says a sign-in for another domain is refused outright; the code warns ("Don't sign it", red button) but still allows signing | `docs-submission` reading `WcSheets.tsx`; stated as a limitation in README §10 and THREAT-MODEL §3.14 rather than claimed |
+| A capture run removed the approve, sent and swap-blocked screenshots mid-audit, so three findings (WC-13, WC-16, WC-17) could not be re-checked at the time | `design-system` (DESIGN-AUDIT, WalletConnect section) |
+
+Not done in this wave: a recorded run of a third-party dApp (Reown AppKit Lab or Aave) against Keyline; a Playwright spec for WalletConnect (none exists in `e2e/`).
