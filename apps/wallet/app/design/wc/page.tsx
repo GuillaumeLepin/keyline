@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Chip,
   ConnectPanel,
   type ConnectPanelState,
   DappIdentityRow,
@@ -179,6 +180,27 @@ export default function WalletConnectLab() {
           <DappIdentityRow {...unknown} />
           <DappIdentityRow {...flagged} />
           <DappIdentityRow {...lab} compact trailing={<CaretRight size={16} aria-hidden="true" />} />
+          <DappIdentityRow
+            name="DemoSwap"
+            url="http://localhost:3000"
+            verification="verified"
+            copy={c.identity}
+            compact
+            badge={<Chip />}
+            trailing={
+              <button type="button" className="kl2-textbtn">
+                Connect
+              </button>
+            }
+          />
+          <DappIdentityRow
+            name="Circle USDC (Base Sepolia)"
+            url="https://www.circle.com"
+            verification="verified"
+            copy={c.identity}
+            compact
+            trailing={<CaretRight size={16} aria-hidden="true" />}
+          />
           <DappPermissionsList copy={c.proposal.permissions} />
           <p className="dzw-inline">
             Apps <InboxBadge count={2} label={c.inbox.badge(2)} /> · Alerts{' '}

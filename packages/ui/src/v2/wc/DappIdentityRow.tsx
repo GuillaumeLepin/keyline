@@ -27,6 +27,8 @@ export type DappIdentityRowProps = {
   iconUrl?: string;
   verification: DappVerification;
   copy?: Partial<DappIdentityCopy>;
+  /** Inline after the name, same line (e.g. the `SIMULATED` chip for a demo app). */
+  badge?: React.ReactNode;
   /** Right side (e.g. a chevron or `Disconnect` in a list). */
   trailing?: React.ReactNode;
   /** `compact`: 32 px icon (lists); default 40 px (sheets). */
@@ -66,6 +68,7 @@ export function DappIdentityRow({
   iconUrl,
   verification,
   copy,
+  badge,
   trailing,
   compact = false,
 }: DappIdentityRowProps) {
@@ -92,7 +95,10 @@ export function DappIdentityRow({
         )}
       </span>
       <span className="kl2-dapp__text">
-        <span className="kl2-dapp__name">{name || host}</span>
+        <span className="kl2-dapp__line">
+          <span className="kl2-dapp__name">{name || host}</span>
+          {badge}
+        </span>
         <span className="kl2-dapp__meta">
           <span className="kl2-dapp__host">{host}</span>
           <span className={`kl2-verif kl2-verif--${verification}`}>

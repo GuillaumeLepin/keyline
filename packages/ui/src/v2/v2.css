@@ -1229,9 +1229,6 @@
   align-items: center;
   min-height: 56px;
 }
-.kl2-dapp--compact {
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-}
 .kl2-dapp__icon {
   width: 40px;
   height: 40px;
@@ -1241,11 +1238,6 @@
   overflow: hidden;
   display: grid;
   place-items: center;
-}
-.kl2-dapp--compact .kl2-dapp__icon {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-control);
 }
 .kl2-dapp__icon img {
   width: 100%;
@@ -1265,7 +1257,14 @@
 }
 .kl2-dapp__text {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
+  min-width: 0;
+}
+.kl2-dapp__line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   min-width: 0;
 }
 .kl2-dapp__name {
@@ -1273,6 +1272,11 @@
   line-height: var(--leading-16);
   font-weight: 600;
   overflow-wrap: anywhere;
+  min-width: 0;
+}
+.kl2-dapp__line .kl2-chip {
+  margin-left: 0;
+  flex: none;
 }
 .kl2-dapp__meta {
   display: flex;
@@ -1288,6 +1292,7 @@
   line-height: var(--leading-12);
   color: var(--ink-2);
   overflow-wrap: anywhere;
+  min-width: 0;
 }
 .kl2-dapp__trail {
   display: inline-flex;
@@ -1308,6 +1313,7 @@
   line-height: 1;
   font-weight: 600;
   white-space: nowrap;
+  flex: none;
 }
 .kl2-verif--verified {
   color: var(--ok);
@@ -1317,6 +1323,27 @@
 }
 .kl2-verif--flagged {
   color: var(--danger);
+}
+
+/* Compact (lists, 32 px icon): name line and meta line each stay on one line at 390 px — the name and
+ * host truncate as a last resort, the chips never wrap under them (WC-18). */
+.kl2-dapp--compact {
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+}
+.kl2-dapp--compact .kl2-dapp__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-control);
+}
+.kl2-dapp--compact .kl2-dapp__name,
+.kl2-dapp--compact .kl2-dapp__host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.kl2-dapp--compact .kl2-dapp__meta {
+  flex-wrap: nowrap;
 }
 
 /* ---------- DappPermissionsList ---------- */
