@@ -51,10 +51,20 @@ export function DemoSwap() {
   useEffect(() => {
     setIsContract(null);
     if (!address || !publicClient) return;
-    publicClient
-      .getCode({ address })
-      .then((code) => setIsContract(Boolean(code && code !== '0x')))
-      .catch(() => setIsContract(null));
+    // The public RPC is sometimes rate-limited; retry a few times instead of silently giving up.
+    let cancelled = false;
+    const check = async (attempt: number): Promise<void> => {
+      try {
+        const code = await publicClient.getCode({ address });
+        if (!cancelled) setIsContract(Boolean(code && code !== '0x'));
+      } catch {
+        if (!cancelled && attempt < 4) setTimeout(() => void check(attempt + 1), 1500 * (attempt + 1));
+      }
+    };
+    void check(0);
+    return () => {
+      cancelled = true;
+    };
   }, [address, publicClient]);
   const kind = isContract === null ? '' : isContract ? 'smart account, ERC-1271' : 'EOA, ECDSA';
 
@@ -88,7 +98,10 @@ export function DemoSwap() {
       // viem verifyMessage: ecrecover for an EOA, isValidSignature (ERC-1271) for a deployed contract account.
       const valid = await publicClient.verifyMessage({ address, message, signature });
       if (valid) {
-        const who = `Signed in as ${address}${kind ? ` (${kind})` : ''}.`;
+        // If the code check hasn't answered yet, the signature itself tells us: 65 bytes is an EOA's ECDSA signature,
+        // anything longer is a contract signature checked through ERC-1271.
+        const sigKind = kind || ((signature.length - 2) / 2 > 65 ? 'smart account, ERC-1271' : 'EOA, ECDSA');
+        const who = `Signed in as ${address} (${sigKind}).`;
         setSiwe({
           phase: 'ok',
           lines: [
