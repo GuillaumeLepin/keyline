@@ -9,6 +9,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { type Address as Addr, getAddress, type Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { GestureRetry } from '@/src/components/GestureRetry';
 import { copy, copyV2 } from '@/src/copy';
 import { env } from '@/src/env';
 import { api, hasOnboardingToken, isApiError } from '@/src/lib/api';
@@ -16,9 +17,10 @@ import {
   addressUrl,
   buildOpFromDecision,
   PasskeyCancelledError,
+  PasskeyGestureError,
   pollUserOp,
   signAttestation,
-  sponsorSignAndSend,
+  signPreparedAndSend,
   txUrl,
 } from '@/src/lib/chain';
 import { getDeviceLabel } from '@/src/lib/device';
@@ -28,8 +30,11 @@ import {
   localWalletFromLogin,
   loginWithPasskey,
   PasskeyUnsupportedError,
+  prefetchLoginOptions,
+  prefetchRegisterOptions,
   registerPasskey,
 } from '@/src/lib/passkey';
+import { useWarmOp } from '@/src/lib/prepare';
 import type { LocalWallet } from '@/src/lib/storage';
 import {
   ActionButton,
@@ -196,11 +201,14 @@ function Hi({ name, onNext }: { name: string; onNext: () => void }) {
 function KeyStep({ onCreated }: { onCreated: (wallet: LocalWallet) => void }) {
   const s = copyV2.onboarding.key;
   const s1 = copy.onboarding.s1;
+  // Safari: registration options fetched before the tap.
+  useEffect(() => prefetchRegisterOptions(), []);
   const create = useMutation({
     mutationFn: () => createWallet(),
     onSuccess: onCreated,
   });
-  const cancelled = create.error instanceof PasskeyCancelledError;
+  const gesture = create.error instanceof PasskeyGestureError;
+  const cancelled = create.error instanceof PasskeyCancelledError && !gesture;
   const unsupported = create.error instanceof PasskeyUnsupportedError;
   return (
     <>
@@ -212,8 +220,9 @@ function KeyStep({ onCreated }: { onCreated: (wallet: LocalWallet) => void }) {
       <Panel title={s1.panelTitle} rows={s1.rows.map(([label, value]) => ({ label, value }))} />
       {!hasOnboardingToken() ? <Note tone="warn">{copyV2.start.noHandoff}</Note> : null}
       {cancelled ? <Note tone="warn">{s1.cancelled}</Note> : null}
+      <GestureRetry error={create.error} loading={create.isPending} onRetry={() => create.mutate()} />
       {unsupported ? <ErrorState title={s1.unsupportedTitle} body={s1.unsupportedBody} /> : null}
-      {create.error && !cancelled && !unsupported ? (
+      {create.error && !cancelled && !gesture && !unsupported ? (
         <ApiErrorState error={create.error} body={copy.common.errorBody} onRetry={() => create.mutate()} />
       ) : null}
       <div className="kl-actions">
@@ -343,32 +352,52 @@ function ProtectStep({
   const [settled, setSettled] = useState(already);
   const sqRef = useRef<Addr | undefined>(wallet.guardians.swissquote as Addr | undefined);
 
+  /** Swissquote recoverer (idempotent) + the protect decision. */
+  const decide = useCallback(async () => {
+    try {
+      const sq = await api.wallets.addGuardian(wallet.address, { kind: 'swissquote' });
+      sqRef.current = getAddress(sq.address);
+    } catch (error) {
+      if (!(isApiError(error) && error.status === 409)) throw error;
+    }
+    return api.policy.evaluate({
+      kind: 'protect',
+      walletAddress: wallet.address,
+      calls: [],
+      chfValue: 0,
+      recipientAddress: wallet.address,
+      deviceLabel: getDeviceLabel(),
+    });
+  }, [wallet.address]);
+  // Safari: decide + build + sponsor while the screen shows, so the Protect tap's first await is the passkey prompt.
+  const idle = !already && (run.kind === 'idle' || run.kind === 'error');
+  const ahead = useQuery({
+    queryKey: ['protect-decision', wallet.address],
+    queryFn: decide,
+    enabled: idle,
+    refetchInterval: 120_000,
+    retry: false,
+  });
+  const aheadDecision =
+    ahead.data &&
+    ahead.data.verdict === 'approve' &&
+    new Date(ahead.data.expiresAt).getTime() > Date.now() + 20_000
+      ? ahead.data
+      : undefined;
+  useWarmOp(aheadDecision, () => buildOpFromDecision(wallet, aheadDecision as PolicyDecision), idle);
+
   const start = useCallback(async () => {
     try {
       setRun({ kind: 'working', label: 'preparing' });
-      try {
-        const sq = await api.wallets.addGuardian(wallet.address, { kind: 'swissquote' });
-        sqRef.current = getAddress(sq.address);
-      } catch (error) {
-        if (!(isApiError(error) && error.status === 409)) throw error;
-      }
-      const decision = await api.policy.evaluate({
-        kind: 'protect',
-        walletAddress: wallet.address,
-        calls: [],
-        chfValue: 0,
-        recipientAddress: wallet.address,
-        deviceLabel: getDeviceLabel(),
-      });
+      const decision = aheadDecision ?? (await decide());
       if (decision.verdict !== 'approve') {
         setRun({ kind: 'refused', decision });
         return;
       }
-      const unsigned = await buildOpFromDecision(wallet, decision);
-      const result = await sponsorSignAndSend({
+      const result = await signPreparedAndSend({
         wallet,
-        unsignedUserOp: unsigned,
         decision,
+        build: () => buildOpFromDecision(wallet, decision),
         onStage: (stage) => {
           if (stage === 'sending') setRun({ kind: 'working', label: 'signed' });
           if (stage === 'sent') setRun({ kind: 'working', label: 'sent' });
@@ -386,7 +415,7 @@ function ProtectStep({
     } catch (error) {
       setRun({ kind: 'error', error, cancelled: error instanceof PasskeyCancelledError });
     }
-  }, [wallet, onProtected]);
+  }, [wallet, onProtected, aheadDecision, decide]);
 
   const onDrawn = useCallback((i: number) => {
     if (i === 0) setRegistered(2);
@@ -479,7 +508,10 @@ function ProtectStep({
         })}
       </ul>
       {run.kind === 'refused' ? <PolicyLine verdict="block" reason={copy.common.policyRefused} /> : null}
-      {run.kind === 'error' && run.cancelled ? <Note tone="warn">{copy.review.passkeyCancelled}</Note> : null}
+      {run.kind === 'error' ? <GestureRetry error={run.error} onRetry={start} /> : null}
+      {run.kind === 'error' && run.cancelled && !(run.error instanceof PasskeyGestureError) ? (
+        <Note tone="warn">{copy.review.passkeyCancelled}</Note>
+      ) : null}
       {run.kind === 'error' && !run.cancelled ? (
         <ApiErrorState error={run.error} title={s.errorTitle} body={s.errorBody} onRetry={start} />
       ) : null}
@@ -548,6 +580,10 @@ function FirstFunds({ onHome }: { onHome: () => void }) {
 function Step1({ onCreated }: { onCreated: (wallet: LocalWallet) => void }) {
   const router = useRouter();
   const s = copy.onboarding.s1;
+  useEffect(() => {
+    prefetchRegisterOptions();
+    prefetchLoginOptions();
+  }, []);
   const create = useMutation({
     mutationFn: async (): Promise<LocalWallet> => {
       const passkey = await registerPasskey();
@@ -584,7 +620,8 @@ function Step1({ onCreated }: { onCreated: (wallet: LocalWallet) => void }) {
     },
   });
   const error = create.error ?? signIn.error;
-  const cancelled = error instanceof PasskeyCancelledError;
+  const gesture = error instanceof PasskeyGestureError;
+  const cancelled = error instanceof PasskeyCancelledError && !gesture;
   const unsupported = error instanceof PasskeyUnsupportedError;
 
   return (
@@ -596,8 +633,13 @@ function Step1({ onCreated }: { onCreated: (wallet: LocalWallet) => void }) {
       </div>
       <Panel title={s.panelTitle} rows={s.rows.map(([label, value]) => ({ label, value }))} />
       {cancelled ? <Note tone="warn">{s.cancelled}</Note> : null}
+      <GestureRetry
+        error={error}
+        loading={create.isPending || signIn.isPending}
+        onRetry={() => (create.error ? create.mutate() : signIn.mutate())}
+      />
       {unsupported ? <ErrorState title={s.unsupportedTitle} body={s.unsupportedBody} /> : null}
-      {error && !cancelled && !unsupported ? (
+      {error && !cancelled && !gesture && !unsupported ? (
         <ApiErrorState error={error} body={copy.common.errorBody} onRetry={() => create.mutate()} />
       ) : null}
       <div className="kl-actions">
@@ -762,14 +804,22 @@ function Step4({ wallet, onNext }: { wallet: LocalWallet; onNext: () => void }) 
 function Step6({ wallet, onDone }: { wallet: LocalWallet; onDone: (attested: boolean) => void }) {
   const s = copy.onboarding.s6;
   const [cancelled, setCancelled] = useState(false);
+  // Safari: the nonce is fetched while the screen shows (10 min TTL, refreshed every 4), so the tap signs at once.
+  const ahead = useQuery({
+    queryKey: ['attestation-challenge', wallet.address],
+    queryFn: () => api.attestations.challenge(wallet.address),
+    refetchInterval: 4 * 60_000,
+    retry: false,
+  });
   const sign = useMutation({
     mutationFn: async () => {
-      const challenge = await api.attestations.challenge(wallet.address);
+      const challenge = ahead.data ?? (await api.attestations.challenge(wallet.address));
       const clientId = challenge.typedData.message.clientId;
       const signature = await signAttestation(wallet, { clientId, nonce: challenge.nonce });
       return api.attestations.submit({ wallet: wallet.address, clientId, nonce: challenge.nonce, signature });
     },
-    onError: (error) => setCancelled(error instanceof PasskeyCancelledError),
+    onError: (error) =>
+      setCancelled(error instanceof PasskeyCancelledError && !(error instanceof PasskeyGestureError)),
   });
 
   if (sign.isSuccess) {
@@ -831,7 +881,8 @@ function Step6({ wallet, onDone }: { wallet: LocalWallet; onDone: (attested: boo
         ]}
       />
       {cancelled ? <Note tone="warn">{copy.review.passkeyCancelled}</Note> : null}
-      {sign.isError && !cancelled ? (
+      <GestureRetry error={sign.error} loading={sign.isPending} onRetry={() => sign.mutate()} />
+      {sign.isError && !cancelled && !(sign.error instanceof PasskeyGestureError) ? (
         <ApiErrorState error={sign.error} body={copy.common.errorBody} onRetry={() => sign.mutate()} />
       ) : null}
       <div className="kl-actions">

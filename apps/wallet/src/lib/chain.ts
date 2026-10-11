@@ -46,7 +46,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import { env } from '../env';
 import { api, isApiError } from './api';
-import { PasskeyCancelledError } from './reads';
+import { GESTURE_REFUSAL_MS, PasskeyCancelledError, PasskeyGestureError } from './reads';
 import type { LocalWallet } from './storage';
 
 export {
@@ -54,6 +54,7 @@ export {
   addressUrl,
   EURC_ADDRESS,
   PasskeyCancelledError,
+  PasskeyGestureError,
   readAssetBalances,
   readUsdcBalance,
   txUrl,
@@ -128,7 +129,9 @@ export function fromJsonUserOp(json: JsonUserOp): ChainUserOp {
 export async function assertWithPasskey(challenge: Hex, credentialId: string): Promise<WebAuthnAssertion> {
   if (typeof navigator === 'undefined' || !navigator.credentials) throw new PasskeyCancelledError();
   let credential: Credential | null;
+  const started = Date.now();
   try {
+    // Safari: this must be the first await after the tap — no network work before it (see prepareOp).
     credential = await navigator.credentials.get({
       publicKey: {
         challenge: Uint8Array.from(hexToBytes(challenge)),
@@ -139,6 +142,14 @@ export async function assertWithPasskey(challenge: Hex, credentialId: string): P
       },
     });
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'SecurityError') throw new PasskeyGestureError();
+    if (
+      error instanceof DOMException &&
+      error.name === 'NotAllowedError' &&
+      Date.now() - started < GESTURE_REFUSAL_MS
+    ) {
+      throw new PasskeyGestureError();
+    }
     if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {
       throw new PasskeyCancelledError();
     }
@@ -173,30 +184,108 @@ interface SubmitInput {
   readonly onStage?: (stage: SubmitStage) => void;
 }
 
-/** Sponsor (bank) → passkey signs the SafeOp EIP-712 hash → relay (bank). Never signs before sponsoring. */
-export async function sponsorSignAndSend(input: SubmitInput): Promise<SubmitResult> {
+// ---------------------------------------------------------------------------------------------------------------
+// Prepare first, sign on the tap (Safari / WebKit): build + sponsor happen BEFORE the person taps, so the tap's first
+// await is `navigator.credentials.get`. Prepared ops are cached per decision (until it nearly expires) and survive a
+// refused prompt, so the retry tap never redoes network work.
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface PreparedOp {
+  readonly decisionId: string;
+  readonly sponsored: ChainUserOp;
+  readonly sponsoredJson: JsonUserOp;
+  readonly challenge: Hex;
+  /** Epoch ms after which it is prepared again (decision expiry − 15 s, at most 4 min: paymaster data ages). */
+  readonly validUntil: number;
+}
+
+const preparedOps = new Map<string, PreparedOp>();
+const preparing = new Map<string, Promise<PreparedOp>>();
+
+/** A still-valid prepared op for this decision, if any. */
+export function preparedOp(decisionId: string): PreparedOp | undefined {
+  const op = preparedOps.get(decisionId);
+  if (op && op.validUntil > Date.now()) return op;
+  preparedOps.delete(decisionId);
+  return undefined;
+}
+
+export function forgetPrepared(decisionId: string): void {
+  preparedOps.delete(decisionId);
+}
+
+/** Build (dummy signature) → sponsor (bank). Idempotent per decision: concurrent callers share one request. */
+export function prepareOp(input: {
+  readonly decision: PolicyDecision;
+  readonly build: () => Promise<ChainUserOp>;
+  readonly onStage?: (stage: SubmitStage) => void;
+}): Promise<PreparedOp> {
+  const { decision } = input;
+  const ready = preparedOp(decision.decisionId);
+  if (ready) return Promise.resolve(ready);
+  const pending = preparing.get(decision.decisionId);
+  if (pending) return pending;
+  const run = (async () => {
+    input.onStage?.('building');
+    const unsigned = await input.build();
+    input.onStage?.('sponsoring');
+    const sponsored = await api.userops.sponsor({
+      decisionId: decision.decisionId,
+      userOp: toJsonUserOp(unsigned),
+    });
+    const op = fromJsonUserOp(sponsored.userOp);
+    const prepared: PreparedOp = {
+      decisionId: decision.decisionId,
+      sponsored: op,
+      sponsoredJson: sponsored.userOp,
+      challenge: safeOpHash(op, env.chainId),
+      validUntil: Math.min(new Date(decision.expiresAt).getTime() - 15_000, Date.now() + 4 * 60_000),
+    };
+    preparedOps.set(decision.decisionId, prepared);
+    return prepared;
+  })();
+  preparing.set(decision.decisionId, run);
+  run.then(
+    () => preparing.delete(decision.decisionId),
+    () => preparing.delete(decision.decisionId),
+  );
+  return run;
+}
+
+/**
+ * The tap: passkey signs the prepared SafeOp hash (first await when prepared) → relay (bank). If nothing was
+ * prepared yet it prepares first (Chromium is fine with that; Safari then raises PasskeyGestureError and the retry
+ * tap finds the op ready). Never signs before sponsoring.
+ */
+export async function signPreparedAndSend(input: {
+  readonly wallet: LocalWallet;
+  readonly decision: PolicyDecision;
+  readonly build: () => Promise<ChainUserOp>;
+  readonly onStage?: (stage: SubmitStage) => void;
+}): Promise<SubmitResult> {
   const { wallet, decision, onStage } = input;
-  const owner = ownerOf(wallet);
-
-  onStage?.('sponsoring');
-  const sponsored = await api.userops.sponsor({
-    decisionId: decision.decisionId,
-    userOp: toJsonUserOp(input.unsignedUserOp),
-  });
-  const sponsoredUserOp = fromJsonUserOp(sponsored.userOp);
-
+  const op = preparedOp(decision.decisionId) ?? (await prepareOp(input));
   onStage?.('signing');
-  const challenge = safeOpHash(sponsoredUserOp, env.chainId);
-  const assertion = await assertWithPasskey(challenge, wallet.credentialId);
-  const signedUserOp = signUserOpWithPasskey(sponsoredUserOp, assertion, owner);
-
+  const assertion = await assertWithPasskey(op.challenge, wallet.credentialId);
+  const signedUserOp = signUserOpWithPasskey(op.sponsored, assertion, ownerOf(wallet));
   onStage?.('sending');
   const sent = await api.userops.send({
     userOp: toJsonUserOp(signedUserOp),
     decisionId: decision.decisionId,
   });
+  forgetPrepared(decision.decisionId);
   onStage?.('sent');
-  return { userOpHash: sent.userOpHash as Hex, safeOpHash: challenge, sponsoredUserOp: sponsored.userOp };
+  return { userOpHash: sent.userOpHash as Hex, safeOpHash: op.challenge, sponsoredUserOp: op.sponsoredJson };
+}
+
+/** Sponsor (bank) → passkey signs the SafeOp EIP-712 hash → relay (bank). Never signs before sponsoring. */
+export function sponsorSignAndSend(input: SubmitInput): Promise<SubmitResult> {
+  return signPreparedAndSend({
+    wallet: input.wallet,
+    decision: input.decision,
+    build: () => Promise.resolve(input.unsignedUserOp),
+    onStage: input.onStage,
+  });
 }
 
 /**
@@ -272,6 +361,7 @@ export async function pollUserOp(
 // Ownership attestation (SPEC F1.6): the passkey signs the Safe's ERC-1271 message hash of the EIP-712 attestation
 // ---------------------------------------------------------------------------------------------------------------
 
+/** The tap for the ownership proof: the nonce is fetched beforehand, so the first await is the passkey prompt. */
 export async function signAttestation(
   wallet: LocalWallet,
   fields: { clientId: string; nonce: string },

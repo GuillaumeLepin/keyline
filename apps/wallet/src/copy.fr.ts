@@ -1595,3 +1595,10 @@ export const copyWc = {
 
   security: { row: 'Apps connectées', rowMeta: (n: number) => (n === 1 ? '1 app' : `${n} apps`) },
 } as const;
+
+/** Safari / WebKit : la demande de clé d’accès ne s’ouvre que juste après un geste. */
+export const copySafari = {
+  title: 'Encore un geste',
+  body: 'Votre navigateur n’ouvre Face ID / Touch ID que juste après un geste. Tout est prêt ; rien n’a encore été signé.',
+  retry: 'Confirmer avec Touch ID',
+} as const;

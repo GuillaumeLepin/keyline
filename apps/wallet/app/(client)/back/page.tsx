@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { type Address as Addr, getAddress } from 'viem';
 import { AmountEntry } from '@/src/components/AmountEntry';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { GestureRetry } from '@/src/components/GestureRetry';
 import { StackPage } from '@/src/components/StackPage';
 import { copy, copyV2 } from '@/src/copy';
 import { formatFiat } from '@/src/i18n/money';
@@ -15,11 +16,13 @@ import {
   addressUrl,
   buildOpFromDecision,
   PasskeyCancelledError,
-  sponsorSignAndSend,
+  PasskeyGestureError,
+  signPreparedAndSend,
   transferCall,
 } from '@/src/lib/chain';
 import { getDeviceLabel } from '@/src/lib/device';
 import { useLocalWallet, useUsdcBalance } from '@/src/lib/hooks';
+import { useWarmOp } from '@/src/lib/prepare';
 import { type LocalWallet, transferStore } from '@/src/lib/storage';
 import {
   ActionButton,
@@ -136,8 +139,12 @@ function Review({
   });
   const send = useMutation({
     mutationFn: async (dec: PolicyDecision) => {
-      const unsigned = await buildOpFromDecision(wallet, dec);
-      const result = await sponsorSignAndSend({ wallet, unsignedUserOp: unsigned, decision: dec });
+      // Safari: prepared ahead (useWarmOp), so the tap's first await is the passkey prompt.
+      const result = await signPreparedAndSend({
+        wallet,
+        decision: dec,
+        build: () => buildOpFromDecision(wallet, dec),
+      });
       const now = new Date().toISOString();
       transferStore.upsert({
         userOpHash: result.userOpHash,
@@ -157,7 +164,13 @@ function Review({
   const d = decision.data;
   const insufficient = balanceUsdc !== undefined && amountUsdc > balanceUsdc;
   const approved = d?.verdict === 'approve';
-  const cancelled = send.error instanceof PasskeyCancelledError;
+  const cancelled =
+    send.error instanceof PasskeyCancelledError && !(send.error instanceof PasskeyGestureError);
+  useWarmOp(
+    d,
+    () => buildOpFromDecision(wallet, d as PolicyDecision),
+    approved && !insufficient && !send.isPending,
+  );
 
   return (
     <>
@@ -195,6 +208,7 @@ function Review({
           onRetry={() => decision.refetch()}
         />
       ) : null}
+      <GestureRetry error={send.error} loading={send.isPending} onRetry={() => d && send.mutate(d)} />
       {cancelled ? <Note tone="warn">{copy.review.passkeyCancelled}</Note> : null}
       {send.isError && !cancelled ? (
         <ApiErrorState

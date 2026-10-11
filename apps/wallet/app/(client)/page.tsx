@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { GestureRetry } from '@/src/components/GestureRetry';
 import { ReceiveSheet } from '@/src/components/ReceiveSheet';
 import { copy, copyC, copyV2, usePrefs } from '@/src/copy';
 import { env } from '@/src/env';
@@ -25,8 +26,8 @@ import {
   useUsdcBalance,
   useWalletEvents,
 } from '@/src/lib/hooks';
-import { localWalletFromLogin, loginWithPasskey } from '@/src/lib/passkey';
-import { addressUrl, PasskeyCancelledError } from '@/src/lib/reads';
+import { localWalletFromLogin, loginWithPasskey, prefetchLoginOptions } from '@/src/lib/passkey';
+import { addressUrl, PasskeyCancelledError, PasskeyGestureError } from '@/src/lib/reads';
 import { type LocalWallet, topupStore } from '@/src/lib/storage';
 import {
   AmountField,
@@ -103,6 +104,8 @@ function NoKeyHome() {
 function NoWalletHome({ onLoggedIn }: { onLoggedIn: (wallet: LocalWallet) => void }) {
   const router = useRouter();
   const [cancelled, setCancelled] = useState(false);
+  // Safari: the login challenge is fetched before the tap, so the tap's first await is the passkey prompt.
+  useEffect(() => prefetchLoginOptions(), []);
   const login = useMutation({
     mutationFn: loginWithPasskey,
     onSuccess: (result) => {
@@ -110,7 +113,8 @@ function NoWalletHome({ onLoggedIn }: { onLoggedIn: (wallet: LocalWallet) => voi
       if (local) onLoggedIn(local);
       else router.push('/onboarding');
     },
-    onError: (error) => setCancelled(error instanceof PasskeyCancelledError),
+    onError: (error) =>
+      setCancelled(error instanceof PasskeyCancelledError && !(error instanceof PasskeyGestureError)),
   });
   return (
     <>
@@ -119,7 +123,8 @@ function NoWalletHome({ onLoggedIn }: { onLoggedIn: (wallet: LocalWallet) => voi
       </header>
       <EmptyState title={copy.home.noWalletTitle} body={copy.home.noWalletBody} />
       {cancelled ? <Note tone="warn">{copy.onboarding.s1.cancelled}</Note> : null}
-      {login.isError && !cancelled ? (
+      <GestureRetry error={login.error} loading={login.isPending} onRetry={() => login.mutate()} />
+      {login.isError && !cancelled && !(login.error instanceof PasskeyGestureError) ? (
         <ApiErrorState error={login.error} body={copy.common.errorBody} onRetry={() => login.mutate()} />
       ) : null}
       <div className="kl-actions">

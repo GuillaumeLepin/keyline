@@ -50,6 +50,7 @@ export const copyV2 = live('copyV2');
 export const copyJourney = live('copyJourney');
 export const copyC = live('copyC');
 export const copyWc = live('copyWc');
+export const copySafari = live('copySafari');
 
 // `useCopy()` lives in ./i18n/PrefsRoot (client-only: it needs React context).
 export { useCopy, usePrefs } from './i18n/PrefsRoot';

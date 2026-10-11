@@ -18,6 +18,21 @@ export class PasskeyCancelledError extends Error {
   }
 }
 
+/**
+ * The browser refused to open the passkey prompt because the call was not inside a fresh tap (Safari / WebKit
+ * user-activation rule). Nothing was signed; the prepared operation is kept, so one more tap signs it directly.
+ */
+export class PasskeyGestureError extends PasskeyCancelledError {
+  constructor() {
+    super();
+    this.message = 'The browser needs a fresh tap to open the passkey prompt';
+    this.name = 'PasskeyGestureError';
+  }
+}
+
+/** A refusal this fast never reached a person: it is the browser's gesture rule, not a cancel. */
+export const GESTURE_REFUSAL_MS = 1_200;
+
 export async function readUsdcBalance(address: Address): Promise<number> {
   const r = await rpc();
   return r.units(await r.erc20Balance(env.usdcAddress, address), 6);

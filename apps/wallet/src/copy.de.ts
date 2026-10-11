@@ -1596,3 +1596,10 @@ export const copyWc = {
 
   security: { row: 'Verbundene Apps', rowMeta: (n: number) => (n === 1 ? '1 App' : `${n} Apps`) },
 } as const;
+
+/** Safari / WebKit: Die Passkey-Abfrage öffnet sich nur direkt nach einem Tippen. */
+export const copySafari = {
+  title: 'Noch einmal tippen',
+  body: 'Ihr Browser öffnet Face ID / Touch ID nur direkt nach einem Tippen. Alles ist bereit; noch wurde nichts signiert.',
+  retry: 'Mit Touch ID bestätigen',
+} as const;

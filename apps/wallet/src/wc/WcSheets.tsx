@@ -9,11 +9,11 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { getAddress, type Hex, isAddress } from 'viem';
 import { parseSiweMessage } from 'viem/siwe';
-import { copyWc } from '../copy';
+import { copySafari, copyWc } from '../copy';
 import { formatDateTime } from '../i18n/dates';
 import { api } from '../lib/api';
 import { getDeviceLabel } from '../lib/device';
-import { addressUrl, PasskeyCancelledError } from '../lib/reads';
+import { addressUrl, PasskeyCancelledError, PasskeyGestureError } from '../lib/reads';
 import { walletStore } from '../lib/storage';
 import {
   Address,
@@ -285,7 +285,10 @@ function RequestSheetFor({ request: r }: { request: RequestView }) {
       scheme.data?.family === 'eip3009-authorization');
   const rows = c.kind === 'typed-data' ? safeRows(c.typedData) : [];
   const danger = permitFamily || rows.some((row) => row.danger);
-  const cancelled = phase.kind === 'error' && phase.error instanceof PasskeyCancelledError;
+  // Safari: the tap signs a hash computed before it (no network first). If the browser still refuses the prompt
+  // (no fresh tap, e.g. after the laptop step-up), the retry button is that fresh tap.
+  const gesture = phase.kind === 'error' && phase.error instanceof PasskeyGestureError;
+  const cancelled = phase.kind === 'error' && phase.error instanceof PasskeyCancelledError && !gesture;
   const spender =
     c.kind === 'typed-data' ? String((c.typedData.message as { spender?: unknown }).spender ?? '') : '';
 
@@ -337,9 +340,9 @@ function RequestSheetFor({ request: r }: { request: RequestView }) {
         successTitle={kindCopy?.successTitle}
         successBody={kindCopy?.successBody}
         successAnnounce={kindCopy?.announce}
-        errorTitle={t.errorTitle}
-        errorBody={cancelled ? t.passkeyCancelled : errorText(phase)}
-        copy={sheetCopy()}
+        errorTitle={gesture ? copySafari.title : t.errorTitle}
+        errorBody={gesture ? copySafari.body : cancelled ? t.passkeyCancelled : errorText(phase)}
+        copy={gesture ? { ...sheetCopy(), retry: copySafari.retry } : sheetCopy()}
         secondaryAction={
           eoaOnly && state === 'review' ? (
             <button

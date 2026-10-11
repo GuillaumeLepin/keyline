@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { formatUnits, getAddress } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { GestureRetry } from '@/src/components/GestureRetry';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { copy, copyGaps, copyWc } from '@/src/copy';
 import { env } from '@/src/env';
@@ -15,12 +16,14 @@ import {
   addressUrl,
   buildOpFromDecision,
   PasskeyCancelledError,
+  PasskeyGestureError,
   type SubmitStage,
-  sponsorSignAndSend,
+  signPreparedAndSend,
   transferCall,
 } from '@/src/lib/chain';
 import { getDeviceLabel } from '@/src/lib/device';
 import { useLocalWallet, useNow, useUsdcBalance } from '@/src/lib/hooks';
+import { useWarmOp } from '@/src/lib/prepare';
 import { PENDING_SEND_EVENT, type PendingSend, pendingSendStore, transferStore } from '@/src/lib/storage';
 import {
   Address,
@@ -208,11 +211,11 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
   const confirm = useMutation({
     mutationFn: async (dec: PolicyDecision) => {
       setStage('building');
-      const unsigned = await buildOpFromDecision(wallet, dec);
-      const result = await sponsorSignAndSend({
+      // Safari: prepared ahead (useWarmOp below), so the first await here is the passkey prompt.
+      const result = await signPreparedAndSend({
         wallet,
-        unsignedUserOp: unsigned,
         decision: dec,
+        build: () => buildOpFromDecision(wallet, dec),
         onStage: setStage,
       });
       setUserOpHash(result.userOpHash);
@@ -364,6 +367,7 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
   // Mock (allowlist) dApps only: a WalletConnect block always shows the bank's own reason.
   const unknownDapp = verdict === 'block' && Boolean(draft.dapp) && !wcReq && !d?.screening.hit;
   const canConfirm = d !== undefined && !expired && !wcExpired && !insufficient && isCleared && !offerOpen;
+  useWarmOp(d, () => buildOpFromDecision(wallet, d as PolicyDecision), canConfirm && !confirm.isPending);
   const rows = whatWillHappen(d, draft, balance.data);
 
   return (
@@ -487,7 +491,14 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
         />
       ) : null}
 
-      {cancelled ? <Note tone="warn">{copy.review.passkeyCancelled}</Note> : null}
+      <GestureRetry
+        error={confirm.error}
+        loading={confirm.isPending}
+        onRetry={() => d && confirm.mutate(d)}
+      />
+      {cancelled && !(confirm.error instanceof PasskeyGestureError) ? (
+        <Note tone="warn">{copy.review.passkeyCancelled}</Note>
+      ) : null}
       {confirm.isError && !cancelled ? (
         <ApiErrorState
           error={confirm.error}

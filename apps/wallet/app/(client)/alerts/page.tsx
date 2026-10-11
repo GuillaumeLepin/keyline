@@ -2,10 +2,11 @@
 
 import type { Alert, PolicyDecision } from '@keyline/shared';
 import { ArrowSquareOut } from '@phosphor-icons/react/dist/ssr';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import type { Hex } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { GestureRetry } from '@/src/components/GestureRetry';
 import { Loadable } from '@/src/components/Loadable';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { copy, copyC } from '@/src/copy';
@@ -13,13 +14,15 @@ import { api } from '@/src/lib/api';
 import {
   buildOpFromDecision,
   PasskeyCancelledError,
+  PasskeyGestureError,
   pollUserOp,
   type SubmitStage,
-  sponsorSignAndSend,
+  signPreparedAndSend,
   txUrl,
 } from '@/src/lib/chain';
 import { getDeviceLabel } from '@/src/lib/device';
 import { useAlerts, useLocalWallet, useNow } from '@/src/lib/hooks';
+import { useWarmOp } from '@/src/lib/prepare';
 import type { LocalWallet } from '@/src/lib/storage';
 import {
   Button,
@@ -161,27 +164,49 @@ function StartedAlert({
   const [dismissed, setDismissed] = useState(false);
   const executeAfter = alert.executeAfter ? new Date(alert.executeAfter) : undefined;
 
-  const run = useCallback(async () => {
-    try {
-      setPhase({ kind: 'running', stage: 'policy' });
-      const decision = await api.policy.evaluate({
+  // Safari: the decision and the sponsored op are prepared while the alert is on screen, so the Cancel tap's first
+  // await is the passkey prompt. Refreshed before the decision expires.
+  const evaluateCancel = useCallback(
+    () =>
+      api.policy.evaluate({
         kind: 'cancel-recovery',
         walletAddress: wallet.address,
         calls: [],
         chfValue: 0,
         recipientAddress: wallet.address,
         deviceLabel: getDeviceLabel(),
-      });
+      }),
+    [wallet.address],
+  );
+  const idle = phase.kind === 'idle' || phase.kind === 'error';
+  const ahead = useQuery({
+    queryKey: ['cancel-recovery-decision', wallet.address],
+    queryFn: evaluateCancel,
+    enabled: idle,
+    refetchInterval: 120_000,
+    retry: false,
+  });
+  const aheadDecision =
+    ahead.data &&
+    ahead.data.verdict === 'approve' &&
+    new Date(ahead.data.expiresAt).getTime() > Date.now() + 20_000
+      ? ahead.data
+      : undefined;
+  useWarmOp(aheadDecision, () => buildOpFromDecision(wallet, aheadDecision as PolicyDecision), idle);
+
+  const run = useCallback(async () => {
+    try {
+      setPhase({ kind: 'running', stage: 'policy' });
+      const decision = aheadDecision ?? (await evaluateCancel());
       if (decision.verdict !== 'approve') {
         setPhase({ kind: 'refused', decision });
         return;
       }
       setPhase({ kind: 'running', stage: 'building' });
-      const unsigned = await buildOpFromDecision(wallet, decision);
-      const result = await sponsorSignAndSend({
+      const result = await signPreparedAndSend({
         wallet,
-        unsignedUserOp: unsigned,
         decision,
+        build: () => buildOpFromDecision(wallet, decision),
         onStage: (stage) => setPhase({ kind: 'running', stage }),
       });
       setPhase({ kind: 'sent', userOpHash: result.userOpHash });
@@ -203,7 +228,7 @@ function StartedAlert({
     } catch (error) {
       setPhase({ kind: 'error', error, cancelled: error instanceof PasskeyCancelledError });
     }
-  }, [wallet, queryClient]);
+  }, [wallet, queryClient, aheadDecision, evaluateCancel]);
 
   if (dismissed) return null;
 
@@ -237,7 +262,10 @@ function StartedAlert({
         </div>
       ) : null}
       {phase.kind === 'refused' ? <p>{copy.common.policyRefused}</p> : null}
-      {phase.kind === 'error' && phase.cancelled ? <p>{copy.review.passkeyCancelled}</p> : null}
+      {phase.kind === 'error' ? <GestureRetry error={phase.error} onRetry={run} /> : null}
+      {phase.kind === 'error' && phase.cancelled && !(phase.error instanceof PasskeyGestureError) ? (
+        <p>{copy.review.passkeyCancelled}</p>
+      ) : null}
       {phase.kind === 'error' && !phase.cancelled ? (
         <ApiErrorState error={phase.error} body={copy.activity.failedBody} onRetry={run} />
       ) : null}

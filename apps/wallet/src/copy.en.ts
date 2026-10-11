@@ -1603,3 +1603,10 @@ export const copyWc = {
 
   security: { row: 'Connected apps', rowMeta: (n: number) => (n === 1 ? '1 app' : `${n} apps`) },
 } as const;
+
+/** Safari / WebKit: the passkey prompt only opens right after a tap. */
+export const copySafari = {
+  title: 'One more tap',
+  body: 'Your browser opens Face ID / Touch ID only right after a tap. Everything is ready; nothing was signed yet.',
+  retry: 'Confirm with Touch ID',
+} as const;
