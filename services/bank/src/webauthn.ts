@@ -13,7 +13,7 @@ import {
   verifyRegistrationResponse,
   type WebAuthnCredential,
 } from '@simplewebauthn/server';
-import { cose, decodeCredentialPublicKey, isoBase64URL, isoUint8Array } from '@simplewebauthn/server/helpers';
+import { cose, decodeCredentialPublicKey, isoBase64URL } from '@simplewebauthn/server/helpers';
 import { bytesToHex } from 'viem';
 import type { BankConfig } from './config';
 import { type Db, newId, nowIso } from './db';
@@ -66,7 +66,6 @@ export const extractP256Coordinates = (
 export const createWebAuthnService = (db: Db, config: BankConfig, events: EventStore) => {
   const RP_NAME = 'Keyline by Swissquote';
   // Lea is the only client in the prototype; her stable user handle lets the authenticator dedupe credentials.
-  const leaUserId = isoUint8Array.fromUTF8String(LEA.id);
 
   const insertChallenge = db.prepare(
     `INSERT INTO webauthn_challenges (id, kind, challenge, client_id, device_label, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -80,7 +79,6 @@ export const createWebAuthnService = (db: Db, config: BankConfig, events: EventS
   const purgeExpired = db.prepare(`DELETE FROM webauthn_challenges WHERE expires_at < ?`);
 
   const findPasskey = db.prepare(`SELECT * FROM passkeys WHERE credential_id = ?`);
-  const listPasskeys = db.prepare(`SELECT * FROM passkeys WHERE client_id = ? AND revoked_at IS NULL`);
   const insertPasskey = db.prepare(
     `INSERT INTO passkeys (credential_id, client_id, wallet_address, role, public_key, pub_key_x, pub_key_y, counter, transports, device_label, created_at)
      VALUES (?, ?, NULL, 'owner', ?, ?, ?, ?, ?, ?, ?)`,
@@ -130,18 +128,18 @@ export const createWebAuthnService = (db: Db, config: BankConfig, events: EventS
       deviceLabel: string,
       clientId: string = LEA.id,
     ): Promise<PublicKeyCredentialCreationOptionsJSON> {
-      const existing = (listPasskeys.all(clientId) as PasskeyRow[]).map((r) => ({
-        id: r.credential_id,
-        transports: JSON.parse(r.transports) as WebAuthnCredential['transports'],
-      }));
+      // Each passkey gets its own WebAuthn user handle and a device label, and no credential is excluded. Browsers
+      // that share one keychain across profiles (Safari + iCloud Keychain) would otherwise refuse the new phone's
+      // key ("already registered") or overwrite Lea's original key. Login never relies on the handle: passkeys are
+      // looked up by credential id.
       const options = await generateRegistrationOptions({
         rpName: RP_NAME,
         rpID: config.WALLET_RP_ID,
-        userID: leaUserId,
-        userName: LEA.email,
-        userDisplayName: LEA.name,
+        userID: globalThis.crypto.getRandomValues(new Uint8Array(16)),
+        userName: `${LEA.email} · ${deviceLabel}`,
+        userDisplayName: `${LEA.name} · ${deviceLabel}`,
         attestationType: 'none',
-        excludeCredentials: existing,
+        excludeCredentials: [],
         authenticatorSelection: {
           authenticatorAttachment: 'platform',
           residentKey: 'required',
