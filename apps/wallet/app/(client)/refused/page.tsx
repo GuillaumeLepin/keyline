@@ -1,15 +1,32 @@
 'use client';
 
 import { Prohibit } from '@phosphor-icons/react/dist/ssr';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
+import { StackPage } from '@/src/components/StackPage';
 import { copy, copyC } from '@/src/copy';
 import { useRecovery } from '@/src/lib/hooks';
 import { type PendingRecovery, recoveryStore } from '@/src/lib/storage';
 import { Button, EmptyState, Panel, SimulatedBadge, Skeleton } from '@/src/ui';
 
 /** SPEC F4.2: the identity check failed. No primary action — only the way back. */
+/** D-10: the route has its header (title + back to home) like every phone screen. */
 export default function RefusedPage() {
+  const router = useRouter();
+  return (
+    <StackPage
+      screenKey="refused"
+      direction={1}
+      title={copy.refused.navTitle}
+      onBack={() => router.push('/')}
+    >
+      <RefusedBody />
+    </StackPage>
+  );
+}
+
+function RefusedBody() {
   const s = copy.refused;
   const [pending, setPending] = useState<PendingRecovery | null | undefined>(undefined);
   useEffect(() => {

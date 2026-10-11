@@ -3,8 +3,8 @@
 import { Copy, ShareNetwork, Warning } from '@phosphor-icons/react/dist/ssr';
 import { useEffect, useState } from 'react';
 import { useCopy } from '../copy';
-import { addressUrl } from '../lib/chain';
-import { ActionButton, Address, Button, haptic, Note, QrCode, SheetV2 } from '../ui';
+import { addressUrl } from '../lib/reads';
+import { ActionButton, Address, Button, Note, QrCode, SheetV2 } from '../ui';
 
 /** D3 Receive: QR, the address in full (grouped), Copy (with a confirmation state) and Share. */
 export function ReceiveSheet({
@@ -24,11 +24,7 @@ export function ReceiveSheet({
   useEffect(() => {
     setCanShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
   }, []);
-  useEffect(() => {
-    if (copied !== 'success') return;
-    const id = setTimeout(() => setCopied('idle'), 2000);
-    return () => clearTimeout(id);
-  }, [copied]);
+  // `Copied` holds until the sheet closes (state, not a timer — DESIGN.md §6).
   useEffect(() => {
     if (!open) setCopied('idle');
   }, [open]);
@@ -36,8 +32,7 @@ export function ReceiveSheet({
   async function copy() {
     try {
       await navigator.clipboard.writeText(address);
-      setCopied('success');
-      haptic('success');
+      setCopied('success'); // ActionButton's success state is the feedback (no haptic: §8 reserves it)
     } catch {
       setCopied('error');
     }

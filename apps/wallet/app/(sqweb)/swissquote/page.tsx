@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { copy, copyV2 } from '@/src/copy';
 import { api, isApiError } from '@/src/lib/api';
-import { ActionButton, Chip, CrossFade, Skeleton, TextField } from '@/src/ui';
+import { ActionButton, CrossFade, Skeleton, TextField } from '@/src/ui';
 
 /** A1 · Sign in to Swissquote (SIMULATED SSO: Lea pre-filled, one click). */
 export default function SqSignInPage() {
@@ -40,9 +40,7 @@ export default function SqSignInPage() {
           <div className="grid gap-2">
             <h1 className="kl-title">{s.title}</h1>
             <p className="kl-lead">{s.lead}</p>
-            <p className="text-14 text-ink-2">
-              {s.note} <Chip />
-            </p>
+            {/* D-4: the WebShell strip already marks the whole area SIMULATED (§7); no second sentence + chip. */}
           </div>
           <form
             className="grid gap-4"

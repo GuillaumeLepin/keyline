@@ -5,11 +5,10 @@ import { ArrowSquareOut, Bank, IdentificationCard, Laptop } from '@phosphor-icon
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { getAddress, type Hex, isHex } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
-import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyGaps } from '@/src/copy';
+import { copy, copyC, copyGaps } from '@/src/copy';
 import { env } from '@/src/env';
 import { api, isApiError } from '@/src/lib/api';
 import {
@@ -20,21 +19,24 @@ import {
   txUrl,
 } from '@/src/lib/chain';
 import { getDeviceLabel } from '@/src/lib/device';
+import { litFromConfirmations } from '@/src/lib/format';
 import { useRecovery } from '@/src/lib/hooks';
 import { PasskeyUnsupportedError, registerPasskey } from '@/src/lib/passkey';
 import { type PendingRecovery, recoveryStore, walletStore } from '@/src/lib/storage';
 import {
   Address,
   Button,
-  CountdownRing,
   Disclosure,
   ErrorState,
   formatClock,
+  haptic,
   KeyCard,
   Note,
   Panel,
+  ProtectionCountdown,
   SimulatedBadge,
   Skeleton,
+  StackView,
   StatusSequence,
   Stepper,
   TextField,
@@ -65,11 +67,35 @@ const GRACE_MS = 180_000;
 
 /** One header for the whole new-phone flow: the way back is always home (the recovery itself survives on the bank). */
 export default function RecoverPage() {
+  return <RecoverFlow />;
+}
+
+/** Screen order, for the stack direction (forward unless the flow went back, e.g. a wrong code or start over). */
+const ORDER = ['loading', 'key', 'email', 'identity', 'recoverers', 'waiting', 'cancelled', 'error'] as const;
+type ScreenKey = (typeof ORDER)[number];
+
+/**
+ * Steps change through `StackView` like onboarding (DESIGN.md v2 §6: one spring, the header stays, reduced motion
+ * cross-fades). The step itself is derived from the recovery's state — never from a timer.
+ */
+function RecoverStack({ screenKey, children }: { screenKey: ScreenKey; children: ReactNode }) {
+  const router = useRouter();
+  const last = useRef<number>(0);
+  const order = ORDER.indexOf(screenKey);
+  const direction: 1 | -1 = order >= last.current ? 1 : -1;
+  last.current = order;
   return (
-    <>
-      <ScreenHeader title={copy.recover.emailTitle} backHref="/" />
-      <RecoverFlow />
-    </>
+    <div className="-mx-4 -mt-6 -mb-8 flex min-h-[calc(100dvh-40px)] flex-1 flex-col md:min-h-0">
+      <StackView
+        screenKey={screenKey}
+        direction={direction}
+        title={copy.recover.emailTitle}
+        onBack={() => router.push('/')}
+        className="flex-1"
+      >
+        <div className="flex min-h-full flex-col gap-6 px-4 pt-6 pb-8">{children}</div>
+      </StackView>
+    </div>
   );
 }
 
@@ -87,6 +113,7 @@ function RecoverFlow() {
   // Terminal: identity refused → /refused (the thief's path). Reasons travel through localStorage.
   useEffect(() => {
     if (recovery.data?.status === 'identity-refused') {
+      haptic('refusal');
       recoveryStore.update({ status: 'identity-refused', reasons: recovery.data.reasons });
       router.replace('/refused');
     }
@@ -94,10 +121,12 @@ function RecoverFlow() {
 
   if (pending === undefined) {
     return (
-      <>
-        <Skeleton kind="line" count={2} />
-        <Skeleton kind="block" />
-      </>
+      <RecoverStack screenKey="loading">
+        <div className="grid gap-6" aria-busy="true">
+          <Skeleton kind="line" count={2} />
+          <Skeleton kind="block" />
+        </div>
+      </RecoverStack>
     );
   }
 
@@ -109,7 +138,13 @@ function RecoverFlow() {
     setOtpAccepted(false);
   };
 
-  if (!pending?.newPasskey) return <StepKey onCreated={(p) => update(p)} />;
+  if (!pending?.newPasskey) {
+    return (
+      <RecoverStack screenKey="key">
+        <StepKey onCreated={(p) => update(p)} />
+      </RecoverStack>
+    );
+  }
   if (
     !pending.recoveryId ||
     (r?.status === 'identity-pending' && !otpAccepted) ||
@@ -117,88 +152,100 @@ function RecoverFlow() {
   ) {
     if (pending.recoveryId && !r) {
       return (
-        <>
+        <RecoverStack screenKey="email">
           <Stepper current={2} total={TOTAL} label={stepLabels()[1]} />
           <Skeleton kind="line" count={2} />
           <Skeleton kind="block" />
-        </>
+        </RecoverStack>
       );
     }
     return (
-      <StepEmail
-        pending={pending}
-        otp={otp}
-        onOtp={setOtp}
-        onCreated={(created) =>
-          update({
-            recoveryId: created.id,
-            walletAddress: created.walletAddress,
-            email: created.email,
-            status: created.status,
-          })
-        }
-        onCodeEntered={() => setOtpAccepted(true)}
-      />
+      <RecoverStack screenKey="email">
+        <StepEmail
+          pending={pending}
+          otp={otp}
+          onOtp={setOtp}
+          onCreated={(created) =>
+            update({
+              recoveryId: created.id,
+              walletAddress: created.walletAddress,
+              email: created.email,
+              status: created.status,
+            })
+          }
+          onCodeEntered={() => setOtpAccepted(true)}
+        />
+      </RecoverStack>
     );
   }
   if (recovery.isError || !r) {
     return (
-      <ApiErrorState
-        error={recovery.error}
-        body={copy.common.errorBody}
-        onRetry={() => recovery.refetch()}
-        actions={
-          <Button variant="ghost" onClick={startOver}>
-            {copy.recover.startOver}
-          </Button>
-        }
-      />
+      <RecoverStack screenKey="error">
+        <ApiErrorState
+          error={recovery.error}
+          body={copy.common.errorBody}
+          onRetry={() => recovery.refetch()}
+          actions={
+            <Button variant="ghost" onClick={startOver}>
+              {copy.recover.startOver}
+            </Button>
+          }
+        />
+      </RecoverStack>
     );
   }
 
   switch (r.status) {
     case 'identity-pending':
       return (
-        <StepIdentity
-          recovery={r}
-          otp={otp}
-          onWrongCode={() => {
-            setOtpAccepted(false);
-            setOtp('');
-          }}
-          onSubmitted={(next) => update({ status: next.status, reasons: next.reasons })}
-        />
+        <RecoverStack screenKey="identity">
+          <StepIdentity
+            recovery={r}
+            otp={otp}
+            onWrongCode={() => {
+              setOtpAccepted(false);
+              setOtp('');
+            }}
+            onSubmitted={(next) => update({ status: next.status, reasons: next.reasons })}
+          />
+        </RecoverStack>
       );
     case 'awaiting-guardians':
-      return <StepRecoverers recovery={r} />;
+      return (
+        <RecoverStack screenKey="recoverers">
+          <StepRecoverers recovery={r} />
+        </RecoverStack>
+      );
     case 'executed-waiting':
     case 'finalized':
       return (
-        <StepWaiting
-          recovery={r}
-          onWelcomeHome={() => {
-            // The new passkey becomes this device's profile; the address is the bank's, never re-derived.
-            walletStore.set({
-              address: r.walletAddress,
-              credentialId: r.newOwner.credentialId,
-              pubKeyX: r.newOwner.pubKeyX,
-              pubKeyY: r.newOwner.pubKeyY,
-              deviceLabel: getDeviceLabel(),
-              status: 'deployed',
-              protectTxHash: r.onchain.finalizedTxHash,
-              attested: false,
-              recoveryMode: r.recoveryMode,
-              guardians: {},
-              onboardingStep: 7,
-            });
-            recoveryStore.clear();
-            router.push('/');
-          }}
-        />
+        <RecoverStack screenKey="waiting">
+          <StepWaiting
+            recovery={r}
+            onWelcomeHome={() => {
+              // The new passkey becomes this device's profile; the address is the bank's, never re-derived.
+              walletStore.set({
+                address: r.walletAddress,
+                credentialId: r.newOwner.credentialId,
+                pubKeyX: r.newOwner.pubKeyX,
+                pubKeyY: r.newOwner.pubKeyY,
+                deviceLabel: getDeviceLabel(),
+                status: 'deployed',
+                protectTxHash: r.onchain.finalizedTxHash,
+                attested: false,
+                recoveryMode: r.recoveryMode,
+                guardians: {},
+                onboardingStep: 7,
+              });
+              recoveryStore.clear();
+              router.push('/');
+            }}
+          />
+        </RecoverStack>
       );
     case 'cancelled':
       return (
-        <>
+        <RecoverStack screenKey="cancelled">
           <Stepper current={5} total={TOTAL} label={stepLabels()[4]} />
           <ErrorState
             title={copy.recover.cancelledByOwner}
@@ -211,7 +258,7 @@ function RecoverFlow() {
             }
           />
           {r.onchain.cancelledTxHash ? <ExplorerLink hash={r.onchain.cancelledTxHash} /> : null}
-        </>
+        </RecoverStack>
       );
     default:
       return null;
@@ -330,7 +377,7 @@ function StepEmail({
             mono
             inputMode="numeric"
             autoComplete="one-time-code"
-            maxLength={6}
+            // No maxLength: pasting `482 137` (7 chars) must still yield all six digits; onChange keeps 6.
             value={otp}
             onChange={(e) => onOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
             hint={
@@ -728,15 +775,19 @@ function StepWaiting({ recovery, onWelcomeHome }: { recovery: RecoveryRequest; o
         <>
           <h1 className="kl-title">{s.waitTitle(formatClock(executeAfter))}</h1>
           <div className="flex justify-center">
-            <CountdownRing
+            {/* §5.2 `counting`: the ring itself is the waiting period (M11 sweep, M12 landing pulse + haptic). */}
+            <ProtectionCountdown
               endsAt={executeAfter}
               durationMs={GRACE_MS}
               size={200}
-              caption={env.demoFastMode ? copy.demo.gracePeriod : undefined}
+              lit={litFromConfirmations(recovery.guardianConfirmations)}
+              subLabel={copyC.ui.remaining}
               doneLabel={copy.recover.ready}
-              showFinish={false}
             />
           </div>
+          {env.demoFastMode ? (
+            <p className="m-0 text-center text-12 text-ink-3">{copy.demo.gracePeriod}</p>
+          ) : null}
         </>
       ) : (
         <Skeleton kind="amount" />

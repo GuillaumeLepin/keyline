@@ -25,7 +25,22 @@ export const metadata: Metadata = {
   description: 'Self-custody wallet with 2 of 3 recoverers. Prototype on Base Sepolia.',
   applicationName: 'Keyline',
   manifest: '/manifest.webmanifest',
-  icons: { icon: '/icon.svg', apple: '/icon-192.png' },
+  icons: { icon: '/icon.svg', apple: { url: '/apple-touch-icon.png', sizes: '180x180' } },
+  // iOS home-screen app: full-screen, status bar over the paper/ink background (DESIGN.md §8), splash = paper with
+  // the 64 px ring (one image at iPhone 390 × 844 @3x; other sizes fall back to background_color).
+  appleWebApp: {
+    capable: true,
+    title: 'Keyline',
+    statusBarStyle: 'default',
+    startupImage: [
+      {
+        url: '/splash-1170x2532.png',
+        media:
+          '(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)',
+      },
+    ],
+  },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {

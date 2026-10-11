@@ -84,7 +84,8 @@ export function AmountEntry({
         prefix={unit === 'fiat' ? ccy : undefined}
         suffix={unit === 'usdc' ? 'USDC' : undefined}
         error={error}
-        className="text-28"
+        // D-5: the 28 px size (and its tight tracking) on the control only — never the label or the error line.
+        className="[&_.kl-field__control]:text-28"
         data-testid={`${testIdPrefix}-amount`}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">

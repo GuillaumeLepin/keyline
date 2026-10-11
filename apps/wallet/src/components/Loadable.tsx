@@ -47,7 +47,8 @@ export function Loadable<T>({
         : 'ready';
   const exitButton = (e: Exit | undefined, variant: 'secondary' | 'ghost' = 'secondary') =>
     e ? (
-      <Button variant={variant} href={e.href}>
+      // D-9: next to ErrorState's small `Try again`, the way out is a small ghost too (same baseline).
+      <Button variant={variant} size={variant === 'ghost' ? 'sm' : undefined} href={e.href}>
         {e.label}
       </Button>
     ) : null;

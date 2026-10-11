@@ -7,7 +7,7 @@ import type { Address } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { copy, copyJourney } from '@/src/copy';
 import { api } from '@/src/lib/api';
-import { publicClient, readUsdcBalance } from '@/src/lib/chain';
+import { readCode, readUsdcBalance } from '@/src/lib/reads';
 import { formatUSDC, type HandoffState, HandoffTile, Skeleton } from '@/src/ui';
 
 /**
@@ -39,7 +39,7 @@ export function KeylineTile({ walletAddress }: { walletAddress: Address | null }
     queryKey: ['sq', 'tile-wallet', wallet],
     queryFn: async () => {
       const w = wallet as Address;
-      const [bytecode, usdc] = await Promise.all([publicClient.getCode({ address: w }), readUsdcBalance(w)]);
+      const [bytecode, usdc] = await Promise.all([readCode(w), readUsdcBalance(w)]);
       return { deployed: Boolean(bytecode && bytecode !== '0x'), usdc };
     },
     enabled: Boolean(wallet),

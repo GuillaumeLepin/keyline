@@ -27,8 +27,10 @@ export default function SettingsPage() {
       <ScreenHeader title={s.title} backHref="/" />
 
       <section className="kl-stack gap-3" aria-labelledby="set-currency">
-        <h2 id="set-currency" className="kl-section__title">
+        {/* D-11: one chip per simulated group, at its header (§7); the note below is plain text. */}
+        <h2 id="set-currency" className="kl-section__title flex items-center gap-1">
           {s.currency}
+          <Chip />
         </h2>
         <Segmented<Currency>
           legend={s.currency}
@@ -37,12 +39,8 @@ export default function SettingsPage() {
           testId="settings-currency"
           options={CURRENCIES.map((c) => ({ value: c, label: c }))}
         />
-        <p className="m-0 flex flex-wrap items-center gap-1 text-12 text-ink-3">
-          {s.currencyNames[prefs.currency]} · {s.currencyNote.replace(/\s+\S+$/, '')}{' '}
-          <span className="inline-flex items-center gap-1 whitespace-nowrap">
-            {s.currencyNote.match(/\S+$/)?.[0]}
-            <Chip />
-          </span>
+        <p className="m-0 text-12 text-ink-3">
+          {s.currencyNames[prefs.currency]} · {s.currencyNote}
         </p>
       </section>
 

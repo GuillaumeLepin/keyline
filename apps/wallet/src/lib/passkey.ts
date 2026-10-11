@@ -10,8 +10,8 @@ import {
   WebAuthnError,
 } from '@simplewebauthn/browser';
 import { api } from './api';
-import { PasskeyCancelledError } from './chain';
 import { getDeviceLabel } from './device';
+import { PasskeyCancelledError } from './reads';
 import type { LocalWallet } from './storage';
 
 export class PasskeyUnsupportedError extends Error {

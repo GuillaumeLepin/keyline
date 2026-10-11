@@ -99,6 +99,11 @@ export function applyThemeColor(theme: string | null): void {
         m.content = m.dataset.media.includes('dark') ? THEME_COLOR.dark : THEME_COLOR.light;
       }
     }
+    // iOS status bar (DESIGN.md §8): `default` on paper, `black-translucent` on ink. iOS reads it at launch.
+    const dark =
+      theme === 'dark' || (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const bar = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (bar) bar.content = dark ? 'black-translucent' : 'default';
   } catch {
     // ignore
   }

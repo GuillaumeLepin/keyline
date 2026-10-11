@@ -10,12 +10,12 @@ import { useDeskToken } from '@/src/components/DeskShell';
 import { DeskSignedOut } from '@/src/components/DeskSignedOut';
 import { copy } from '@/src/copy';
 import { api } from '@/src/lib/api';
-import { addressUrl, txUrl } from '@/src/lib/chain';
 import { shortId, statusLabel, useDeskQueue } from '@/src/lib/desk';
+import { litFromConfirmations } from '@/src/lib/format';
+import { addressUrl, txUrl } from '@/src/lib/reads';
 import {
   Address,
   Button,
-  CountdownRing,
   CrossFade,
   Disclosure,
   EmptyState,
@@ -24,6 +24,7 @@ import {
   Note,
   Panel,
   type PanelRow,
+  ProtectionCountdown,
   SheetV2,
   SimulatedBadge,
   Skeleton,
@@ -216,11 +217,11 @@ function RequestDetail({ item, token }: { item: DeskQueueItem; token: string }) 
           </div>
           {timer ? (
             <div className="flex items-center gap-4">
-              <CountdownRing
+              <ProtectionCountdown
                 endsAt={new Date(timer.executeAfter)}
                 durationMs={GRACE_MS}
                 size={64}
-                doneLabel=""
+                lit={litFromConfirmations(r.guardianConfirmations)}
               />
               <div className="kl-stack kl-stack--tight">
                 <p className="text-16">{s.timerEnds(formatClock(new Date(timer.executeAfter)))}</p>

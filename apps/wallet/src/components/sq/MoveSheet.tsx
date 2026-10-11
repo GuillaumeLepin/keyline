@@ -7,8 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { copy, copyV2 } from '@/src/copy';
 import { api, isApiError } from '@/src/lib/api';
-import { txUrl } from '@/src/lib/chain';
 import { decimalsFor, formatQty } from '@/src/lib/format';
+import { txUrl } from '@/src/lib/reads';
 import { ActionButton, Chip, formatCHF, Note, SheetV2, TextField, TravelRuleLine } from '@/src/ui';
 
 /** The bank's funder ran dry (409/422/503 with a funder/balance code): an honest, specific sentence. */

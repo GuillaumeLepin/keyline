@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyC, copyGaps, copyV2 } from '@/src/copy';
+import { copy, copyC, copyGaps, copyV2, usePrefs } from '@/src/copy';
 import { env } from '@/src/env';
 import { api, isApiError } from '@/src/lib/api';
 import { addressUrl, readRecoveryStatus } from '@/src/lib/chain';
@@ -68,6 +68,7 @@ export default function SecurityPage() {
 }
 
 function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
+  const { lang } = usePrefs().prefs;
   const s = copy.security;
   const me = useMe();
   const events = useWalletEvents(wallet.address);
@@ -335,7 +336,7 @@ function SecurityCentre({ wallet }: { wallet: LocalWallet }) {
               <StatementRow
                 key={e.id}
                 label={eventLabel(e)}
-                meta={formatShortDateTime(new Date(e.at))}
+                meta={formatShortDateTime(new Date(e.at), lang)}
                 chevron={false}
               />
             ))}
@@ -552,6 +553,7 @@ function eventLabel(e: Event): string {
 
 /** "Prove this wallet is yours": shows the ERC-1271 attestation the bank verified in onboarding step 6. */
 function ProveSheet({ wallet, open, onClose }: { wallet: LocalWallet; open: boolean; onClose: () => void }) {
+  const { lang } = usePrefs().prefs;
   const s = copy.security;
   const [copied, setCopied] = useState(false);
   const attestation = useQuery({
@@ -594,7 +596,7 @@ function ProveSheet({ wallet, open, onClose }: { wallet: LocalWallet; open: bool
               rows={[
                 {
                   label: copy.security.verifiedAt,
-                  value: formatShortDateTime(new Date(attestation.data.verifiedAt)),
+                  value: formatShortDateTime(new Date(attestation.data.verifiedAt), lang),
                 },
                 { label: copy.security.method, value: copy.security.proof.methodValue },
                 {

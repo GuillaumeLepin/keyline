@@ -506,6 +506,7 @@ export const copy: W<'copy'> = {
     cancelledBody: 'Votre ancien téléphone a annulé cette récupération. Rien n’a changé sur le portefeuille.',
   },
   alerts: {
+    loadError: 'Vos alertes n’ont pas pu être chargées.',
     title: 'Alertes',
     startedTitle: 'Était-ce vous ?',
     startedBody: (where: string, ago: string, t: string) =>
@@ -529,6 +530,7 @@ export const copy: W<'copy'> = {
     noWallet: 'Aucun portefeuille sur cet appareil.',
   },
   refused: {
+    navTitle: 'Récupération',
     title: 'La récupération ne peut pas commencer',
     body: 'Le contrôle d’identité a échoué. Le propriétaire a été averti.',
     rows: {
@@ -543,6 +545,15 @@ export const copy: W<'copy'> = {
     back: 'Retour au début',
   },
   desk: {
+    chrome: {
+      brand: 'Swissquote · Guichet de récupération',
+      legend: 'Légende',
+      real: 'Réel · sur la chaîne et signé',
+      simulated: 'Simulé · reproduit pour le prototype',
+      operator: (n: string) => `Opérateur\u00a0: ${n}`,
+      signOut: 'Se déconnecter',
+      nav: 'Guichet',
+    },
     header: 'Swissquote · Guichet de récupération',
     operator: (n: string) => `Opérateur : ${n}`,
     signOut: 'Se déconnecter',
@@ -768,6 +779,8 @@ export const sqWebShell: WebShellCopy = {
   prototype: 'Prototype de Swissquote web — simulé',
   navLabel: 'Swissquote',
   signOut: 'Se déconnecter',
+  chipLabel: 'SIMULÉ',
+  chipTooltip: 'Simulé pour le prototype — voir le README',
 };
 
 export const sqPositionsCopy: PositionsTableCopy = {
@@ -862,6 +875,8 @@ export const copyV2: W<'copyV2'> = {
       invested: 'Investi',
       total: 'Valeur totale',
       groups: { cash: 'Liquidités', securities: 'Titres', crypto: 'Crypto' },
+      /** Home holdings: meta of the cash row (the label already says Cash — audit D-12). */
+      cashMeta: 'Compte',
       chf: 'Franc suisse',
       move: 'Transférer vers Keyline',
       moveAria: (asset: string) => `Transférer ${asset} vers Keyline`,
@@ -1220,6 +1235,28 @@ export const copyC: W<'copyC'> = {
     failedBody: 'Rien n’a été facturé. Votre solde est inchangé.',
     reason: 'Motif',
     unknownReason: 'Le réseau n’a pas accepté le virement.',
+    reasonLine: (reason: string) => `Motif\u00a0: ${reason}`,
+    /** Bank failure sentences by `code` (services/bank/src/chain/userop-errors.ts); EN mirrors the bank verbatim. */
+    reasons: {
+      AA10: 'Ce wallet a déjà été créé — actualisez et réessayez.',
+      AA13: 'Votre wallet n’a pas pu être créé sur la blockchain.',
+      AA20: 'Ce wallet n’est pas encore déployé.',
+      AA21: 'Les frais de réseau n’ont pas pu être payés — la prise en charge de Swissquote ne les couvrait pas.',
+      AA22: 'Cette approbation a expiré avant d’atteindre le réseau — réessayez.',
+      AA23: 'Votre wallet a refusé la demande lors de sa vérification.',
+      AA24: 'La signature de la clé d’accès ne correspond pas à ce wallet.',
+      AA25: 'Cette transaction a déjà été envoyée ou arrive dans le désordre — réessayez.',
+      AA31: 'Le service de prise en charge des frais de Swissquote n’a plus de fonds pour le moment.',
+      AA32: 'La prise en charge des frais par Swissquote a expiré — réessayez.',
+      AA33: 'Le service de prise en charge des frais de Swissquote a refusé cette transaction.',
+      AA34: 'La signature de prise en charge des frais de Swissquote n’est pas valide — réessayez.',
+      feeLimits: 'Les limites de frais de réseau sont trop basses pour cette transaction.',
+      refused: 'Le réseau a refusé cette transaction.',
+      reverted: 'Le virement a été annulé sur la blockchain.',
+      ERC20InsufficientBalance: 'Fonds insuffisants dans votre wallet pour ce virement.',
+      ERC20InsufficientAllowance: 'L’application n’est pas autorisée à dépenser autant.',
+      ERC20Invalid: 'L’adresse du destinataire n’est pas valide.',
+    },
     retry: 'Vérifier à nouveau',
   },
   activity: {

@@ -61,8 +61,10 @@ export function SqWebShell({ children }: { children: ReactNode }) {
       <WebShell
         copy={copyJourney.webShell}
         nav={nav}
-        client={signInPage ? undefined : me.data?.client.name}
-        account={signInPage || !me.data ? undefined : copyV2.sqWeb.account(me.data.client.id)}
+        // While `me` loads, hold the header's client/account lines with a no-break space so the header keeps its
+        // final height and the page below does not jump when the name arrives (CLS, Lighthouse).
+        client={signInPage ? undefined : (me.data?.client.name ?? '\u00a0')}
+        account={signInPage ? undefined : me.data ? copyV2.sqWeb.account(me.data.client.id) : '\u00a0'}
         onSignOut={signInPage ? undefined : signOut}
         linkAs={NextLink}
       >

@@ -1,0 +1,20 @@
+FAIL  protect sequence (/design hero, arcs → close → check)  · transform changes 2 · checks 1 · hidden 0 · hydration errors 0
+{
+ "sample": [
+  {
+   "el": "kl2-action__label",
+   "from": "none",
+   "to": "matrix(0.2, 0, 0, 1, 0, 0)"
+  },
+  {
+   "el": "kl2-action__label",
+   "from": "matrix(0.2, 0, 0, 1, 0, 0)",
+   "to": "none"
+  }
+ ],
+ "hidden": []
+}
+PASS  onboarding Protect (step 5, protected)  · transform changes 0 · checks 3 · hidden 0 · hydration errors 0
+PASS  sheet (Home → Receive)  · transform changes 0 · checks 2 · hidden 0 · hydration errors 0
+PASS  stack push / pop (/help)  · transform changes 0 · checks 2 · hidden 0 · hydration errors 0
+PASS  countdown last seconds + landing (/design)  · transform changes 0 · checks 2 · hidden 0 · hydration errors 0

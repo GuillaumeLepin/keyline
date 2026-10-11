@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Keyline maskable icon (DESIGN.md §8): the protection ring on ink, full bleed. Ring outer radius 134 is well
+       inside the 80 % safe zone (r 204). Three arcs, 10° gaps at 12, 4 and 8 o'clock (§5.1). -->
+  <rect width="512" height="512" fill="#141311"/>
+  <g fill="none" stroke="#FF7452" stroke-width="28">
+    <path d="M 266.459 136.457 A 120 120 0 0 1 364.757 306.714"/>
+    <path d="M 354.298 324.829 A 120 120 0 0 1 157.702 324.829"/>
+    <path d="M 147.243 306.714 A 120 120 0 0 1 245.541 136.457"/>
+  </g>
+</svg>

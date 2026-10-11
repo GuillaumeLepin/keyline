@@ -1,0 +1,26 @@
+PASS  /                      tab stops (10)                                 Safety key: yes, Emergency card: yes, Sw › Settings › SIMULATED › Send › Receive › Back to Swissquote › All › SIMULATED › Open Swissquote › View on Basescan
+PASS  /                      visible focus ring on every stop               
+PASS  /                      logical order (top → bottom)                   
+PASS  /security              tab stops (16)                                 Back › Show full address › Copy address › View on Basescan › Show full address › Copy address › View on Basescan › Show full address › Copy address › View on Basescan › Prove this wallet is yours › Export Safety key On your laptop › If Swissquote disappears Your wallet doe › Roadmap: Bitcoin Not in this prototype. › Language and appearance Language · Appea › View on Basescan
+PASS  /security              visible focus ring on every stop               
+PASS  /security              logical order (top → bottom)                   
+PASS  /send                  tab stops (8)                                  Back › Search contacts or paste an address › New recipient Paste a Base address. You  › Manage contacts › Lukas Meier 0x5919…a094 · Trusted › Marta Rossi 0x5A43…6133 · New › Sanctioned test address SIMULATED 0x6ab5 › SIMULATED
+PASS  /send                  visible focus ring on every stop               
+PASS  /send                  logical order (top → bottom)                   
+PASS  /settings              tab stops (9)                                  Back › SIMULATED › CHF › en › system › How is my money protected? › Safety key: yes, Emergency card: yes, Sw › Contacts › Apps
+PASS  /settings              visible focus ring on every stop               
+PASS  /settings              logical order (top → bottom)                   
+PASS  /swissquote/portfolio  tab stops (12)                                 SIMULATED › Portfolio › Approvals › Sign out › SIMULATED › Why? › Move ETH to Keyline › Move USDC to Keyline › Move EURC to Keyline › Try again › Technical details › Set up Keyline on my phone
+PASS  /swissquote/portfolio  visible focus ring on every stop               
+PASS  /swissquote/portfolio  logical order (top → bottom)                   
+PASS  / Receive sheet        trigger reachable by Tab                       
+PASS  / Receive sheet        Enter opens; focus moves into the sheet        
+PASS  / Receive sheet        Tab stays inside the open sheet                Close › Hide › View on Basescan › Copy address › Close › Hide › View on Basescan › Copy address
+PASS  / Receive sheet        Escape closes                                  
+PASS  / Receive sheet        focus returns to the trigger                   focus on "Receive"
+PASS  /help (StackView)      Back reachable by Tab                          
+PASS  /help (StackView)      Enter on Next pushes; Back (keyboard) pops     url /help
+PASS  /start code            paste “Code: 482 137” → six digits             value "482 137"
+PASS  /start code            arrow keys move the caret                      caret 5 → 6
+PASS  /start code            Enter submits the form                         
+PASS  /swissquote sign-in    Enter submits the form                         

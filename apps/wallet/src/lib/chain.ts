@@ -11,7 +11,6 @@ import {
   type ChainEndpoints,
   type UserOperationV7 as ChainUserOp,
   createPasskeyAccount,
-  explorerTxUrl,
   loadPasskeyAccount,
   type MetaTransaction,
   type PasskeyAccount,
@@ -36,8 +35,6 @@ import { base64URLStringToBuffer } from '@simplewebauthn/browser';
 import {
   type Address,
   createPublicClient,
-  erc20Abi,
-  formatUnits,
   getAddress,
   type Hex,
   hashTypedData,
@@ -49,22 +46,26 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import { env } from '../env';
 import { api, isApiError } from './api';
+import { PasskeyCancelledError } from './reads';
 import type { LocalWallet } from './storage';
+
+export {
+  type AssetBalances,
+  addressUrl,
+  EURC_ADDRESS,
+  PasskeyCancelledError,
+  readAssetBalances,
+  readUsdcBalance,
+  txUrl,
+} from './reads';
+
+export const publicClient = createPublicClient({ chain: baseSepolia, transport: http(env.rpcUrl) });
 
 export const endpoints: ChainEndpoints = {
   chainId: env.chainId,
   rpcUrl: env.rpcUrl,
   bundlerUrl: env.bundlerUrl,
 };
-
-export const publicClient = createPublicClient({ chain: baseSepolia, transport: http(env.rpcUrl) });
-
-export class PasskeyCancelledError extends Error {
-  constructor() {
-    super('The passkey prompt was dismissed');
-    this.name = 'PasskeyCancelledError';
-  }
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Account
@@ -266,45 +267,6 @@ export async function pollUserOp(
 // ---------------------------------------------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------------------------------------------
-
-export async function readUsdcBalance(address: Address): Promise<number> {
-  const raw = await publicClient.readContract({
-    address: env.usdcAddress,
-    abi: erc20Abi,
-    functionName: 'balanceOf',
-    args: [address],
-  });
-  return Number(formatUnits(raw, 6));
-}
-
-/** Circle EURC on Base Sepolia (DECISIONS #27, verified; 6 decimals). */
-export const EURC_ADDRESS: Address = '0x808456652fdb597867f38412077A9182bf77359F';
-
-export interface AssetBalances {
-  readonly USDC: number;
-  readonly EURC: number;
-  readonly ETH: number;
-}
-
-/** USDC, EURC and ETH held by the Safe, read from chain (Home v2 asset rows). */
-export async function readAssetBalances(address: Address): Promise<AssetBalances> {
-  const [usdc, eurc, eth] = await Promise.all([
-    readUsdcBalance(address),
-    publicClient
-      .readContract({ address: EURC_ADDRESS, abi: erc20Abi, functionName: 'balanceOf', args: [address] })
-      .then((raw) => Number(formatUnits(raw, 6))),
-    publicClient.getBalance({ address }).then((raw) => Number(formatUnits(raw, 18))),
-  ]);
-  return { USDC: usdc, EURC: eurc, ETH: eth };
-}
-
-export function txUrl(txHash: string): string {
-  return explorerTxUrl(env.chainId, txHash);
-}
-
-export function addressUrl(address: string): string {
-  return `${env.explorer}/address/${address}`;
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Ownership attestation (SPEC F1.6): the passkey signs the Safe's ERC-1271 message hash of the EIP-712 attestation

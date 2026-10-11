@@ -3,6 +3,7 @@
 import type { Guardian, PolicyDecision } from '@keyline/shared';
 import { ArrowSquareOut, CheckCircle, Key } from '@phosphor-icons/react/dist/ssr';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { type Address as Addr, getAddress, type Hex } from 'viem';
@@ -35,12 +36,14 @@ import {
   Address,
   Button,
   CrossFade,
+  DRAW,
   DrawnCheck,
+  DURATION,
   EmergencyCard,
   ErrorState,
   formatInteger,
-  haptic,
   KeyCard,
+  motionOrInstant,
   Note,
   Panel,
   PolicyLine,
@@ -51,6 +54,7 @@ import {
   Skeleton,
   StackView,
   Stepper,
+  useReducedMotion,
 } from '@/src/ui';
 
 const TOTAL = 6;
@@ -389,12 +393,10 @@ function ProtectStep({
     else if (i === 1) setRegistered(3);
     else if (i === 2) setClosed(true);
   }, []);
-  useEffect(() => {
-    if (!closed || settled) return;
-    haptic('success');
-    const t = setTimeout(() => setSettled(true), 1_200);
-    return () => clearTimeout(t);
-  }, [closed, settled]);
+  // DESIGN.md §5.3 step 4: the gaps close and a check draws in the centre (220 ms); the button folds to its
+  // check (ActionButton vibrates once on `success` — no second haptic here). The button turns into `Continue`
+  // when the centre check has finished drawing (`onAnimationComplete`), never on a timer.
+  const reduce = useReducedMotion();
 
   const working = run.kind === 'working' || (run.kind === 'included' && !closed);
   const statusLine =
@@ -430,7 +432,15 @@ function ProtectStep({
           onDrawn={onDrawn}
         >
           {closed ? (
-            <DrawnCheck size={40} />
+            <motion.span
+              className="grid place-items-center"
+              initial={{ opacity: already ? 1 : 0.99 }}
+              animate={{ opacity: 1 }}
+              transition={motionOrInstant(reduce, { ...DRAW, duration: DURATION.check })}
+              onAnimationComplete={() => setSettled(true)}
+            >
+              <DrawnCheck size={40} />
+            </motion.span>
           ) : (
             <>
               <span className="text-28 font-semibold">{s.ringCount(registered)}</span>

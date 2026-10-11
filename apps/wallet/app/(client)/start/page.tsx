@@ -72,8 +72,8 @@ function Start() {
           inputMode="numeric"
           autoComplete="one-time-code"
           value={shown}
-          maxLength={7}
-          className="text-28 tracking-[0.08em]"
+          // No maxLength: a pasted `Code: 482 137` would be cut before the digits are extracted; onChange keeps 6.
+          className="[&_.kl-field__control]:text-28 [&_.kl-field__control]:tracking-[0.08em]"
           onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
           error={
             wrong

@@ -21,6 +21,7 @@ import {
   formatClock,
   formatRelative,
   formatUSDC,
+  haptic,
   Note,
   Panel,
   type PanelRow,
@@ -143,6 +144,7 @@ function TransferPrompt({
       });
     },
     onSuccess: () => {
+      haptic('success'); // no-op on a laptop; vibrates when the Safety key is a phone/tablet
       onSettled('approved');
       queryClient.invalidateQueries({ queryKey: ['pending-approvals', safetyKey.walletAddress] });
     },

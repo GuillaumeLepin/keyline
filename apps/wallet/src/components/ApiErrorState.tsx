@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { ErrorState } from '@/src/ui';
-import { copy } from '../copy';
+import { copy, useCopy } from '../copy';
 import { errorDetail, isApiError } from '../lib/api';
+import { sendRejection } from '../lib/failure';
 
 /**
  * One mapping from thrown errors to the ErrorState copy: 501 → "Not available yet", network → offline copy,
@@ -21,7 +22,11 @@ export function ApiErrorState({
   onRetry?: () => void;
   actions?: ReactNode;
 }) {
+  const t = useCopy();
   const detail = errorDetail(error);
+  // A bundler rejection (502 from POST /userops/send) carries the bank's plain sentence: say what happened, in the
+  // active language when we know its code; `code` + `bundlerMessage` stay under Technical details (`detail`).
+  const rejected = sendRejection(t, error);
   if (isApiError(error) && error.notImplemented) {
     return (
       <ErrorState
@@ -49,7 +54,18 @@ export function ApiErrorState({
   return (
     <ErrorState
       title={title ?? copy.common.errorTitle}
-      body={body}
+      body={
+        rejected ? (
+          <>
+            <span className="block" data-testid="send-rejection">
+              {rejected}
+            </span>
+            <span className="block">{body}</span>
+          </>
+        ) : (
+          body
+        )
+      }
       detail={detail}
       onRetry={onRetry}
       retryLabel={copy.common.tryAgain}

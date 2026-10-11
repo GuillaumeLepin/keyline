@@ -19,20 +19,19 @@ export function decimalsFor(symbol: string): number {
   return 0;
 }
 
-/** "10 Oct 2026, 17:30" in Zürich time. */
-export function formatValuation(iso: string): string {
-  const d = new Date(iso);
-  const date = new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'Europe/Zurich',
-  }).format(d);
-  const time = new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Europe/Zurich',
-  }).format(d);
-  return `${date}, ${time}`;
+// Dates: see src/i18n/dates.ts (active language, Zürich time).
+
+/** Which ring arcs to light during a waiting period: the recoverers that actually confirmed (Safety key, card, SQ). */
+export function litFromConfirmations(
+  confirmations: readonly { kind: string; void?: boolean }[] | undefined,
+): readonly [boolean, boolean, boolean] | undefined {
+  if (!confirmations?.length) return undefined;
+  const has = (k: string) => confirmations.some((c) => c.kind === k && !c.void);
+  return [has('safety-key'), has('emergency-card'), has('swissquote')];
+}
+
+/** `formatUnits` for display: exact integer part, fraction rounded by Number (display only). */
+export function units(raw: bigint, decimals: number): number {
+  const base = 10n ** BigInt(decimals);
+  return Number(raw / base) + Number(raw % base) / Number(base);
 }

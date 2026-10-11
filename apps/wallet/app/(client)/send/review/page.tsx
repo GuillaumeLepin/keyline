@@ -30,9 +30,11 @@ import {
   EmptyState,
   ErrorState,
   formatCHF,
+  formatClock,
   formatDuration,
   formatInteger,
   formatUSDC,
+  haptic,
   Note,
   Panel,
   type PanelRow,
@@ -186,6 +188,8 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
     }
     if (waitingId.current === d.decisionId && !confirm.isPending && !confirm.isSuccess && !confirm.isError) {
       waitingId.current = null;
+      // DESIGN.md §8: the step-up approved on the laptop is a confirmation on this phone — one short vibration.
+      if (d.stepUp?.satisfiedBy === 'safety-key') haptic('success');
       confirmMutate(d);
     }
   }, [d, confirm.isPending, confirm.isSuccess, confirm.isError, confirmMutate]);
@@ -212,6 +216,14 @@ function Review({ wallet, draft }: { wallet: Wallet; draft: PendingSend }) {
   });
 
   const verdict = d?.verdict;
+  // DESIGN.md §8: a policy block vibrates once (24-60-24), per decision, never on re-render.
+  const buzzedBlock = useRef<string | null>(null);
+  useEffect(() => {
+    if (d?.verdict === 'block' && buzzedBlock.current !== d.decisionId) {
+      buzzedBlock.current = d.decisionId;
+      haptic('refusal');
+    }
+  }, [d?.verdict, d?.decisionId]);
   const isCleared = d !== undefined && cleared(d);
   const cancelled = confirm.error instanceof PasskeyCancelledError;
   const insufficient = !draft.dapp && balance.data !== undefined && draft.amountUsdc > balance.data;
@@ -486,11 +498,7 @@ function CoolingVerdict({ decision }: { decision: PolicyDecision }) {
   const p = copy.review.policy;
   const now = useNow();
   const endsAt = decision.coolingUntil ? new Date(decision.coolingUntil).getTime() : Date.now() + 60_000;
-  const finishes = new Date(endsAt).toLocaleTimeString('de-CH', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  const finishes = formatClock(endsAt);
   return (
     <div className="kl-stack items-center">
       <PolicyLine

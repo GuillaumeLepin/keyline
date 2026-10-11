@@ -11,8 +11,8 @@ import { ReceiveSheet } from '@/src/components/ReceiveSheet';
 import { copy, copyC, copyV2, usePrefs } from '@/src/copy';
 import { env } from '@/src/env';
 import { formatFiat } from '@/src/i18n/money';
+import type { Lang } from '@/src/i18n/prefs';
 import { api } from '@/src/lib/api';
-import { addressUrl, PasskeyCancelledError } from '@/src/lib/chain';
 import { usePersona } from '@/src/lib/device';
 import { decimalsFor, formatQty } from '@/src/lib/format';
 import {
@@ -26,6 +26,7 @@ import {
   useWalletEvents,
 } from '@/src/lib/hooks';
 import { localWalletFromLogin, loginWithPasskey } from '@/src/lib/passkey';
+import { addressUrl, PasskeyCancelledError } from '@/src/lib/reads';
 import { type LocalWallet, topupStore } from '@/src/lib/storage';
 import {
   AmountField,
@@ -175,7 +176,7 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
   const totalChf = balances.data
     ? ASSETS.reduce((sum, a) => sum + balances.data[a.symbol] * price(a.symbol), 0)
     : 0;
-  const rows = buildStatement(transfers, topups, events.data ?? []);
+  const rows = buildStatement(transfers, topups, events.data ?? [], money.prefs.lang);
 
   return (
     <>
@@ -343,13 +344,17 @@ function WalletHome({ wallet }: { wallet: LocalWallet }) {
                 label={(copyC.positions as Record<string, string>)[p.id] ?? p.name}
                 meta={
                   p.kind === 'cash'
-                    ? copyV2.sqWeb.portfolio.groups.cash
+                    ? copyV2.sqWeb.portfolio.cashMeta
                     : p.kind === 'crypto'
                       ? copyV2.sqWeb.portfolio.groups.crypto
                       : copyV2.sqWeb.portfolio.groups.securities
                 }
                 amount={formatCHF(Number(p.valueChf))}
-                amountSub={formatQty(Number(p.quantity), decimalsFor(p.symbol), p.symbol)}
+                amountSub={
+                  p.kind === 'cash'
+                    ? undefined
+                    : formatQty(Number(p.quantity), decimalsFor(p.symbol), p.symbol)
+                }
                 chevron={false}
               />
             ))}
@@ -446,6 +451,7 @@ function buildStatement(
   transfers: ReturnType<typeof useLocalTransfers>['transfers'],
   topups: ReturnType<typeof useLocalTransfers>['topups'],
   events: Event[],
+  lang: Lang,
 ): Row[] {
   const rows: Row[] = [];
   for (const t of transfers) {
@@ -458,7 +464,7 @@ function buildStatement(
     rows.push({
       key: t.userOpHash,
       label: t.toLabel,
-      meta: formatShortDateTime(new Date(t.at)),
+      meta: formatShortDateTime(new Date(t.at), lang),
       amount: formatSignedUSDC(-t.amountUsdc),
       amountSub: formatFiat(t.amountChf),
       status,
@@ -478,7 +484,7 @@ function buildStatement(
     rows.push({
       key: t.txHash,
       label: copy.home.topUpRow,
-      meta: formatShortDateTime(new Date(t.at)),
+      meta: formatShortDateTime(new Date(t.at), lang),
       amount: formatSignedUSDC(t.amountUsdc),
       amountSub: formatFiat(t.amountChf),
       status: 'ok',
@@ -495,7 +501,7 @@ function buildStatement(
     rows.push({
       key: e.id,
       label: copy.home.topUpRow,
-      meta: formatShortDateTime(new Date(e.at)),
+      meta: formatShortDateTime(new Date(e.at), lang),
       amount: formatSignedUSDC(amountUsdc),
       amountSub: formatFiat(amountUsdc * env.chfPerUsdc),
       status: 'ok',

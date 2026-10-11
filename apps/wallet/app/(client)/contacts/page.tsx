@@ -8,11 +8,11 @@ import { useEffect, useState } from 'react';
 import { isAddress } from 'viem';
 import { ApiErrorState } from '@/src/components/ApiErrorState';
 import { StackPage } from '@/src/components/StackPage';
-import { useCopy } from '@/src/copy';
+import { useCopy, usePrefs } from '@/src/copy';
 import { api } from '@/src/lib/api';
-import { addressUrl } from '@/src/lib/chain';
 import { contactLabel } from '@/src/lib/contactLabel';
 import { useContacts } from '@/src/lib/hooks';
+import { addressUrl } from '@/src/lib/reads';
 import {
   ActionButton,
   Address,
@@ -21,7 +21,6 @@ import {
   CrossFade,
   EmptyState,
   formatDateTime,
-  haptic,
   Note,
   SheetV2,
   Skeleton,
@@ -174,9 +173,8 @@ function AddContact({ existing, onSaved }: { existing: Contact[]; onSaved: (id: 
     mutationFn: () =>
       api.contact.create({ label: label.trim() || t.copyC.send.newAddress, address: address.trim() }),
     onSuccess: (contact) => {
-      haptic('success');
       qc.invalidateQueries({ queryKey: ['contacts'] });
-      setTimeout(() => onSaved(contact.id), 500);
+      onSaved(contact.id); // the stack push is the feedback — no timer, no haptic (§8 reserves it)
     },
   });
   useEffect(() => {
@@ -254,6 +252,7 @@ function ContactDetail({
   id: string;
   onDeleted: () => void;
 }) {
+  const { lang } = usePrefs().prefs;
   const t = useCopy();
   const c = t.copyC.contacts;
   const qc = useQueryClient();
@@ -268,10 +267,7 @@ function ContactDetail({
   });
   const verify = useMutation({
     mutationFn: () => api.contact.verify(id),
-    onSuccess: () => {
-      haptic('success');
-      refresh();
-    },
+    onSuccess: refresh,
   });
   const remove = useMutation({
     mutationFn: () => api.contact.remove(id),
@@ -308,7 +304,7 @@ function ContactDetail({
           {contact.simulated ? <Chip /> : null}
         </p>
         <p className="m-0 text-12 text-ink-3">
-          {c.addedOn} {formatDateTime(new Date(contact.firstSeenAt))}
+          {c.addedOn} {formatDateTime(new Date(contact.firstSeenAt), lang)}
         </p>
       </div>
       <Address value={contact.address} expanded explorerUrl={addressUrl(contact.address)} />

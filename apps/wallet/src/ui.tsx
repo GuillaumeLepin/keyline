@@ -8,6 +8,8 @@ import { createPortal } from 'react-dom';
 import { useCopy } from './i18n/PrefsRoot';
 
 export * from '@keyline/ui';
+// Dates follow the active language (en-GB / fr-CH / de-CH, Zürich time); these shadow the package's English ones.
+export { formatClock, formatDateTime, formatRelative, formatShortDateTime } from './i18n/dates';
 
 export function Address(props: ComponentProps<typeof UI.Address>) {
   const t = useCopy();
@@ -57,6 +59,42 @@ export function Stepper(props: ComponentProps<typeof UI.Stepper>) {
   return <UI.Stepper stepText={step} {...props} />;
 }
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Keyboard pass (Phase D): the sheets are `aria-modal`, so Tab and Shift+Tab cycle inside the open sheet instead of
+ * walking into the page behind it. Escape and focus return stay with the primitive.
+ */
+function useModalTabTrap(open: boolean | undefined) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
+      const dialog = dialogs[dialogs.length - 1];
+      if (!dialog) return;
+      const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.offsetParent !== null || el === document.activeElement,
+      );
+      if (items.length === 0) return;
+      const first = items[0] as HTMLElement;
+      const last = items[items.length - 1] as HTMLElement;
+      const active = document.activeElement as HTMLElement | null;
+      const inside = active ? dialog.contains(active) : false;
+      if (e.shiftKey && (!inside || active === first || active === dialog)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (!inside || active === last)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [open]);
+}
+
 /**
  * A `contained` sheet is portalled to the phone screen, so it always covers the whole phone (scrim over the
  * header too) even when the screen that opens it lives inside a StackView viewport (audit C-23).
@@ -67,12 +105,14 @@ export function SheetV2(props: ComponentProps<typeof UI.SheetV2>) {
   useEffect(() => {
     if (props.contained) setHost(document.querySelector('.kl-phone__screen'));
   }, [props.contained]);
+  useModalTabTrap(props.open);
   const sheet = <UI.SheetV2 closeLabel={t.copyC.nav.close} {...props} />;
   return props.contained && host ? createPortal(sheet, host) : sheet;
 }
 
 export function Sheet(props: ComponentProps<typeof UI.Sheet>) {
   const t = useCopy();
+  useModalTabTrap(props.open && !props.inline);
   return <UI.Sheet closeLabel={t.copyC.nav.close} {...props} />;
 }
 

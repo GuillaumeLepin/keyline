@@ -1,14 +1,15 @@
 'use client';
 
+import { Clock, XCircle } from '@phosphor-icons/react/dist/ssr';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { copy, copyC } from '@/src/copy';
+import { bundleFor, copy, copyC, usePrefs } from '@/src/copy';
 import { formatFiat } from '@/src/i18n/money';
 import { api, isApiError } from '@/src/lib/api';
-import { txUrl } from '@/src/lib/chain';
-import { useNow } from '@/src/lib/hooks';
+import { failureSentence, statusFailure } from '@/src/lib/failure';
+import { txUrl } from '@/src/lib/reads';
 import { type LocalTransfer, pendingSendStore, transferStore } from '@/src/lib/storage';
 import {
   Address,
@@ -30,6 +31,7 @@ import {
 } from '@/src/ui';
 
 export default function ActivityPage() {
+  const { lang } = usePrefs().prefs;
   const params = useParams<{ hash: string }>();
   const router = useRouter();
   const hash = params.hash;
@@ -37,12 +39,13 @@ export default function ActivityPage() {
   useEffect(() => setLocal(transferStore.get(hash)), [hash]);
   // A transfer this device already saw confirmed (or failed) needs no polling: its receipt is final.
   const settled = local?.status === 'confirmed' || local?.status === 'failed';
-  const now = useNow(!settled);
 
   const status = useQuery({
     queryKey: ['userop', hash],
     queryFn: () => api.userops.status(hash),
-    enabled: /^0x[0-9a-fA-F]{64}$/.test(hash) && local !== undefined && !settled,
+    // A failed receipt still asks once (no polling) so the bank's `reason` shows after a reload too.
+    enabled:
+      /^0x[0-9a-fA-F]{64}$/.test(hash) && local !== undefined && (!settled || local?.status === 'failed'),
     retry: false,
     refetchInterval: (q) => {
       const s = q.state.data?.status;
@@ -102,10 +105,10 @@ export default function ActivityPage() {
   const r = copyC.receipt;
   const a = copyC.activity;
   const word = failed ? r.failed : confirmed ? copy.home.status.confirmed : r.waitingBlock;
-  const reason = failureReason(s) ?? r.unknownReason;
-  // Pending: the inner stroke shortens over ~30 s from "Sent" (a typical inclusion on Base Sepolia), then holds.
-  const sentAt = local?.timeline.sentAt ? new Date(local.timeline.sentAt).getTime() : now;
-  const remaining = Math.max(0.08, 1 - (now - sentAt) / 30_000);
+  const fail = statusFailure(s as Record<string, unknown> | undefined);
+  // Only the bank's own sentence adds information; the generic fallback would just repeat the title (D-7).
+  const bankReason = failureSentence(bundleFor(lang), fail.code, fail.reason);
+  const reason = bankReason && bankReason !== r.unknownReason ? bankReason : undefined;
   const isDapp = Boolean(local && local.amountUsdc === 0 && local.summary);
 
   function retry() {
@@ -144,23 +147,23 @@ export default function ActivityPage() {
     <>
       <ScreenHeader title={r.title} backHref="/" />
       <section className="grid justify-items-center gap-2 text-center" data-testid="receipt">
-        <ProtectionRing
-          size={64}
-          state={failed ? 'revoked' : confirmed ? 'success' : 'counting'}
-          lit={[true, true, current === 'included']}
-          progress={remaining}
-          label={word}
-        >
-          {confirmed ? (
+        {/* Audit D-6 / D-8: the ring means protection, never "transfer failed" or "waiting". Failed = XCircle,
+            pending = a static Clock (icon + word); only a confirmed transfer gets the closed --ok ring (M13). */}
+        {confirmed ? (
+          <ProtectionRing size={64} state="success" label={word}>
             <span className="text-ok">
               <DrawnCheck size={24} />
             </span>
-          ) : null}
-        </ProtectionRing>
+          </ProtectionRing>
+        ) : failed ? (
+          <XCircle size={48} className="text-danger" aria-hidden="true" data-testid="receipt-icon-failed" />
+        ) : (
+          <Clock size={48} className="text-pending" aria-hidden="true" data-testid="receipt-icon-pending" />
+        )}
         <p className="m-0 flex items-center gap-1 text-14 font-semibold" data-testid="receipt-status">
           {word}
         </p>
-        <p className="kl-balance__amount m-0">
+        <p className={`kl-balance__amount m-0 ${failed ? 'text-ink-3 line-through' : ''}`}>
           {isDapp ? local.toLabel : formatSignedUSDC(-local.amountUsdc)}
         </p>
         <p className="kl-balance__secondary m-0">
@@ -177,21 +180,21 @@ export default function ActivityPage() {
       {failed ? (
         <Note tone="danger" title={copy.activity.failedStep}>
           <span className="grid gap-1" data-testid="receipt-failed">
-            <span>
-              {r.reason}: {reason}
-            </span>
+            {reason ? <span>{r.reasonLine(reason)}</span> : null}
             <span>{r.failedBody}</span>
           </span>
         </Note>
       ) : null}
       {status.isError && !confirmed && !failed ? (
         <Note tone="info">
-          {isApiError(status.error) && status.error.offline
-            ? copy.common.offlineTitle
-            : copy.common.errorTitle}{' '}
-          <button type="button" className="kl2-textbtn" onClick={() => status.refetch()}>
+          <span className="block">
+            {isApiError(status.error) && status.error.offline
+              ? copy.common.offlineTitle
+              : copy.common.errorTitle}
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => status.refetch()}>
             {copy.common.tryAgain}
-          </button>
+          </Button>
         </Note>
       ) : null}
 
@@ -204,7 +207,7 @@ export default function ActivityPage() {
                 { label: a.value, value: formatFiat(local.amountChf) },
               ]),
           { label: a.status, value: word },
-          { label: a.date, value: formatDateTime(new Date(local.at)) },
+          { label: a.date, value: formatDateTime(new Date(local.at), lang) },
           { label: a.from, value: a.yourWallet },
           { label: copy.activity.to, value: <Address value={local.to} /> },
           { label: a.fee, value: a.feeValue },
@@ -225,6 +228,7 @@ export default function ActivityPage() {
           {a.userOp} {hash}
           {local.decisionId ? `\ndecisionId ${local.decisionId}` : ''}
           {s ? `\nstatus ${s.status}` : ''}
+          {typeof s?.code === 'string' && s.code ? `\ncode ${s.code}` : ''}
         </pre>
       </Disclosure>
       <div className="kl-actions">
@@ -287,14 +291,4 @@ function receiptSteps(
       meta: meta(t.confirmedAt),
     },
   ];
-}
-
-/** A human reason when the bank or bundler sent one with the failed status; never invented. */
-function failureReason(s: Record<string, unknown> | undefined): string | undefined {
-  if (!s) return undefined;
-  for (const k of ['reason', 'revertReason', 'error', 'message']) {
-    const v = s[k];
-    if (typeof v === 'string' && v.trim()) return v.trim();
-  }
-  return undefined;
 }

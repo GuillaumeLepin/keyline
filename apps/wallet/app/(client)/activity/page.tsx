@@ -1,7 +1,7 @@
 'use client';
 
 import { ScreenHeader } from '@/src/components/ScreenHeader';
-import { useCopy } from '@/src/copy';
+import { useCopy, usePrefs } from '@/src/copy';
 import { formatFiat } from '@/src/i18n/money';
 import { useLocalTransfers, useLocalWallet } from '@/src/lib/hooks';
 import {
@@ -16,6 +16,7 @@ import {
 
 /** D9 Activity: every transfer this device signed, newest first; each row opens its receipt. */
 export default function ActivityListPage() {
+  const { lang } = usePrefs().prefs;
   const t = useCopy();
   const a = t.copyC.activity;
   const { wallet } = useLocalWallet();
@@ -25,7 +26,7 @@ export default function ActivityListPage() {
     ...transfers.map((x) => ({
       key: x.userOpHash,
       label: x.toLabel,
-      meta: formatShortDateTime(new Date(x.at)),
+      meta: formatShortDateTime(new Date(x.at), lang),
       amount: formatSignedUSDC(-x.amountUsdc),
       amountSub: formatFiat(x.amountChf),
       status: (x.status === 'failed'
@@ -45,7 +46,7 @@ export default function ActivityListPage() {
     ...topups.map((x) => ({
       key: x.txHash,
       label: t.copy.home.topUpRow,
-      meta: formatShortDateTime(new Date(x.at)),
+      meta: formatShortDateTime(new Date(x.at), lang),
       amount: formatSignedUSDC(x.amountUsdc),
       amountSub: formatFiat(x.amountChf),
       status: 'ok' as const,

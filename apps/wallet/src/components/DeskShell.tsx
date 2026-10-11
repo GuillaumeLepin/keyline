@@ -25,6 +25,11 @@ export function DeskShell({ children }: { children: ReactNode }) {
   const signedIn = Boolean(token);
   return (
     <DeskLayout
+      labels={{
+        ...copy.desk.chrome,
+        chip: copy.simulated.label,
+        chipTooltip: copy.simulated.tooltip,
+      }}
       operator={signedIn ? copy.desk.operatorName : undefined}
       onSignOut={signedIn ? signOut : undefined}
       footer={copy.desk.footer}

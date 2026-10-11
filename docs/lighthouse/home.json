@@ -1,0 +1,23 @@
+{
+  "route": "/",
+  "url": "http://localhost:3000/",
+  "fetchTime": "2026-10-11T00:33:19.232Z",
+  "lighthouseVersion": "12.8.2",
+  "formFactor": "mobile",
+  "throttling": "simulate",
+  "build": "next build && next start (production); Home with a seeded deployed wallet in localStorage, portfolio with a signed-in Swissquote web session",
+  "scores": {
+    "performance": 100,
+    "accessibility": 100,
+    "best-practices": 100
+  },
+  "metrics": {
+    "first-contentful-paint": "0.6 s",
+    "largest-contentful-paint": "1.2 s",
+    "total-blocking-time": "70 ms",
+    "cumulative-layout-shift": "0.022",
+    "speed-index": "0.6 s",
+    "interactive": "1.2 s"
+  },
+  "failedAudits": []
+}

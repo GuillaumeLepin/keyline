@@ -23,12 +23,12 @@ import { useAlerts, useLocalWallet, useNow } from '@/src/lib/hooks';
 import type { LocalWallet } from '@/src/lib/storage';
 import {
   Button,
-  CountdownRing,
   EmptyState,
   formatClock,
   formatInteger,
   formatRelative,
   Note,
+  ProtectionCountdown,
   Skeleton,
   StatusSequence,
   type StatusStep,
@@ -61,6 +61,7 @@ export default function AlertsPage() {
           query={alerts}
           skeleton={<Skeleton kind="row" count={2} />}
           exit={{ label: copyC.states.goHome, href: '/' }}
+          errorBody={copy.alerts.loadError}
           isEmpty={(list) => list.length === 0}
           empty={{
             title: copy.alerts.emptyTitle,
@@ -223,12 +224,12 @@ function StartedAlert({
       </p>
       {executeAfter ? (
         <div className="flex justify-center">
-          <CountdownRing
+          <ProtectionCountdown
             endsAt={executeAfter}
             durationMs={GRACE_MS}
-            size={120}
+            size={200}
+            subLabel={copyC.ui.remaining}
             doneLabel={s.periodOver}
-            showFinish={false}
           />
         </div>
       ) : null}

@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api';
-import { readAssetBalances, readUsdcBalance } from './chain';
+import { readAssetBalances, readUsdcBalance } from './reads';
 import {
   type LocalTopup,
   type LocalTransfer,

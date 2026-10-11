@@ -413,6 +413,7 @@ const base = {
     laptopRefuse: 'Not me — refuse',
   },
   alerts: {
+    loadError: 'Your alerts couldn’t be loaded.',
     title: 'Alerts',
     startedTitle: 'Recovery started from a new device',
     startedBody: (where: string, ago: string, t: string) =>
@@ -428,6 +429,7 @@ const base = {
     emptyBody: 'Recovery attempts and large transfers appear here.',
   },
   refused: {
+    navTitle: 'Recovery',
     title: 'Recovery can’t start',
     body: 'The identity check failed. The owner has been notified.',
     rows: { email: 'Email code', identity: 'Identity check', sq: 'Swissquote recoverer' },
@@ -438,6 +440,15 @@ const base = {
     back: 'Back to start',
   },
   desk: {
+    chrome: {
+      brand: 'Swissquote · Recovery desk',
+      legend: 'Legend',
+      real: 'Real · On-chain and signed',
+      simulated: 'Simulated · Mocked for the prototype',
+      operator: (n: string) => `Operator: ${n}`,
+      signOut: 'Sign out',
+      nav: 'Desk',
+    },
     header: 'Swissquote · Recovery desk',
     operator: (n: string) => `Operator: ${n}`,
     signOut: 'Sign out',
@@ -771,6 +782,8 @@ export const sqWebShell: WebShellCopy = {
   prototype: 'Prototype of Swissquote web — simulated',
   navLabel: 'Swissquote',
   signOut: 'Sign out',
+  chipLabel: 'SIMULATED',
+  chipTooltip: 'Mocked for the prototype — see README',
 };
 
 export const sqPositionsCopy: PositionsTableCopy = {
@@ -859,6 +872,8 @@ export const copyV2 = {
       invested: 'Invested',
       total: 'Total value',
       groups: { cash: 'Cash', securities: 'Securities', crypto: 'Crypto' },
+      /** Home holdings: meta of the cash row (the label already says Cash — audit D-12). */
+      cashMeta: 'Account',
       chf: 'Swiss franc',
       move: 'Move to Keyline',
       moveAria: (asset: string) => `Move ${asset} to Keyline`,
@@ -1234,6 +1249,28 @@ export const copyC = {
     failedBody: 'Nothing was charged. Your balance is unchanged.',
     reason: 'Reason',
     unknownReason: 'The network didn’t accept the transfer.',
+    reasonLine: (reason: string) => `Reason: ${reason}`,
+    /** Bank failure sentences by `code` (services/bank/src/chain/userop-errors.ts); EN mirrors the bank verbatim. */
+    reasons: {
+      AA10: 'This wallet was already created — refresh and try again.',
+      AA13: 'Your wallet could not be created on-chain.',
+      AA20: 'This wallet is not deployed yet.',
+      AA21: "The network fee couldn't be paid — Swissquote's sponsorship did not cover it.",
+      AA22: 'This approval expired before it reached the network — try again.',
+      AA23: 'Your wallet refused the request while checking it.',
+      AA24: "The passkey signature doesn't match this wallet.",
+      AA25: 'This transaction was already sent or is out of order — try again.',
+      AA31: "Swissquote's fee sponsor is out of funds right now.",
+      AA32: "Swissquote's fee sponsorship expired — try again.",
+      AA33: "Swissquote's fee sponsor declined this transaction.",
+      AA34: "Swissquote's fee sponsorship signature is invalid — try again.",
+      feeLimits: 'The network fee limits are too low for this transaction.',
+      refused: 'The network refused this transaction.',
+      reverted: 'The transfer reverted on-chain',
+      ERC20InsufficientBalance: 'Not enough funds in your wallet for this transfer.',
+      ERC20InsufficientAllowance: 'The app is not allowed to spend that much.',
+      ERC20Invalid: 'The recipient address is not valid.',
+    },
     retry: 'Review again',
   },
   activity: {

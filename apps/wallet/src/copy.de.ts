@@ -4,7 +4,8 @@
  *
  * GLOSSAR (EN → DE) — nur diese Begriffe verwenden
  *   Keyline, Swissquote, Base, Base Sepolia, Basescan, USDC, EURC, ETH, swiyu, Face ID, Wallet → unverändert
- *   recoverer(s)          → Wiederherstellungsmittel (Sg. = Pl.; "any 2 of your 3 recoverers" → «2 Ihrer 3 Wiederherstellungsmittel»)
+ *   recoverer(s)          → Wiederherstellungsmittel (Sg. = Pl.; in titles, ring labels and tiles after the first
+ *                           mention: «Mittel» (audit D-2); "any 2 of your 3 recoverers" → «2 Ihrer 3 Wiederherstellungsmittel»)
  *   Safety key            → Sicherheitsschlüssel
  *   Emergency card        → Notfallkarte
  *   phone key             → Telefonschlüssel
@@ -200,7 +201,7 @@ export const copy: W<'copy'> = {
   },
   home: {
     balance: 'Saldo',
-    protection: 'Geschützt · 2 von 3 Wiederherstellungsmitteln',
+    protection: 'Geschützt · 2 von 3 Mitteln',
     send: 'Senden',
     receive: 'Empfangen',
     topUp: 'Aufladen',
@@ -411,7 +412,7 @@ export const copy: W<'copy'> = {
       transfer: (usdc: string) => `Überweisung bestätigt · ${usdc}`,
       refused: 'Wiederherstellungsversuch abgelehnt',
     },
-    protectedLine: 'Geschützt · 2 von 3 Wiederherstellungsmitteln',
+    protectedLine: 'Geschützt · 2 von 3 Mitteln',
     pendingWallet: 'Wallet noch nicht bereitgestellt — schliessen Sie die Einrichtung ab.',
     attestationNone:
       'Noch kein Nachweis. Schliessen Sie Schritt 6 der Einrichtung ab, um einen zu signieren.',
@@ -444,7 +445,7 @@ export const copy: W<'copy'> = {
     keyTitle: 'Einen Schlüssel auf diesem Telefon erstellen',
     keyBody: 'Dieses Telefon erhält einen eigenen Schlüssel. Nichts vom alten Telefon wird wiederverwendet.',
     keyPrimary: 'Mit Face ID / Fingerabdruck erstellen',
-    recTitle: 'Warten auf ein zweites Wiederherstellungsmittel',
+    recTitle: 'Warten auf ein zweites Mittel',
     recBody:
       'Swissquote hat bestätigt. Swissquote kann dies nicht allein abschliessen — ein weiteres Wiederherstellungsmittel ist nötig.',
     recSq: (t: string) => `Bestätigt ${t}`,
@@ -453,7 +454,7 @@ export const copy: W<'copy'> = {
     recCardField: 'Schlüssel der Notfallkarte',
     recCardUse: 'Notfallkarte verwenden',
     recEither: 'Ihr Computer oder Ihre Notfallkarte genügt. Sie brauchen nicht beides.',
-    recTitleWaiting: 'Warten auf Ihre Wiederherstellungsmittel',
+    recTitleWaiting: 'Warten auf Ihre Mittel',
     recBodyWaiting:
       'Swissquote prüft diese Anfrage. 2 Ihrer 3 Wiederherstellungsmittel stellen den Zugang wieder her.',
     recTitleSqDeclined: 'Swissquote hat nicht bestätigt',
@@ -508,6 +509,7 @@ export const copy: W<'copy'> = {
       'Ihr altes Telefon hat diese Wiederherstellung abgebrochen. An der Wallet hat sich nichts geändert.',
   },
   alerts: {
+    loadError: 'Ihre Meldungen konnten nicht geladen werden.',
     title: 'Meldungen',
     startedTitle: 'Waren Sie das?',
     startedBody: (where: string, ago: string, t: string) =>
@@ -531,6 +533,7 @@ export const copy: W<'copy'> = {
     noWallet: 'Keine Wallet auf diesem Gerät.',
   },
   refused: {
+    navTitle: 'Wiederherstellung',
     title: 'Wiederherstellung kann nicht starten',
     body: 'Die Identitätsprüfung ist fehlgeschlagen. Der Besitzer wurde benachrichtigt.',
     rows: { email: 'E-Mail-Code', identity: 'Identitätsprüfung', sq: 'Wiederherstellungsmittel Swissquote' },
@@ -541,6 +544,15 @@ export const copy: W<'copy'> = {
     back: 'Zurück zum Anfang',
   },
   desk: {
+    chrome: {
+      brand: 'Swissquote · Wiederherstellungsdesk',
+      legend: 'Legende',
+      real: 'Echt · On-Chain und signiert',
+      simulated: 'Simuliert · Für den Prototyp nachgebildet',
+      operator: (n: string) => `Operator: ${n}`,
+      signOut: 'Abmelden',
+      nav: 'Desk',
+    },
     header: 'Swissquote · Wiederherstellungsschalter',
     operator: (n: string) => `Operator: ${n}`,
     signOut: 'Abmelden',
@@ -561,7 +573,7 @@ export const copy: W<'copy'> = {
     status: {
       'identity-pending': 'Identitätsprüfung',
       'identity-refused': 'Abgelehnt',
-      'awaiting-guardians': 'Warten auf ein 2. Wiederherstellungsmittel',
+      'awaiting-guardians': 'Warten auf ein 2. Mittel',
       'executed-waiting': 'Wartefrist',
       finalized: 'Abgeschlossen',
       cancelled: 'Vom Besitzer abgebrochen',
@@ -598,7 +610,7 @@ export const copy: W<'copy'> = {
     overrideYes: 'Übersteuern',
     overrideNo: 'Abgelehnt lassen',
     overrideResult:
-      'Swissquote hat bestätigt. Status bleibt «Warten auf ein 2. Wiederherstellungsmittel» — Swissquote kann dies nicht allein abschliessen.',
+      'Swissquote hat bestätigt. Status bleibt «Warten auf ein 2. Mittel» — Swissquote kann dies nicht allein abschliessen.',
     finish: 'Wiederherstellung abschliessen',
     audit: 'Audit-Protokoll · nur anfügen',
     auditCols: ['Zeit', 'Dienst', 'Ereignis', 'Wer'],
@@ -763,6 +775,8 @@ export const sqWebShell: WebShellCopy = {
   prototype: 'Prototyp von Swissquote web — simuliert',
   navLabel: 'Swissquote',
   signOut: 'Abmelden',
+  chipLabel: 'SIMULIERT',
+  chipTooltip: 'Für den Prototyp simuliert — siehe README',
 };
 
 export const sqPositionsCopy: PositionsTableCopy = {
@@ -788,7 +802,7 @@ export const sqTileCopy: HandoffTileCopy = {
   renew: 'Neuen Code anzeigen',
   claimed: 'Telefon verbunden',
   claimedBody: 'Fahren Sie auf Ihrem Telefon fort. Diese Seite aktualisiert sich selbst.',
-  protectedTitle: 'Geschützt · 2 von 3 Wiederherstellungsmitteln',
+  protectedTitle: 'Geschützt · 2 von 3 Mitteln',
 };
 
 export const sqSafetyKeyCopy: ConfirmPromptCopy = {
@@ -823,7 +837,7 @@ export const btcPolicyCopy: BitcoinPolicyCopy = {
   branch1Code: 'pk(owner)',
   or: 'oder',
   branch2: 'Nach der Wartefrist:',
-  branch2Count: '2 von 3 Wiederherstellungsmitteln',
+  branch2Count: '2 von 3 Mitteln',
   recoverers: 'Sicherheitsschlüssel · Notfallkarte · Swissquote',
   branch2Code: 'and(older(waiting), thresh(2, …))',
   axisNow: 'Jetzt',
@@ -857,6 +871,8 @@ export const copyV2: W<'copyV2'> = {
       invested: 'Investiert',
       total: 'Gesamtwert',
       groups: { cash: 'Liquidität', securities: 'Wertschriften', crypto: 'Krypto' },
+      /** Home holdings: meta of the cash row (the label already says Cash — audit D-12). */
+      cashMeta: 'Konto',
       chf: 'Schweizer Franken',
       move: 'Zu Keyline übertragen',
       moveAria: (asset: string) => `${asset} zu Keyline übertragen`,
@@ -953,7 +969,7 @@ export const copyV2: W<'copyV2'> = {
         { name: 'Notfallkarte', where: 'Auf Papier, bei Ihnen' },
         { name: 'Swissquote', where: 'Rechenzentrum in der Schweiz' },
       ],
-      ringSub: 'Wiederherstellungsmittel hinzugefügt',
+      ringSub: 'Mittel hinzugefügt',
       ringCount: (n: number) => `${n} von 3`,
       waiting: 'Wartet',
       adding: 'Wird hinzugefügt',
@@ -993,7 +1009,7 @@ export const copyV2: W<'copyV2'> = {
     sq: 'Auf Ihrem Swissquote-Konto',
     sqNote: 'Nur lesen.',
     sqOpen: 'Swissquote öffnen',
-    protectionTitle: 'Geschützt · 2 von 3 Wiederherstellungsmitteln',
+    protectionTitle: 'Geschützt · 2 von 3 Mitteln',
     testnet: 'Testnetz · Base Sepolia — hier ist nichts echtes Geld.',
   },
   back: {
@@ -1088,7 +1104,7 @@ export const copyC: W<'copyC'> = {
     s2: {
       title: 'Wenn Sie Ihr Telefon verlieren',
       body: '2 Ihrer 3 Wiederherstellungsmittel können den Zugang auf ein neues Telefon übertragen, nach einer Wartefrist, die Sie sehen und abbrechen können.',
-      ringLabel: 'Ihre drei Wiederherstellungsmittel',
+      ringLabel: 'Ihre drei Mittel',
       points: [
         'Sicherheitsschlüssel — auf Ihrem Computer',
         'Notfallkarte — auf Papier, bei Ihnen',
@@ -1217,6 +1233,28 @@ export const copyC: W<'copyC'> = {
     failedBody: 'Es wurde nichts belastet. Ihr Saldo ist unverändert.',
     reason: 'Grund',
     unknownReason: 'Das Netzwerk hat die Überweisung nicht angenommen.',
+    reasonLine: (reason: string) => `Grund: ${reason}`,
+    /** Bank failure sentences by `code` (services/bank/src/chain/userop-errors.ts); EN mirrors the bank verbatim. */
+    reasons: {
+      AA10: 'Dieses Wallet wurde bereits erstellt — aktualisieren Sie und versuchen Sie es erneut.',
+      AA13: 'Ihr Wallet konnte nicht auf der Blockchain erstellt werden.',
+      AA20: 'Dieses Wallet ist noch nicht bereitgestellt.',
+      AA21: 'Die Netzwerkgebühr konnte nicht bezahlt werden — die Übernahme durch Swissquote hat sie nicht gedeckt.',
+      AA22: 'Diese Freigabe ist abgelaufen, bevor sie das Netzwerk erreichte — versuchen Sie es erneut.',
+      AA23: 'Ihr Wallet hat die Anfrage bei der Prüfung abgelehnt.',
+      AA24: 'Die Passkey-Signatur passt nicht zu diesem Wallet.',
+      AA25: 'Diese Transaktion wurde bereits gesendet oder kam in falscher Reihenfolge an — versuchen Sie es erneut.',
+      AA31: 'Der Gebührenservice von Swissquote hat gerade kein Guthaben.',
+      AA32: 'Die Gebührenübernahme durch Swissquote ist abgelaufen — versuchen Sie es erneut.',
+      AA33: 'Der Gebührenservice von Swissquote hat diese Transaktion abgelehnt.',
+      AA34: 'Die Signatur der Gebührenübernahme von Swissquote ist ungültig — versuchen Sie es erneut.',
+      feeLimits: 'Die Gebührenlimits sind für diese Transaktion zu niedrig.',
+      refused: 'Das Netzwerk hat diese Transaktion abgelehnt.',
+      reverted: 'Die Überweisung wurde auf der Blockchain rückgängig gemacht.',
+      ERC20InsufficientBalance: 'Nicht genug Guthaben in Ihrem Wallet für diese Überweisung.',
+      ERC20InsufficientAllowance: 'Die App darf nicht so viel ausgeben.',
+      ERC20Invalid: 'Die Empfängeradresse ist ungültig.',
+    },
     retry: 'Nochmals prüfen',
   },
   activity: {
