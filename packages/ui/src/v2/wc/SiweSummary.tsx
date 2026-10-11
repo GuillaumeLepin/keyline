@@ -82,7 +82,8 @@ export function SiweSummary({
     [t.fields.network, network],
     [t.fields.issued, issuedAt],
     [t.fields.expires, expiresAt],
-    [t.fields.nonce, nonce, true],
+    // Long nonces (some apps use 32+ bytes) would take three lines: show the ends, keep the whole in `title`.
+    [t.fields.nonce, nonce && nonce.length > 20 ? `${nonce.slice(0, 8)}…${nonce.slice(-8)}` : nonce, true],
     [t.fields.uri, uri, true],
   ];
   return (
@@ -110,7 +111,12 @@ export function SiweSummary({
           .map(([k, v, mono]) => (
             <div key={k} className="kl2-siwe__field">
               <dt>{k}</dt>
-              <dd className={mono ? 'kl2-typed__mono' : undefined}>{v}</dd>
+              <dd
+                className={mono ? 'kl2-typed__mono' : undefined}
+                title={k === t.fields.nonce ? nonce : undefined}
+              >
+                {v}
+              </dd>
             </div>
           ))}
       </dl>
