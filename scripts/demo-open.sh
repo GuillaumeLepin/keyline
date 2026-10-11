@@ -27,13 +27,17 @@ if [[ "${1:-}" == "--reset" ]]; then
 fi
 mkdir -p "$PROFILES_ROOT"
 
-# persona | path | x | y | w | h  (1440×900 laptop layout; the desk goes on the second screen / a tab)
+# v2 journey (SPEC §10): the story opens on Swissquote web on the laptop. Screen 1 (the 1440×900 laptop) is the
+# laptop persona at full width; the phones and the desk go on the second screen / projector, which starts at
+# x = SECOND_SCREEN_X (default 1440, i.e. the second screen sits to the right of the laptop).
+X2="${SECOND_SCREEN_X:-1440}"
+# persona | path | x | y | w | h
 LAYOUT=(
-  "lea-phone|/|0|0|520|900"
-  "lea-laptop|/approve|520|0|920|440"
-  "thief|/|520|440|460|460"
-  "lea-new-phone|/|980|440|460|460"
-  "desk|/desk|1440|0|1440|900"
+  "lea-laptop|/swissquote|0|0|1440|900"
+  "lea-phone|/|$((X2))|0|520|900"
+  "lea-new-phone|/|$((X2 + 520))|0|460|450"
+  "thief|/|$((X2 + 520))|450|460|450"
+  "desk|/desk|$((X2 + 980))|0|940|900"
 )
 
 open_persona() {
@@ -58,10 +62,11 @@ done
 cat <<EOF
 
 Five Chrome windows opened from ${WALLET_URL}.
-  Lea · phone          left         (phone frame, onboarding / home)
-  Lea · laptop         top right    (/approve: Safety key pairing + co-approvals + recovery confirm)
-  Thief · stolen phone bottom right (red bar, no key)
-  Lea · new phone      bottom right (opened now, used at 1:40 of the pitch)
-  Swissquote desk      second screen (/desk, operator token from services/bank/.env)
+  Lea · laptop         screen 1, full width (/swissquote: sign in → portfolio → Keyline tile → Safety key prompt;
+                                             later /approve for the recovery confirmation)
+  Lea · phone          screen 2, left       (phone frame: /start → onboarding → home)
+  Lea · new phone      screen 2, top middle (used at 1:40 of the pitch)
+  Thief · stolen phone screen 2, bottom     (red bar, no key)
+  Swissquote desk      screen 2, right      (/desk, operator token from services/bank/.env)
 Notifications off (macOS Focus), zoom ${SCALE}×, pnpm demo:reset done, demo-state.json present.
 EOF

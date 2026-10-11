@@ -16,8 +16,8 @@ const BANK_URL = process.env.E2E_BANK_URL ?? 'http://localhost:4000';
 // ---------------------------------------------------------------------------------------------------------------
 
 const SAFE = '0x291A6d162dc3bfa2c7a5B623d676cFeF4CEc4482'; // the Gate 1 Safe — Basescan links resolve
-const SAFETY_KEY = '0x52daE4d3a08c6E3A3b4bB4A4E1b17C19ab78F0f6';
-const EMERGENCY_CARD = '0x745C7a2D2b0a9d1E3f4B5c6D7e8F9a0B1c2D1926';
+const SAFETY_KEY = '0x52dAe4d3a08C6E3A3b4bB4A4E1b17C19ab78F0f6';
+const EMERGENCY_CARD = '0x745C7a2d2B0A9d1E3F4b5C6D7E8f9A0b1c2d1926';
 const SWISSQUOTE = '0x01Bbd43cd140a7BfcA7836e577470Af2B1d04dE8';
 const LUKAS = '0x1111111111111111111111111111111111111111';
 const MARTA = '0x2222222222222222222222222222222222222222';
@@ -45,13 +45,16 @@ const wallet = (over: Partial<Record<string, unknown>> = {}) => ({
 
 const contacts = [
   {
+    id: `ct_${LUKAS.slice(2).toLowerCase()}`,
     clientId: 'SQ-48213-LK',
     label: 'Lukas Meier',
     address: LUKAS,
+    trusted: true,
     firstSeenAt: iso(-86_400_000 * 40),
     verifiedOwnership: true,
   },
   {
+    id: `ct_${MARTA.slice(2).toLowerCase()}`,
     clientId: 'SQ-48213-LK',
     label: 'Marta Rossi',
     address: MARTA,
@@ -59,6 +62,7 @@ const contacts = [
     verifiedOwnership: false,
   },
   {
+    id: `ct_${SANCTIONED.slice(2).toLowerCase()}`,
     clientId: 'SQ-48213-LK',
     label: 'Sanctioned test address',
     address: SANCTIONED,
@@ -82,17 +86,6 @@ const me = {
 };
 
 const guardian = (kind: string, address: string) => ({ walletAddress: SAFE, kind, address, addedTxHash: TX });
-
-const pairing = (status: 'open' | 'claimed' | 'expired') => ({
-  code: '482913',
-  walletAddress: SAFE,
-  status,
-  guardian: status === 'claimed' ? guardian('safety-key', SAFETY_KEY) : undefined,
-  createdAt: iso(-60_000),
-  expiresAt: iso(status === 'expired' ? -1 : 9 * 60_000),
-  claimedAt: status === 'claimed' ? iso() : undefined,
-  simulated: true,
-});
 
 const events = [
   {
@@ -218,6 +211,85 @@ const transfer = (status: 'sent' | 'confirmed' | 'failed') => ({
 
 const topups = [{ txHash: TX, amountUsdc: 150, amountChf: 120, at: iso(-86_400_000) }];
 
+// ---- v2 (SPEC §10): Swissquote web, handoff, laptop Safety key, moves — all SIMULATED except the chain ----
+const FUNDER = '0x482B512e50e6FB886A70D027DF20b1D55369458A';
+const sqClient = { id: 'SQ-48213-LK', firstName: 'Lea', name: 'Lea Keller', email: 'lea.keller@example.ch' };
+const sqSession = { client: sqClient, expiresAt: iso(3_600_000), simulated: true };
+const pos = (
+  id: string,
+  name: string,
+  symbol: string,
+  kind: 'cash' | 'security' | 'crypto',
+  quantity: string,
+  priceChf: string,
+  valueChf: string,
+  extra: Record<string, unknown> = {},
+) => ({ id, name, symbol, kind, quantity, priceChf, valueChf, movable: false, simulated: true, ...extra });
+const sqPositions = {
+  client: sqClient,
+  cashChf: '12480.35',
+  investedChf: '65694.00',
+  totalChf: '78174.35',
+  valuedAt: iso(),
+  positions: [
+    pos('chf-cash', 'Swiss franc', 'CHF', 'cash', '12480.35', '1', '12480.35'),
+    pos('smi-etf', 'iShares SMI ETF', 'CSSMI', 'security', '120', '128.40', '15408.00'),
+    pos('btc', 'Bitcoin', 'BTC', 'crypto', '0.42', '88400', '37128.00', {
+      notMovableReason: 'bitcoin-roadmap',
+    }),
+    pos('eth', 'Ether', 'ETH', 'crypto', '3.15', '3120', '9828.00', { movable: true }),
+    pos('usdc', 'USD Coin', 'USDC', 'crypto', '2400', '0.80', '1920.00', { movable: true }),
+    pos('eurc', 'Euro Coin', 'EURC', 'crypto', '1500', '0.94', '1410.00', { movable: true }),
+  ],
+  simulated: true,
+};
+const handoff = (status: 'open' | 'claimed' | 'expired', walletAddress?: string) => ({
+  code: '482913',
+  expiresAt: iso(status === 'expired' ? -1 : 9 * 60_000),
+  status,
+  qrUrl: `${WALLET_URL}/start?code=482913`,
+  client: status === 'claimed' ? sqClient : undefined,
+  claimedAt: status === 'claimed' ? iso() : undefined,
+  walletAddress,
+});
+const skr = (status: 'none' | 'waiting' | 'done') => ({
+  walletAddress: status === 'none' ? null : SAFE,
+  status,
+  requestedAt: status === 'none' ? undefined : iso(-30_000),
+  safetyKeyAddress: status === 'done' ? SAFETY_KEY : undefined,
+});
+const move = (status: 'sent' | 'confirmed') => ({
+  id: 'mov_01',
+  asset: 'USDC',
+  amount: '10',
+  valueChf: '8.00',
+  walletAddress: SAFE,
+  txHash: TX,
+  status,
+  explorerUrl: `https://sepolia.basescan.org/tx/${TX}`,
+  ledgerSimulated: true,
+  at: iso(-60_000),
+});
+const SQ_WEB: BankMap = {
+  'GET /sq/me': { body: sqSession },
+  'GET /sq/safety-key-request': { body: skr('none') },
+  'GET /sq/moves': { body: { moves: [] } },
+  'POST /handoff': { status: 201, body: handoff('open') },
+  'GET /handoff/482913': { body: handoff('open') },
+};
+const guardiansBody = (kinds: string[]) => ({
+  walletAddress: SAFE,
+  recoveryMode: 'default',
+  threshold: 2,
+  requiredKinds: ['safety-key', 'emergency-card', 'swissquote'],
+  guardians: [
+    guardian('safety-key', SAFETY_KEY),
+    guardian('emergency-card', EMERGENCY_CARD),
+    guardian('swissquote', SWISSQUOTE),
+  ].filter((g) => kinds.includes(g.kind)),
+  complete: kinds.length === 3,
+});
+
 // ---------------------------------------------------------------------------------------------------------------
 // Mock layer
 // ---------------------------------------------------------------------------------------------------------------
@@ -231,16 +303,10 @@ const DEFAULT_BANK: BankMap = {
   'GET /dapps': { body: { dapps: [] } },
   [`GET /wallets/${SAFE}/events`]: { body: { events } },
   [`GET /wallets/${SAFE}/guardians`]: {
-    body: {
-      requiredKinds: ['safety-key', 'emergency-card', 'swissquote'],
-      guardians: [
-        guardian('safety-key', SAFETY_KEY),
-        guardian('emergency-card', EMERGENCY_CARD),
-        guardian('swissquote', SWISSQUOTE),
-      ],
-      complete: true,
-    },
+    body: guardiansBody(['safety-key', 'emergency-card', 'swissquote']),
   },
+  'GET /sq/positions': { body: sqPositions },
+  'GET /sq/deposit-address': { body: { address: FUNDER, label: 'Your Swissquote account', verified: true } },
 };
 
 async function mockBank(page: Page, map: BankMap): Promise<void> {
@@ -276,8 +342,15 @@ async function mockBank(page: Page, map: BankMap): Promise<void> {
   });
 }
 
-/** The wallet reads balances with viem; answer `eth_call balanceOf` with a fixed amount, everything else inert. */
-async function mockRpc(page: Page, usdcUnits: bigint | 'hang' = 0n): Promise<void> {
+/**
+ * The wallet reads balances with viem: `eth_call balanceOf` (USDC and EURC) answers `usdcUnits`, `eth_getBalance`
+ * `ethWei`, `eth_getCode` a non-empty bytecode when `deployed` (the Swissquote tile reads "protected" from chain).
+ */
+async function mockRpc(
+  page: Page,
+  usdcUnits: bigint | 'hang' = 0n,
+  { ethWei = 0n, deployed = false }: { ethWei?: bigint; deployed?: boolean } = {},
+): Promise<void> {
   await page.route(
     /sepolia\.base\.org|base-sepolia|127\.0\.0\.1:8545|localhost:8545/,
     async (route: Route) => {
@@ -294,7 +367,13 @@ async function mockRpc(page: Page, usdcUnits: bigint | 'hang' = 0n): Promise<voi
               ? '0x1ea1f4c'
               : call.method === 'eth_call'
                 ? `0x${usdcUnits.toString(16).padStart(64, '0')}`
-                : '0x',
+                : call.method === 'eth_getBalance'
+                  ? `0x${ethWei.toString(16)}`
+                  : call.method === 'eth_getCode'
+                    ? deployed
+                      ? '0x6080604052'
+                      : '0x'
+                    : '0x',
       });
       const body = Array.isArray(parsed) ? parsed.map(answer) : answer(parsed);
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
@@ -317,6 +396,13 @@ interface Scene {
   readonly fullPage?: boolean;
   /** Virtual authenticator that refuses user verification → "passkey prompt was closed" states. */
   readonly refusingAuthenticator?: boolean;
+  /** sessionStorage seed (e.g. the handoff's first name for "Hi Lea"). */
+  readonly session?: Record<string, string>;
+  /** Forced colour scheme: `prefers-color-scheme` emulated + the app's own preference (`keyline.theme`). */
+  readonly theme?: 'light' | 'dark';
+  readonly ethWei?: bigint;
+  /** `eth_getCode` answers bytecode (Safe deployed). */
+  readonly deployed?: boolean;
 }
 
 async function shoot(browser: Browser, scene: Scene): Promise<void> {
@@ -327,13 +413,26 @@ async function shoot(browser: Browser, scene: Scene): Promise<void> {
     timezoneId: 'Europe/Zurich',
   });
   const persona = scene.persona ?? 'lea-phone';
-  const storage = { 'keyline.device': persona, ...(scene.storage ?? {}) };
-  await context.addInitScript((seed: Record<string, unknown>) => {
-    for (const [key, value] of Object.entries(seed)) {
-      window.localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
-    }
-  }, storage);
+  const storage: Record<string, unknown> = {
+    'keyline.device': persona,
+    ...(scene.theme ? { 'keyline.theme': scene.theme } : {}),
+    ...(scene.storage ?? {}),
+  };
+  await context.addInitScript(
+    ({ seed, session }: { seed: Record<string, unknown>; session: Record<string, string> }) => {
+      for (const [key, value] of Object.entries(seed)) {
+        window.localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+      }
+      for (const [key, value] of Object.entries(session)) window.sessionStorage.setItem(key, value);
+    },
+    { seed: storage, session: scene.session ?? {} },
+  );
+  if (scene.theme) {
+    // The server renders <html data-theme> from this cookie (no flash); the client mirrors localStorage.
+    await context.addCookies([{ name: 'kl_theme', value: scene.theme, url: WALLET_URL }]);
+  }
   const page = await context.newPage();
+  if (scene.theme) await page.emulateMedia({ colorScheme: scene.theme });
   // Fixtures are dated around NOW (decision expiresAt, coolingUntil, recovery executeAfter…): pin Date.now() to it.
   // Fixed time only — setTimeout/setInterval keep running, so the app's polling still fires.
   await page.clock.setFixedTime(NOW);
@@ -351,7 +450,7 @@ async function shoot(browser: Browser, scene: Scene): Promise<void> {
       },
     });
   }
-  await mockRpc(page, scene.usdc ?? 0n);
+  await mockRpc(page, scene.usdc ?? 0n, { ethWei: scene.ethWei, deployed: scene.deployed });
   await mockBank(page, scene.bank ?? {});
   const url = new URL(scene.path, WALLET_URL);
   url.searchParams.set('device', persona);
@@ -360,6 +459,11 @@ async function shoot(browser: Browser, scene: Scene): Promise<void> {
   await page.goto(url.toString(), { waitUntil: hangs ? 'domcontentloaded' : 'networkidle' });
   if (scene.waitFor) await page.getByText(scene.waitFor).first().waitFor({ timeout: 15_000 });
   if (scene.act) await scene.act(page);
+  if (scene.theme) {
+    const applied = await page.evaluate(() => document.documentElement.dataset.theme ?? '');
+    if (applied !== scene.theme)
+      throw new Error(`theme ${scene.theme} not applied (data-theme="${applied}")`);
+  }
   await page.waitForTimeout(scene.settleMs ?? 400);
   mkdirSync(OUT, { recursive: true });
   await page.screenshot({ path: resolve(OUT, `${scene.name}.png`), fullPage: scene.fullPage ?? true });
@@ -439,17 +543,16 @@ const SCENES: Scene[] = [
   },
   {
     name: 'home-topup-sheet',
-    path: '/',
+    path: '/?sheet=topup',
     storage: { 'keyline.wallet': wallet() },
     usdc: 120_000_000n,
     act: async (page) => {
-      await page.getByRole('button', { name: 'Top up', exact: true }).click();
-      await page.locator('.kl-sheet__panel .kl-amount__input').fill('100');
+      await page.getByRole('dialog').locator('.kl-amount__input').fill('100');
     },
   },
   {
     name: 'home-topup-error-funder-empty',
-    path: '/',
+    path: '/?sheet=topup',
     storage: { 'keyline.wallet': wallet() },
     usdc: 120_000_000n,
     bank: {
@@ -464,10 +567,9 @@ const SCENES: Scene[] = [
       },
     },
     act: async (page) => {
-      await page.getByRole('button', { name: 'Top up', exact: true }).click();
-      await page.locator('.kl-sheet__panel .kl-amount__input').fill('100');
-      await page.locator('.kl-sheet__panel').getByRole('button', { name: 'Top up', exact: true }).click();
-      await page.locator('.kl-sheet__panel .kl-error').waitFor();
+      await page.getByRole('dialog').locator('.kl-amount__input').fill('100');
+      await page.getByRole('dialog').getByRole('button', { name: 'Top up', exact: true }).click();
+      await page.getByRole('dialog').locator('.kl-error').waitFor();
     },
   },
   // ---- Onboarding ----
@@ -488,40 +590,24 @@ const SCENES: Scene[] = [
     settleMs: 600,
   },
   {
-    name: 'onboarding-2-pairing-waiting',
+    name: 'onboarding-2-safety-key-waiting',
     path: '/onboarding',
     storage: { 'keyline.wallet': step(2) },
-    bank: {
-      'POST /pairings': { status: 201, body: pairing('open') },
-      'GET /pairings/482913': { body: pairing('open') },
-    },
-    waitFor: '482 913',
+    bank: { [`GET /wallets/${SAFE}/guardians`]: { body: guardiansBody([]) } },
+    waitFor: 'Waiting for your laptop',
   },
   {
-    name: 'onboarding-2-pairing-expired',
+    name: 'onboarding-2-safety-key-confirmed',
     path: '/onboarding',
     storage: { 'keyline.wallet': step(2) },
-    bank: {
-      'POST /pairings': { status: 201, body: pairing('expired') },
-      'GET /pairings/482913': { body: pairing('expired') },
-    },
-    waitFor: 'Code expired',
-  },
-  {
-    name: 'onboarding-2-paired',
-    path: '/onboarding',
-    storage: { 'keyline.wallet': step(2) },
-    bank: {
-      'POST /pairings': { status: 201, body: pairing('claimed') },
-      'GET /pairings/482913': { body: pairing('claimed') },
-    },
-    waitFor: 'On your laptop',
+    bank: { [`GET /wallets/${SAFE}/guardians`]: { body: guardiansBody(['safety-key']) } },
+    waitFor: 'Confirmed on your laptop',
   },
   {
     name: 'onboarding-2-offline',
     path: '/onboarding',
     storage: { 'keyline.wallet': step(2) },
-    bank: { 'POST /pairings': 'offline' },
+    bank: { [`GET /wallets/${SAFE}/guardians`]: 'offline' },
     waitFor: 'Swissquote isn’t reachable',
   },
   {
@@ -602,33 +688,12 @@ const SCENES: Scene[] = [
     storage: { 'keyline.wallet': wallet({ onboardingStep: 6, attested: false }) },
   },
   // ---- Laptop ----
-  { name: 'pair-idle', path: '/pair', persona: 'lea-laptop' },
   {
-    name: 'pair-wrong-code',
+    name: 'pair-redirects-to-swissquote',
     path: '/pair',
     persona: 'lea-laptop',
-    bank: {
-      'GET /pairings/000000': { status: 404, body: { error: 'not-found', message: 'Pairing not found' } },
-    },
-    act: async (page) => {
-      await page.getByLabel('6-digit code').fill('000000');
-      await page.getByRole('button', { name: 'Pair' }).click();
-      await page.getByText('That code doesn’t match').waitFor();
-    },
-  },
-  {
-    name: 'pair-success',
-    path: '/pair',
-    persona: 'lea-laptop',
-    bank: {
-      'GET /pairings/482913': { body: pairing('open') },
-      'POST /pairings/482913/claim': { status: 201, body: guardian('safety-key', SAFETY_KEY) },
-    },
-    act: async (page) => {
-      await page.getByLabel('6-digit code').fill('482913');
-      await page.getByRole('button', { name: 'Pair' }).click();
-      await page.getByText('Paired. This laptop now holds').waitFor();
-    },
+    bank: { 'GET /sq/me': { status: 401, body: { error: 'unauthorized', message: 'Sign in' } } },
+    waitFor: 'Sign in to Swissquote',
   },
   { name: 'approve-empty', path: '/approve', persona: 'lea-laptop' },
   // ---- Send ----
@@ -653,6 +718,7 @@ const SCENES: Scene[] = [
     bank: { 'GET /contacts': 'offline' },
     waitFor: 'Swissquote isn’t reachable',
   },
+  // Phase C send: recipient list → amount (CHF ⇄ USDC toggle) → review; `/send?to=` jumps to the amount.
   {
     name: 'send-picked-known',
     path: '/send',
@@ -661,8 +727,9 @@ const SCENES: Scene[] = [
     waitFor: 'Lukas Meier',
     act: async (page) => {
       await page.getByText('Lukas Meier').first().click();
-      await page.locator('.kl-amount__input').fill('20');
+      await page.getByTestId('send-amount').fill('20');
     },
+    settleMs: 700,
   },
   {
     name: 'send-picked-new-address',
@@ -672,32 +739,51 @@ const SCENES: Scene[] = [
     waitFor: 'Marta Rossi',
     act: async (page) => {
       await page.getByText('Marta Rossi').first().click();
-      await page.locator('.kl-amount__input').fill('20');
+      await page.getByTestId('send-amount').fill('20');
     },
+    settleMs: 700,
+  },
+  {
+    name: 'send-amount-toggled-usdc',
+    path: `/send?to=${LUKAS}`,
+    storage: { 'keyline.wallet': wallet() },
+    usdc: 120_000_000n,
+    act: async (page) => {
+      await page.getByTestId('send-amount').fill('20');
+      await page.getByTestId('send-toggle').click();
+    },
+    settleMs: 900,
   },
   {
     name: 'send-error-insufficient',
-    path: '/send',
+    path: `/send?to=${LUKAS}`,
     storage: { 'keyline.wallet': wallet() },
     usdc: 12_000_000n,
-    waitFor: 'Lukas Meier',
     act: async (page) => {
-      await page.getByText('Lukas Meier').first().click();
-      await page.locator('.kl-amount__input').fill('500');
-      await page.getByRole('button', { name: 'Review' }).click();
-      await page.getByText('Not enough USDC').waitFor();
+      await page.getByTestId('send-amount').fill('500');
+      await page.getByTestId('send-amount').blur();
     },
+    settleMs: 700,
   },
   {
-    name: 'send-error-empty',
+    name: 'send-amount-empty',
+    path: `/send?to=${LUKAS}`,
+    storage: { 'keyline.wallet': wallet() },
+    usdc: 120_000_000n,
+    act: (page) => page.getByTestId('send-amount').waitFor(),
+    settleMs: 700,
+  },
+  {
+    name: 'send-new-address',
     path: '/send',
     storage: { 'keyline.wallet': wallet() },
     usdc: 120_000_000n,
     waitFor: 'Lukas Meier',
     act: async (page) => {
-      await page.getByRole('button', { name: 'Review' }).click();
-      await page.getByText('Enter an amount').waitFor();
+      await page.getByText('New recipient', { exact: true }).click();
+      await page.getByTestId('send-address').fill('0x2222222222222222222222222222222222222222');
     },
+    settleMs: 700,
   },
   // ---- Review ----
   ...(['approve', 'step-up', 'cooling', 'block'] as const).map(
@@ -810,12 +896,255 @@ const SCENES: Scene[] = [
   },
   // ---- Placeholders / other routes ----
   { name: 'security-placeholder', path: '/security', storage: { 'keyline.wallet': wallet() } },
+  // Phase C routes
+  {
+    name: 'activity-list',
+    path: '/activity',
+    storage: {
+      'keyline.wallet': wallet(),
+      'keyline.transfers': [transfer('confirmed')],
+      'keyline.topups': topups,
+    },
+    usdc: 95_000_000n,
+    settleMs: 800,
+  },
+  {
+    name: 'contacts-list',
+    path: '/contacts',
+    storage: { 'keyline.wallet': wallet() },
+    waitFor: 'Lukas Meier',
+  },
+  { name: 'settings', path: '/settings', storage: { 'keyline.wallet': wallet() }, settleMs: 600 },
+  { name: 'help', path: '/help', storage: { 'keyline.wallet': wallet() }, settleMs: 600 },
   { name: 'alerts-empty', path: '/alerts', storage: { 'keyline.wallet': wallet() } },
   { name: 'recover-placeholder', path: '/recover', persona: 'lea-new-phone' },
   { name: 'refused-placeholder', path: '/refused', persona: 'thief' },
   { name: 'dapps-placeholder', path: '/dapps', storage: { 'keyline.wallet': wallet() } },
   { name: 'design-kitchen-sink', path: '/design', fullPage: true, settleMs: 800 },
 ];
+
+// ---------------------------------------------------------------------------------------------------------------
+// v2 journey (SPEC §10) — every scene in light and dark: <name>-light.png / <name>-dark.png
+// ---------------------------------------------------------------------------------------------------------------
+
+const toOwnAccount = () => ({
+  ...decision('approve', 2.5, FUNDER),
+  kind: 'to-own-account',
+  tier: 1,
+  reasons: ['Your Swissquote account · verified'],
+});
+const signedOut: BankMap = {
+  'GET /sq/me': { status: 401, body: { error: 'unauthorized', message: 'Sign in' } },
+};
+const hi = { 'keyline.handoffClient': 'Lea' };
+const V2_SCENES: Scene[] = [
+  // ---- Swissquote web (laptop) ----
+  {
+    name: 'v2-sq-sign-in',
+    path: '/swissquote',
+    persona: 'lea-laptop',
+    bank: signedOut,
+    waitFor: 'Lea’s details',
+  },
+  {
+    name: 'v2-sq-portfolio',
+    path: '/swissquote/portfolio',
+    persona: 'lea-laptop',
+    bank: SQ_WEB,
+    waitFor: 'Set up Keyline on my phone',
+  },
+  {
+    name: 'v2-sq-handoff-code',
+    path: '/swissquote/portfolio',
+    persona: 'lea-laptop',
+    bank: SQ_WEB,
+    act: async (page) => {
+      await page.getByRole('button', { name: 'Set up Keyline on my phone' }).click();
+      await page.getByText('Waiting for your phone').waitFor();
+    },
+  },
+  {
+    name: 'v2-sq-why-btc',
+    path: '/swissquote/portfolio',
+    persona: 'lea-laptop',
+    bank: SQ_WEB,
+    act: async (page) => {
+      await page.getByRole('button', { name: 'Why?' }).click();
+      await page.getByTestId('why-sheet').waitFor();
+    },
+    settleMs: 700,
+  },
+  {
+    name: 'v2-sq-move-sheet',
+    path: '/swissquote/portfolio',
+    persona: 'lea-laptop',
+    bank: { ...SQ_WEB, 'GET /sq/safety-key-request': { body: skr('done') } },
+    deployed: true,
+    act: async (page) => {
+      await page.getByRole('button', { name: 'Move USDC to Keyline' }).click();
+      await page.getByTestId('move-amount').fill('10');
+    },
+    settleMs: 700,
+  },
+  {
+    name: 'v2-sq-move-funder-empty',
+    path: '/swissquote/portfolio',
+    persona: 'lea-laptop',
+    bank: {
+      ...SQ_WEB,
+      'GET /sq/safety-key-request': { body: skr('done') },
+      'POST /sq/moves': {
+        status: 502,
+        body: {
+          error: 'upstream',
+          message: `Bank funder ${FUNDER} holds 0 USDC — fund it at faucet.circle.com`,
+          details: { funder: FUNDER, balance: '0' },
+        },
+      },
+    },
+    deployed: true,
+    act: async (page) => {
+      await page.getByRole('button', { name: 'Move USDC to Keyline' }).click();
+      await page.getByTestId('move-amount').fill('10');
+      await page.getByTestId('move-submit').click();
+      await page.getByTestId('move-funder-empty').waitFor();
+    },
+    settleMs: 700,
+  },
+  {
+    name: 'v2-sq-safety-key-prompt',
+    path: '/swissquote/portfolio',
+    persona: 'lea-laptop',
+    bank: {
+      ...SQ_WEB,
+      'GET /sq/safety-key-request': { body: skr('waiting') },
+      'GET /handoff/482913': { body: handoff('claimed', SAFE) },
+    },
+    waitFor: 'Make this computer your Safety key?',
+  },
+  {
+    name: 'v2-sq-tile-protected',
+    path: '/swissquote/portfolio',
+    persona: 'lea-laptop',
+    bank: {
+      ...SQ_WEB,
+      'GET /sq/safety-key-request': { body: skr('done') },
+      'GET /sq/moves': { body: { moves: [move('confirmed')] } },
+    },
+    deployed: true,
+    usdc: 10_000_000n,
+    waitFor: 'Protected · 2 of 3 recoverers',
+  },
+  { name: 'v2-sq-bitcoin-roadmap', path: '/swissquote/bitcoin', persona: 'lea-laptop', bank: SQ_WEB },
+  // ---- Phone: /start and onboarding v2 ----
+  { name: 'v2-start', path: '/start', waitFor: 'Continue on your phone' },
+  {
+    name: 'v2-start-wrong-code',
+    path: '/start',
+    bank: {
+      'POST /handoff/000000/claim': { status: 404, body: { error: 'not-found', message: 'Code not found' } },
+    },
+    act: async (page) => {
+      await page.getByTestId('start-code').fill('000000');
+      await page.getByTestId('start-continue').click();
+      await page.getByText('That code doesn’t match').waitFor();
+    },
+  },
+  { name: 'v2-onboarding-hi', path: '/onboarding', session: hi, waitFor: 'Hi Lea' },
+  {
+    name: 'v2-onboarding-key',
+    path: '/onboarding',
+    session: hi,
+    act: async (page) => {
+      await page.getByTestId('hi-continue').click();
+      await page.getByRole('heading', { name: 'A key that stays on this phone' }).waitFor();
+    },
+    settleMs: 700,
+  },
+  {
+    name: 'v2-onboarding-safety-key-waiting',
+    path: '/onboarding',
+    storage: { 'keyline.wallet': step(2) },
+    bank: { [`GET /wallets/${SAFE}/guardians`]: { body: guardiansBody([]) } },
+    waitFor: 'Waiting for your laptop',
+  },
+  {
+    name: 'v2-onboarding-safety-key-confirmed',
+    path: '/onboarding',
+    storage: { 'keyline.wallet': step(2) },
+    bank: { [`GET /wallets/${SAFE}/guardians`]: { body: guardiansBody(['safety-key']) } },
+    waitFor: 'Confirmed on your laptop',
+  },
+  {
+    name: 'v2-onboarding-protect',
+    path: '/onboarding',
+    storage: {
+      'keyline.wallet': step(5, { guardians: { safetyKey: SAFETY_KEY, emergencyCard: EMERGENCY_CARD } }),
+    },
+    waitFor: 'One signature protects your wallet',
+  },
+  {
+    name: 'v2-onboarding-protected',
+    path: '/onboarding',
+    storage: { 'keyline.wallet': wallet({ onboardingStep: 5, attested: false }) },
+    waitFor: 'Any 2 of your 3 recoverers',
+    settleMs: 1_000,
+  },
+  {
+    name: 'v2-onboarding-first-funds',
+    path: '/onboarding',
+    storage: { 'keyline.wallet': wallet({ onboardingStep: 6, attested: true }) },
+    waitFor: 'Move your first funds',
+  },
+  // ---- Phone: home v2, Back to Swissquote, roadmap ----
+  {
+    name: 'v2-home',
+    path: '/',
+    storage: { 'keyline.wallet': wallet(), 'keyline.transfers': [transfer('confirmed')] },
+    usdc: 10_000_000n,
+    ethWei: 10n ** 16n,
+    waitFor: 'In your Swissquote account',
+    settleMs: 1_200,
+  },
+  {
+    name: 'v2-home-empty',
+    path: '/',
+    storage: { 'keyline.wallet': wallet() },
+    bank: { [`GET /wallets/${SAFE}/events`]: { body: { events: [] } } },
+    waitFor: 'In your Swissquote account',
+    settleMs: 1_000,
+  },
+  {
+    name: 'v2-back-amount',
+    path: '/back',
+    storage: { 'keyline.wallet': wallet() },
+    usdc: 10_000_000n,
+    waitFor: 'Sends to your own Swissquote account',
+  },
+  {
+    name: 'v2-back-review',
+    path: '/back',
+    storage: { 'keyline.wallet': wallet() },
+    usdc: 10_000_000n,
+    bank: { 'POST /policy/evaluate': { status: 201, body: toOwnAccount() } },
+    act: async (page) => {
+      await page.getByTestId('back-amount').fill('2');
+      await page.getByTestId('back-review').click();
+      await page.getByText('Approved', { exact: true }).waitFor();
+    },
+    settleMs: 700,
+  },
+  {
+    name: 'v2-security-roadmap-bitcoin',
+    path: '/security/bitcoin',
+    storage: { 'keyline.wallet': wallet() },
+    waitFor: 'Roadmap: Bitcoin',
+  },
+];
+
+for (const scene of V2_SCENES)
+  for (const theme of ['light', 'dark'] as const)
+    SCENES.push({ ...scene, name: `qa-${scene.name}-${theme}`, theme });
 
 // Independent scenes: one broken screen must not skip the rest (no serial mode).
 test.describe('screens', () => {

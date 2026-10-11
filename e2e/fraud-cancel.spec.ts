@@ -14,6 +14,7 @@ import {
   operatorToken,
   type PersonaSession,
   waitForRecovery,
+  warmRoutes,
 } from './fixtures/personas';
 import { type RecoveryView, startRecoveryToIdentity, submitIdentity } from './fixtures/recover';
 
@@ -43,6 +44,7 @@ test.describe.configure({ mode: 'serial' });
 
 test.describe('F4b Fraud while Lea still has her phone — the owner cancels an executed recovery', () => {
   test.beforeAll(async ({ browser }, testInfo) => {
+    await warmRoutes();
     const videoDir = testInfo.outputPath('videos');
     state.phone = await openPersona(browser, 'lea-phone', { videoDir });
     state.laptop = await openPersona(browser, 'lea-laptop', { videoDir });
@@ -79,7 +81,7 @@ test.describe('F4b Fraud while Lea still has her phone — the owner cancels an 
     await d.page.waitForURL(/\/desk\/queue/, { timeout: 90_000 }); // first visit compiles the route on next dev
     await d.goto(`/desk/requests/${recoveryId}`);
     await d.page.getByRole('button', { name: 'Override (demo: assume the bank was fooled)' }).click();
-    await d.page.locator('.kl-sheet__panel').getByRole('button', { name: 'Override', exact: true }).click();
+    await d.page.getByRole('dialog').getByRole('button', { name: 'Override', exact: true }).click();
     await expect(d.page.getByText('Swissquote confirmed. Status stays')).toBeVisible({ timeout: 120_000 });
     const r = await waitForRecovery<RecoveryView>(recoveryId, (x) => x.status === 'awaiting-guardians');
     expect(r.waitingFor).toBe('second-recoverer');

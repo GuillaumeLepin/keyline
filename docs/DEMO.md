@@ -44,7 +44,31 @@ skipped** (story Safe `0x751aa8cC0403356340430364A67dB9ea70212fE6`, protect 8 s
 server was killed under the screenshot project by another agent's `pkill -f next-server` → the snapshot now runs as
 `node qa-server.mjs` (§4).
 
-<!-- V2-FINAL -->
+**Run F (02:25–02:44, wallet `6711c0b`, 19.1 min): GREEN — 122 passed, 4 skipped** (story 11 ✓ / 4 skipped, attacker
+6/6, fraud-cancel 4/4, screenshots 101/101). Story Safe `0xE4EAa171B790234F74161Ac283ebA7ba46ae4f22`: ring closed 16 s
+after the tap, protect <https://sepolia.basescan.org/tx/0x91c03ba8bc13f6e01cda0c783cf90c2c919ab54efab75cae3ef76e1cd6dddf3a>,
+signer <https://sepolia.basescan.org/tx/0x8c19f99ab132935d3fd9b7cfb61818979fa884ac71ec40e8e95f2621bd55dbcf>, execute
+<https://sepolia.basescan.org/tx/0x4b919aa163265e28e2e55fd8d6a9e55054a0955b3aeb4c01c16b1c6cfa510d44> (`executeAfter`
+176 s ahead), finalize <https://sepolia.basescan.org/tx/0x5d89d0a6e49b7a9d22ea434bafc76feec7f3deaa67a4acd5343d5cd7a832f947>
+→ owner `0x5e2a…4534` → `0xf34CfE7f0cAFef794a14212e01D29D923fefD125`. Attacker Safe `0x72C3B43d8dc38B3deA02F879a0B695185C34D6EC`
+(protect `0x8b585fd646df4e01c8aa010dbca154fe30db4acd1b977096dbbbed49da569d5d`); fraud Safe `0x99f7b0529cA16e15c1B4b2168736c6c2fEf2Df6b`,
+execute <https://sepolia.basescan.org/tx/0x12d03a013feb2fa41f4b0af9452c73db337efc7b47a21a5d6927d2e461861c5e>, owner cancel
+**7 s** after the tap <https://sepolia.basescan.org/tx/0xa46d49165ba24b7e68f026dff23129d3b8a8d7826084f1cb4f21c5e3d4e0250c>.
+
+**Run G (02:45–03:04, wallet `ee02d81` = Phase D, 18.3 min): GREEN — 122 passed, 4 skipped** — two green full runs
+in a row (F, G). Story Safe `0x330993e0bbD7188Dd88dE6B2f15084320241747F`: ring closed **9 s** after the tap, protect
+<https://sepolia.basescan.org/tx/0xab1eea2c4ed01e9aba393040458435c79ec695ad1062695fe7da078b25082db1>, signer
+<https://sepolia.basescan.org/tx/0x7c2563e3e5fb1c84a5d46154206fd2756959e439ca52c2fab24ab45e6b20cdb0>, execute
+<https://sepolia.basescan.org/tx/0xf4f6a4c3996d58c21645a8399c4cfa580ed83906b6c3136650e8feb615930cd0> (`executeAfter`
+178 s ahead), finalize <https://sepolia.basescan.org/tx/0x78cd93eb1709ad664058ae4ad676ea48a151320752c13c5b7ec8880c8d947d3d>
+→ owner `0xFD7A…5496` → `0xe75e75EA7C4BAe1E2a1f0C422B59D1c151A27C67`. Attacker Safe `0x7ca52a4756D966a69959D226961EEF133349A18D`
+(protect `0x76b4cc56d7deafd7fd1f83628f0e1ec9a8713300bc1f46c4010e7e6ac7e6e545`); fraud Safe `0x03b35dA4e659185022cc005D75AF021795A45d1e`,
+execute <https://sepolia.basescan.org/tx/0x9a2c573a968d6916ab5bc01846ec6756ac2e562294fd4129dbd9cbdb59f7970b>, owner cancel
+24 s after the tap <https://sepolia.basescan.org/tx/0x12af8a628651082beaa932b2f0d255e6f87a9a22032ae790fbeaceb71afe05b4>.
+
+Videos of the green runs: `e2e/test-results/**/videos/*.webm` (laptop = Swissquote web, phone, new phone). Screens:
+`docs/screens/story-0*-sq-*.png` (Swissquote web), `story-*.png`, `qa-v2-*-{light,dark}.png`.
+
 
 
 ## 0b. v1 history — what was proven (QA runs, 6 Oct morning, isolated stack :3100/:4100/:4101, Base Sepolia)

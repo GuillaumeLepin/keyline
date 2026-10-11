@@ -15,6 +15,7 @@ import {
   operatorToken,
   type PersonaSession,
   waitForRecovery,
+  warmRoutes,
 } from './fixtures/personas';
 import { type RecoveryView, startRecoveryToIdentity, submitIdentity } from './fixtures/recover';
 
@@ -44,6 +45,7 @@ test.describe.configure({ mode: 'serial' });
 
 test.describe('F4 Attacker refused — Swissquote cannot finish a recovery alone', () => {
   test.beforeAll(async ({ browser }, testInfo) => {
+    await warmRoutes();
     const videoDir = testInfo.outputPath('videos');
     state.phone = await openPersona(browser, 'lea-phone', { videoDir });
     state.laptop = await openPersona(browser, 'lea-laptop', { videoDir });
@@ -136,7 +138,7 @@ test.describe('F4 Attacker refused — Swissquote cannot finish a recovery alone
     await d.page.getByRole('button', { name: 'Override (demo: assume the bank was fooled)' }).click();
     await expect(d.page.getByText('Override the identity check?')).toBeVisible();
     await shot(d, '07-desk-override-sheet');
-    await d.page.locator('.kl-sheet__panel').getByRole('button', { name: 'Override', exact: true }).click();
+    await d.page.getByRole('dialog').getByRole('button', { name: 'Override', exact: true }).click();
     await expect(d.page.getByText('Swissquote confirmed. Status stays')).toBeVisible({ timeout: 120_000 });
     await expect(d.page.getByText('Waiting for a 2nd recoverer').first()).toBeVisible();
     await shot(d, '08-desk-override-stuck');

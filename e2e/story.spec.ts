@@ -1,8 +1,11 @@
-// The Keyline story, end to end, against a live stack and Base Sepolia:
-//   F1 create wallet (phone) → pair the Safety key (laptop) → Emergency card → mode → PROTECT (real sponsored
-//   userOp) → prove ownership (ERC-1271) → top up → F2 send (real sponsored USDC transfer)
-//   → F3 lose the phone (virtual authenticator removed) → new phone /recover → laptop /approve → 180 s on-chain grace
-//   → finalize → "Welcome back, Lea" → send again from the new phone. F4 / F4b: attacker.spec.ts, fraud-cancel.spec.ts.
+// The Keyline story v2 (SPEC §10), end to end, against a live stack and Base Sepolia:
+//   F0 Lea · laptop signs in to Swissquote web (SIMULATED) → portfolio (Bitcoin not movable, "Why?") → Keyline tile
+//   → 6-digit handoff code → F1 Lea · phone claims it on /start → "Hi Lea" → phone key (passkey) → the laptop
+//   confirms "Make this computer your Safety key?" → Emergency card → mode → PROTECT (real sponsored userOp; the ring
+//   draws 3 of 3) → prove ownership (ERC-1271) → "Move your first funds" → Home v2 → F1.7 Move to Keyline (real funder
+//   transfer) → F2 send (real sponsored USDC transfer) → F3 lose the phone (virtual authenticator removed) → new phone
+//   /recover → laptop /approve → 180 s on-chain grace → finalize → "Welcome back, Lea" → send again → F3.5 Back to
+//   Swissquote. F4 / F4b: attacker.spec.ts, fraud-cancel.spec.ts.
 //
 // Every "it worked" is checked on-chain (e2e/chain.ts), not only on UI copy. Serial: later tests reuse the wallet
 // the first test created. Run: `pnpm e2e` (defaults: wallet :3000, bank :4000) or with E2E_WALLET_URL/E2E_BANK_URL.
@@ -25,21 +28,32 @@ import {
   txUrl,
   usdcBalance,
 } from './chain';
-import { readEmergencyCardKey } from './fixtures/onboard';
+import {
+  claimOnPhone,
+  confirmSafetyKeyOnLaptop,
+  createPhoneKey,
+  openHandoff,
+  protect,
+  proveAndGoHome,
+  readEmergencyCardKey,
+  signInToSwissquote,
+} from './fixtures/onboard';
 import {
   bankGet,
+  bankUrl,
   bodyText,
   openPersona,
   type PersonaSession,
   readLocalWallet,
   waitForRecovery,
+  warmRoutes,
 } from './fixtures/personas';
 import { type RecoveryView, startRecoveryToIdentity, submitIdentity } from './fixtures/recover';
 
 const SCREENS = resolve(import.meta.dirname, '../docs/screens');
-const PROTECT_TIMEOUT = 240_000; // bundler inclusion + 2 confirmations; usually 20–60 s on Base Sepolia
-const TOPUP_CHF = 8; // = 10 USDC at the static CHF 0.80 rate
+const MOVE_USDC = 10; // = CHF 8.00 at the static SIMULATED price 0.80
 const SEND_CHF = 2; // = 2.50 USDC to Lukas Meier
+const BACK_CHF = 2; // = 2.50 USDC back to the Swissquote deposit address
 
 interface Story {
   phone: PersonaSession;
@@ -47,6 +61,7 @@ interface Story {
   newPhone: PersonaSession;
   safe: Address;
   ownersBefore: Address[];
+  handoffCode: string;
   recoveryId: string;
   newProxy: Address;
   executeAfter: Date;
@@ -99,8 +114,9 @@ function newProxy(): Address {
 
 test.describe.configure({ mode: 'serial' });
 
-test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F3 lose & recover', () => {
+test.describe('Keyline story v2 — F0 Swissquote web, F1 handoff + protect + prove, move, F2 send, F3 lose & recover', () => {
   test.beforeAll(async ({ browser }, testInfo) => {
+    await warmRoutes();
     const videoDir = testInfo.outputPath('videos');
     story.phone = await openPersona(browser, 'lea-phone', { videoDir });
     story.laptop = await openPersona(browser, 'lea-laptop', { videoDir });
@@ -145,52 +161,112 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
     expect(pageErrors, 'no uncaught page errors in any persona').toEqual([]);
   });
 
-  test('F1.1 Lea · phone creates her Keyline (passkey → counterfactual Safe)', async () => {
+  // ---------------------------------------------------------------------------------------------------------------
+  // F0 — Swissquote web on the laptop (SIMULATED account and prices; the handoff code is real bank state)
+  // ---------------------------------------------------------------------------------------------------------------
+
+  test('F0.1 Lea · laptop signs in to Swissquote web → portfolio (SIMULATED), Bitcoin not movable with its Why sheet', async () => {
+    const l = laptop();
+    await l.goto('/swissquote');
+    await expect(l.page.getByRole('heading', { name: 'Sign in to Swissquote' })).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(l.page.getByLabel('Username')).toHaveValue('lea.keller');
+    await shot(l, '00-sq-sign-in');
+    await signInToSwissquote(l);
+    const positions = l.page.getByTestId('positions');
+    // Static SIMULATED positions (SPEC §10 F0.2) and the chips that say so.
+    for (const text of ['USDC', 'EURC', 'ETH', 'BTC']) await expect(positions).toContainText(text);
+    await expect(l.page.locator('.kl2-chip__mark', { hasText: 'SIMULATED' }).first()).toBeVisible();
+    expect(await l.page.locator('.kl2-chip__mark', { hasText: 'SIMULATED' }).count()).toBeGreaterThanOrEqual(
+      2,
+    );
+    // Movable rows have a button; Bitcoin is greyed out (aria-disabled) with "Not movable yet" and a Why? link.
+    await expect(positions.getByRole('button', { name: 'Move USDC to Keyline' })).toBeVisible();
+    await expect(positions.getByRole('button', { name: 'Move ETH to Keyline' })).toBeVisible();
+    await expect(positions.getByRole('button', { name: 'Move BTC to Keyline' })).toHaveCount(0);
+    const btcOff = positions.locator('[aria-disabled="true"]', { hasText: 'Not movable yet' });
+    await expect(btcOff).toHaveCount(1);
+    await shot(l, '00-sq-portfolio');
+    await positions.getByRole('button', { name: 'Why?' }).click();
+    const why = l.page.getByRole('dialog', { name: 'Why can’t I move Bitcoin?' });
+    await expect(why).toBeVisible();
+    await expect(why.getByTestId('why-sheet')).toContainText(
+      'Keyline moves an asset only when it can give it the same protection: your key, two of three recoverers, a public waiting period.',
+    );
+    await expect(why.getByRole('link', { name: 'Roadmap: Bitcoin' })).toBeVisible();
+    await shot(l, '00-sq-why-btc');
+    await why.getByRole('button', { name: 'Close' }).click();
+    await expect(why).toBeHidden();
+  });
+
+  test('F0.2 Keyline tile → 6-digit handoff code (POST /handoff), waiting for the phone', async () => {
+    const l = laptop();
+    story.handoffCode = await openHandoff(l);
+    if (!test.info().annotations.some((a) => a.type === 'handoff-via-api')) {
+      await expect(l.page.getByText('Waiting for your phone')).toBeVisible();
+      await expect(l.page.getByRole('img', { name: 'QR code to continue on your phone' })).toBeVisible();
+    }
+    const view = await l.context.request.get(`${bankUrl()}/handoff/${story.handoffCode}`);
+    expect(((await view.json()) as { status: string }).status).toBe('open');
+    console.info(`handoff code ${story.handoffCode}`);
+    await shot(l, '01-sq-handoff-code');
+  });
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // F1 v2 — onboarding on the phone, the Safety key confirmed on the laptop's Swissquote page
+  // ---------------------------------------------------------------------------------------------------------------
+
+  test('F1.1 Lea · phone claims the code on /start → "Hi Lea" → phone key (passkey → counterfactual Safe)', async () => {
     const p = phone();
-    await p.goto('/onboarding');
+    const l = laptop();
+    if (!story.handoffCode) throw new Error('no handoff code (F0.2 failed)');
+    await p.goto('/start');
     await expect(p.page.getByText('Lea · phone').first()).toBeVisible();
-    await shot(p, '01-onboarding-create');
-    await p.page.getByRole('button', { name: 'Create with Face ID / fingerprint' }).click();
-    await expect(p.page.getByText('Step 2 of 6')).toBeVisible({ timeout: 30_000 });
+    await expect(p.page.getByRole('heading', { name: 'Continue on your phone' })).toBeVisible({
+      timeout: 60_000,
+    });
+    await shot(p, '01-start');
+    await claimOnPhone(p, story.handoffCode);
+    await shot(p, '01-onboarding-hi');
+    story.safe = await createPhoneKey(p);
+    // The laptop's tile follows the claim and the new wallet by itself.
+    await expect(l.page.getByTestId('keyline-tile')).toHaveAttribute('data-state', 'claimed', {
+      timeout: 20_000,
+    });
+    await expect(l.page.getByText('Phone connected')).toBeVisible();
+    await shot(l, '01-sq-phone-connected');
 
     const local = await readLocalWallet(p.page);
     expect(local, 'the phone stored its wallet profile').not.toBeNull();
     if (!local) return;
-    story.safe = getAddress(local.address);
     expect(local.status).toBe('pending');
     expect(local.credentialId.length).toBeGreaterThan(10);
     // A counterfactual Safe: an address, no code yet.
-    expect(await hasCode(story.safe)).toBe(false);
-    console.info('Safe (counterfactual):', addressUrl(story.safe));
+    expect(await hasCode(safe())).toBe(false);
+    console.info('Safe (counterfactual):', addressUrl(safe()));
+    // A handoff code works once.
+    const again = await fetch(`${bankUrl()}/handoff/${story.handoffCode}/claim`, { method: 'POST' });
+    expect(again.status, 'a claimed code cannot be claimed again').toBe(409);
   });
 
-  test('F1.2 Lea · laptop pairs as the Safety key with the 6-digit code', async () => {
+  test('F1.2 Lea · laptop confirms "Make this computer your Safety key?" on Swissquote web; the phone sees it', async () => {
     const p = phone();
     const l = laptop();
-    await expect(p.page.locator('.kl-pairing-code')).toBeVisible();
-    const code = (await p.page.locator('.kl-pairing-code').innerText()).replace(/\s/g, '');
-    expect(code).toMatch(/^\d{6}$/);
-    await shot(p, '02-onboarding-pairing-code');
-
-    await l.goto('/pair');
-    await l.page.getByLabel('6-digit code').fill(code);
-    await l.page.getByRole('button', { name: 'Pair' }).click();
-    await expect(l.page.getByText('Paired. This laptop now holds')).toBeVisible({ timeout: 20_000 });
-    await shot(l, '02-laptop-paired');
-
-    // The phone polls the pairing every 2 s and enables Continue once the laptop claimed it.
-    const next = p.page.locator('button.kl-btn--primary:not([disabled])', { hasText: 'Continue' });
-    await expect(next).toBeVisible({ timeout: 15_000 });
-    await shot(p, '02-onboarding-paired');
+    await shot(p, '02-onboarding-safety-key-waiting');
+    story.safetyKey = await confirmSafetyKeyOnLaptop(l, p, safe(), () => shot(l, '02-sq-safety-key-prompt'));
+    await shot(l, '02-sq-safety-key-done');
+    await shot(p, '02-onboarding-safety-key-confirmed');
 
     const guardians = await bankGet<{ guardians: { kind: string; address: string }[] }>(
       `/wallets/${safe()}/guardians`,
     );
     expect(guardians.status).toBe(200);
     const sk = guardians.body.guardians.find((g) => g.kind === 'safety-key');
-    expect(sk, 'bank registered the Safety key').toBeDefined();
-    if (sk) story.safetyKey = getAddress(sk.address);
-    await next.click();
+    expect(sk?.address.toLowerCase(), 'bank registered the laptop key as the Safety key').toBe(
+      story.safetyKey.toLowerCase(),
+    );
+    await p.page.getByTestId('safety-key-continue').click();
     await expect(p.page.getByText('Step 3 of 6')).toBeVisible({ timeout: 10_000 });
   });
 
@@ -315,37 +391,39 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
     await expect(p.page.getByText('Step 5 of 6')).toBeVisible({ timeout: 20_000 });
   });
 
-  test('F1.5 Protect my wallet — one sponsored userOp deploys the Safe with 3 recoverers / threshold 2 (on-chain)', async () => {
+  test('F1.5 Protect — one sponsored userOp deploys the Safe; the ring draws 3 of 3; 3 recoverers / threshold 2 on-chain', async () => {
     const p = phone();
-    await expect(p.page.getByText('One signature sets everything up')).toBeVisible();
+    await expect(p.page.getByText('One signature protects your wallet')).toBeVisible();
+    await expect(p.page.getByTestId('protect-ring')).toContainText('0 of 3');
     await shot(p, '05-onboarding-protect');
     const started = Date.now();
-    await p.page.getByRole('button', { name: 'Protect my wallet' }).click();
-
-    const protectedTitle = p.page.getByText('Your phone key signs.');
-    const failed = p.page.locator('.kl-error');
-    await expect(protectedTitle.or(failed)).toBeVisible({ timeout: PROTECT_TIMEOUT });
-    if (await failed.isVisible()) {
-      // One bundler rejection in four runs this morning ("The network didn’t accept the request"): the UI offers
-      // Try again and the presenter would tap it — so does the test, once.
-      await shot(p, '05-onboarding-protect-error');
-      console.warn(`protect rejected once, retrying: ${await bodyText(p.page)}`);
-      await p.page.getByRole('button', { name: 'Try again' }).click();
-      await expect(protectedTitle.or(failed)).toBeVisible({ timeout: PROTECT_TIMEOUT });
-      if (await failed.isVisible()) {
-        await failed
-          .getByText('Technical details')
-          .click()
-          .catch(() => undefined);
-        throw new Error(`protect failed twice: ${await bodyText(p.page)}`);
-      }
+    // Sample the ring while it draws: the arcs are chained on the receipt (1 → 2 → 3), never all at once.
+    const seen = new Set<string>();
+    const sampler = setInterval(() => {
+      p.page
+        .getByTestId('protect-ring')
+        .getAttribute('data-registered', { timeout: 500 })
+        .then((v) => {
+          if (v) seen.add(v);
+        })
+        .catch(() => undefined);
+    }, 100);
+    let tx: Hex | null;
+    try {
+      tx = await protect(p);
+    } finally {
+      clearInterval(sampler);
     }
-    console.info(`protect confirmed in the UI after ${Math.round((Date.now() - started) / 1000)} s`);
+    console.info(
+      `protect: ring closed ${Math.round((Date.now() - started) / 1000)} s after the tap (registered seen: ${[...seen].sort().join(',')})`,
+    );
+    await expect(p.page.getByTestId('protect-ring')).toHaveAttribute('data-closed', 'true');
+    await expect(p.page.getByText('Any 2 of your 3 recoverers can restore access.')).toBeVisible();
+    for (const row of ['Safety key', 'Emergency card', 'Swissquote'])
+      await expect(
+        p.page.locator('li').filter({ hasText: row }).filter({ hasText: 'Added' }).first(),
+      ).toBeVisible();
     await shot(p, '05-onboarding-protected');
-
-    const link = p.page.getByRole('link', { name: 'View on Basescan' });
-    await expect(link).toBeVisible();
-    const tx = txHashFromUrl(await link.getAttribute('href'));
     expect(tx, 'Basescan link carries the protect tx hash').not.toBeNull();
     if (tx) {
       story.protectTx = tx;
@@ -373,19 +451,17 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
       expect(set.guardians.map((g) => g.toLowerCase())).toContain(chainEnv.sqGuardian.toLowerCase());
     const status = await recoveryStatus(safe());
     expect(status.pending).toBe(false);
-
-    await p.page.getByRole('button', { name: 'Continue' }).click();
-    await expect(p.page.getByText('Step 6 of 6')).toBeVisible({ timeout: 10_000 });
   });
 
-  test('F1.6 Prove ownership to Swissquote — ERC-1271 attestation verified by the bank', async () => {
+  test('F1.6 Prove ownership (ERC-1271) → "Move your first funds" → Home v2; the laptop tile turns Protected', async () => {
     const p = phone();
-    await expect(p.page.getByText('One more signature, no screenshots')).toBeVisible();
-    await shot(p, '06-onboarding-prove');
-    await p.page.getByRole('button', { name: 'Sign the proof' }).click();
-    await expect(p.page.getByText('Ownership proven')).toBeVisible({ timeout: 60_000 });
-    await shot(p, '06-onboarding-proven');
-
+    const l = laptop();
+    await proveAndGoHome(p, async () => {
+      await expect(
+        p.page.getByText('Open Swissquote on your laptop and choose “Move to Keyline”'),
+      ).toBeVisible();
+      await shot(p, '06-onboarding-first-funds');
+    });
     const attestation = await bankGet<{ walletAddress: string; method: string; verifiedAt: string }>(
       `/attestations/${safe()}`,
     );
@@ -394,53 +470,77 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
     expect(attestation.body.walletAddress.toLowerCase()).toBe(safe().toLowerCase());
     story.attested = true;
 
-    await p.page.getByRole('button', { name: 'Go to my wallet' }).click();
-    await p.page.waitForURL(/\/(\?.*)?$/, { timeout: 10_000 });
-    await expect(p.page.getByText('Protected · 2 of 3 recoverers')).toBeVisible({ timeout: 15_000 });
-    await shot(p, '07-home-protected');
+    // Home v2: protected indicator, assets read from chain, the SIMULATED Swissquote section, Back to Swissquote.
+    await expect(p.page.getByTestId('home-protected')).toContainText('Protected');
+    const assets = p.page.getByTestId('home-assets');
+    for (const symbol of ['USDC', 'EURC', 'ETH']) await expect(assets).toContainText(symbol);
+    const sq = p.page.getByTestId('home-sq');
+    await expect(sq).toContainText('In your Swissquote account');
+    await expect(sq).toContainText(/12.480\.35/);
+    await expect(sq.locator('.kl-error')).toHaveCount(0);
+    await expect(p.page.getByRole('link', { name: 'Back to Swissquote' })).toBeVisible();
+    await shot(p, '07-home-v2');
+
+    // Read from chain on the laptop too (Safe deployed) — never from the bank.
+    await expect(l.page.getByTestId('keyline-tile')).toHaveAttribute('data-state', 'protected', {
+      timeout: 30_000,
+    });
+    await expect(l.page.getByText('Protected · 2 of 3 recoverers')).toBeVisible();
+    await shot(l, '07-sq-tile-protected');
   });
 
-  test('F1.7 Top up from my Swissquote account (real USDC from the bank funder, or an honest 502)', async () => {
-    const p = phone();
+  test('F1.7 Move to Keyline — 10 USDC from Swissquote web (real funder transfer, or the honest refusal)', async () => {
+    const l = laptop();
     const before = await usdcBalance(safe());
-    await p.page.getByRole('button', { name: 'Top up', exact: true }).click();
-    const sheet = p.page.locator('.kl-sheet__panel');
+    await l.page.getByTestId('positions').getByRole('button', { name: 'Move USDC to Keyline' }).click();
+    const sheet = l.page.getByRole('dialog', { name: 'Move USDC to Keyline' });
     await expect(sheet).toBeVisible();
-    await expect(sheet.getByText('Accepted instantly: this wallet is verified as yours.')).toBeVisible();
-    await shot(p, '08-home-topup-sheet');
-    await sheet.locator('.kl-amount__input').fill(String(TOPUP_CHF));
-    await sheet.getByRole('button', { name: 'Top up', exact: true }).click();
+    await expect(
+      sheet.getByText('No ownership check needed: this wallet is verified as yours.'),
+    ).toBeVisible();
+    await sheet.getByTestId('move-amount').fill(String(MOVE_USDC));
+    await expect(sheet).toContainText(/CHF\s?8\.00/);
+    await shot(l, '08-sq-move-sheet');
+    const response = l.page.waitForResponse(
+      (r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/sq/moves',
+      { timeout: 90_000 },
+    );
+    await sheet.getByTestId('move-submit').click();
+    const res = await response;
+    const body = (await res.json().catch(() => ({}))) as {
+      message?: string;
+      txHash?: string;
+      status?: string;
+    };
 
-    const error = sheet.locator('.kl-error');
-    const row = p.page.getByText('Top up from Swissquote', { exact: true });
-    await expect(error.or(row)).toBeVisible({ timeout: 90_000 });
-
-    if (await error.isVisible()) {
-      // The bank refuses with 502 and the real funder balance — never a fake hash (docs/MOCKS.md).
-      await expect(error).toContainText('Something didn’t work');
-      await error.getByText('Technical details').click();
-      const detail = await error.locator('pre.kl-code').innerText();
-      console.info('top-up refused:', detail.replace(/\s+/g, ' '));
-      expect(detail).toMatch(/502/);
-      await shot(p, '08-home-topup-error-funder-empty');
-      story.funderHasUsdc = !/holds 0(\.0+)? USDC/.test(detail);
-      // Close the sheet so Send is clickable (the sheet backdrop intercepts pointer events otherwise).
-      await sheet.locator('.kl-sheet__head button[aria-label="Close"]').click();
+    if (res.status() >= 400) {
+      // The bank refuses with the real funder balance — never a fake hash, nothing debited (docs/MOCKS.md).
+      const reason = `${res.status()} ${body.message ?? ''}`;
+      console.info('move refused:', reason);
+      await expect(sheet.getByTestId('move-funder-empty')).toBeVisible();
+      await expect(sheet).toContainText('Nothing was moved and nothing was debited.');
+      await shot(l, '08-sq-move-funder-empty');
+      story.funderHasUsdc = false;
+      await sheet.getByRole('button', { name: 'Close' }).click();
       await expect(sheet).toBeHidden();
-      test.skip(!story.funderHasUsdc, 'funder has no USDC — top-up legitimately refused with 502');
+      test.skip(true, `funder cannot move USDC — ${reason}`);
       return;
     }
 
+    expect(res.status()).toBe(201);
     story.funderHasUsdc = true;
-    await expect(row).toBeVisible();
+    await expect(sheet.getByTestId('move-result')).toBeVisible();
+    if (body.txHash) story.txs.moveTx = txUrl(body.txHash);
     const after = await expect
-      .poll(async () => usdcBalance(safe()), { timeout: 60_000, message: 'USDC balance reflects the top-up' })
+      .poll(async () => usdcBalance(safe()), { timeout: 90_000, message: 'USDC balance reflects the move' })
       .toBeGreaterThan(before)
       .then(() => usdcBalance(safe()));
-    const expectedDelta = parseUnits((TOPUP_CHF / 0.8).toFixed(6), 6);
-    expect(after - before).toBe(expectedDelta);
-    console.info(`top-up: ${formatUsdc(before)} → ${formatUsdc(after)} USDC`);
-    await shot(p, '08-home-topped-up');
+    expect(after - before).toBe(parseUnits(String(MOVE_USDC), 6));
+    console.info(`move: ${formatUsdc(before)} → ${formatUsdc(after)} USDC`);
+    await shot(l, '08-sq-moved');
+    await sheet.getByRole('button', { name: 'Close' }).click();
+    await expect(phone().page.getByTestId('home-assets')).toContainText(/10\.00/, { timeout: 30_000 });
+    await shot(phone(), '08-home-funds-arrived');
   });
 
   test('F2 Send 2.50 USDC to Lukas Meier — policy approve → sponsor → passkey signs → confirmed on-chain', async () => {
@@ -452,10 +552,12 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
 
     await p.page.getByRole('link', { name: 'Send' }).click();
     await p.page.waitForURL(/\/send$/, { timeout: 10_000 });
+    // Phase C send: recipient list → amount screen (CHF, toggle to USDC) → review.
     await p.page.getByText('Lukas Meier').first().click();
-    await p.page.locator('.kl-amount__input').fill(String(SEND_CHF));
+    await expect(p.page.getByTestId('send-amount')).toBeVisible();
+    await p.page.getByTestId('send-amount').fill(String(SEND_CHF));
     await shot(p, '09-send');
-    await p.page.getByRole('button', { name: 'Review' }).click();
+    await p.page.getByTestId('send-review').click();
     await p.page.waitForURL(/\/send\/review$/, { timeout: 10_000 });
     await expect(p.page.getByText('Approved', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(p.page.getByText('Paid by Swissquote').first()).toBeVisible();
@@ -606,8 +708,8 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
     test.skip(before < amountUsdc, `wallet holds ${formatUsdc(before)} USDC — not enough to send`);
     await np.goto('/send');
     await np.page.getByText('Lukas Meier').first().click();
-    await np.page.locator('.kl-amount__input').fill(String(SEND_CHF));
-    await np.page.getByRole('button', { name: 'Review' }).click();
+    await np.page.getByTestId('send-amount').fill(String(SEND_CHF));
+    await np.page.getByTestId('send-review').click();
     await expect(np.page.getByText('Approved', { exact: true })).toBeVisible({ timeout: 30_000 });
     await np.page.getByRole('button', { name: 'Confirm with Face ID' }).click();
     await np.page.waitForURL(/\/activity\/0x[0-9a-fA-F]{64}$/, { timeout: 120_000 });
@@ -625,5 +727,41 @@ test.describe('Keyline story — F1 create + protect + prove, top-up, F2 send, F
     }
     expect(before - (await usdcBalance(safe()))).toBe(amountUsdc);
     await shot(np, '17-activity-after-recovery');
+  });
+
+  test('F3.5 Back to Swissquote — Tier 1 to the verified deposit address, credited (SIMULATED ledger)', async () => {
+    test.skip(!story.funderHasUsdc, 'funder has no USDC — the wallet holds nothing to send back');
+    const np = newPhone();
+    const before = await usdcBalance(safe());
+    const amountUsdc = parseUnits((BACK_CHF / 0.8).toFixed(6), 6);
+    test.skip(before < amountUsdc, `wallet holds ${formatUsdc(before)} USDC — not enough to send back`);
+    await np.goto('/back');
+    await expect(np.page.getByRole('heading', { name: 'Back to Swissquote' })).toBeVisible({
+      timeout: 60_000,
+    });
+    await np.page.getByTestId('back-amount').fill(String(BACK_CHF));
+    await np.page.getByTestId('back-review').click();
+    await expect(np.page.getByTestId('back-review-screen')).toBeVisible();
+    await expect(np.page.getByText('Your Swissquote account · verified').first()).toBeVisible();
+    await expect(np.page.getByText('Approved', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(
+      np.page.getByText('No ownership check needed: this account is verified as yours.'),
+    ).toBeVisible();
+    await shot(np, '18-back-review');
+    await np.page.getByTestId('back-confirm').click();
+    await np.page.waitForURL(/\/activity\/0x[0-9a-fA-F]{64}$/, { timeout: 120_000 });
+    const confirmed = np.page.getByText('Confirmed', { exact: true });
+    const failed = np.page.getByText('Not accepted by the network');
+    await expect(confirmed.or(failed)).toBeVisible({ timeout: 180_000 });
+    if (await failed.isVisible()) throw new Error(`back to Swissquote failed: ${await bodyText(np.page)}`);
+    const tx = txHashFromUrl(
+      await np.page.getByRole('link', { name: 'View on Basescan' }).getAttribute('href'),
+    );
+    if (tx) {
+      story.txs.backTx = txUrl(tx);
+      expect(await txSucceeded(tx)).toBe(true);
+    }
+    expect(before - (await usdcBalance(safe()))).toBe(amountUsdc);
+    await shot(np, '18-back-sent');
   });
 });

@@ -130,6 +130,47 @@ export async function openPersona(
   };
 }
 
+/**
+ * `next dev` compiles a route on its first visit and then hot-reloads every open page (a full reload loses the
+ * phone's in-memory onboarding token and can stall a client-side navigation). Compile every route the specs visit
+ * before any persona opens a page. Idempotent and cheap once warm (~50 ms per route).
+ */
+export const WARM_ROUTES = [
+  '/',
+  '/start',
+  '/onboarding',
+  '/swissquote',
+  '/swissquote/portfolio',
+  '/swissquote/bitcoin',
+  '/send',
+  '/send/review',
+  '/back',
+  '/activity/0x0000000000000000000000000000000000000000000000000000000000000000',
+  '/security',
+  '/security/bitcoin',
+  '/activity',
+  '/contacts',
+  '/settings',
+  '/help',
+  '/alerts',
+  '/recover',
+  '/refused',
+  '/approve',
+  '/desk',
+  '/desk/queue',
+];
+
+export async function warmRoutes(routes: readonly string[] = WARM_ROUTES): Promise<void> {
+  const base = process.env.E2E_WALLET_URL ?? 'http://localhost:3000';
+  const started = Date.now();
+  for (const route of routes) {
+    await fetch(new URL(route, base), { signal: AbortSignal.timeout(120_000) }).catch((error: unknown) =>
+      console.warn(`warm ${route}: ${error instanceof Error ? error.message : String(error)}`),
+    );
+  }
+  console.info(`warmed ${routes.length} routes in ${Math.round((Date.now() - started) / 1000)} s`);
+}
+
 /** Bank base URL for direct API assertions (`GET /attestations/:wallet`, …). */
 export function bankUrl(): string {
   return process.env.E2E_BANK_URL ?? 'http://localhost:4000';
