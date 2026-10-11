@@ -582,6 +582,18 @@ const sqFixtures: Record<string, [z.ZodTypeAny, unknown]> = {
     { client: sqClient, onboardingToken: 'eyJ.x.y', expiresAt: at },
   ],
   SafetyKeyRequestStatusSchema: [Q.SafetyKeyRequestStatusSchema, 'waiting'],
+  SqKeylineWalletSchema: [
+    Q.SqKeylineWalletSchema,
+    { address: addr, status: 'deployed', protected: true, createdAt: at },
+  ],
+  SqCurrentSetupSchema: [Q.SqCurrentSetupSchema, { code: '123456', status: 'claimed', walletAddress: addr2 }],
+  SqKeylineStateSchema: [
+    Q.SqKeylineStateSchema,
+    {
+      wallets: [{ address: addr, status: 'deployed', protected: true, createdAt: at }],
+      currentSetup: { code: '123456', status: 'open' },
+    },
+  ],
   SafetyKeyRequestSchema: [
     Q.SafetyKeyRequestSchema,
     { walletAddress: addr, status: 'waiting', requestedAt: at },

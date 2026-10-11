@@ -424,7 +424,8 @@ describe('SPEC §10 — Swissquote web, handoff, Safety key, moves', () => {
       payload: { asset: 'ETH', amount: '0.01' },
     });
     expect(noGas.statusCode).toBe(502);
-    expect(noGas.json().message).toMatch(/not enough/);
+    expect(noGas.json().message).toMatch(/not enough to pay for this transfer and the network fee$/);
+    expect(noGas.json().message).not.toMatch(/this the/);
     state.funder = { ...state.funder, eth: 10n ** 18n };
 
     state.transferFails = true;
@@ -624,6 +625,126 @@ describe('SPEC §10 — Swissquote web, handoff, Safety key, moves', () => {
     const res = await app.inject({ method: 'POST', url: '/sq/logout', headers: web });
     expect(res.json()).toEqual({ ok: true });
     expect(String(res.headers['set-cookie'])).toMatch(/sq_web=;/);
+  });
+});
+
+describe('qa-demo fix: a second phone setup while Lea already has wallets', () => {
+  let app: FastifyInstance;
+  let web: { cookie: string };
+  const dev = { 'x-device-label': 'Lea · old phone' };
+  const key = (n: number) => `0x${n.toString(16).padStart(4, '0').repeat(16)}` as Hex;
+  const createWallet = async (n: number, headers: Record<string, string>) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/wallets',
+      headers,
+      payload: { pubKeyX: key(n), pubKeyY: key(n + 1), credentialId: `cred-${n}`, deviceLabel: 'phone' },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    return res.json().address as Address;
+  };
+
+  beforeAll(async () => {
+    app = await buildApp(config, {
+      logger: false,
+      chain: chainStub,
+      screeningOffline: true,
+      finalizer: false,
+    });
+    const login = await app.inject({ method: 'POST', url: '/sq/login', payload: { username: 'lea.keller' } });
+    web = { cookie: cookieOf(login) };
+  });
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('existing wallets (one protected, one half-built) do not create a Safety-key prompt for this session', async () => {
+    const protectedWallet = await createWallet(0x1001, dev);
+    app.db.prepare("UPDATE wallets SET status = 'deployed' WHERE address = ?").run(protectedWallet);
+    await createWallet(0x2001, dev); // pending, no Safety key — the old code prompted for THIS one
+    const req = await app.inject({ method: 'GET', url: '/sq/safety-key-request', headers: web });
+    expect(req.json()).toEqual({ walletAddress: null, status: 'none' });
+    const state = await app.inject({ method: 'GET', url: '/sq/keyline', headers: web });
+    expect(state.statusCode).toBe(200);
+    const wallets = state.json().wallets as { address: string; protected: boolean; status: string }[];
+    expect(wallets).toHaveLength(2);
+    expect(wallets.find((w) => w.address === protectedWallet)).toMatchObject({
+      status: 'deployed',
+      protected: true,
+    });
+    expect(wallets.filter((w) => !w.protected)).toHaveLength(1);
+    expect(state.json().currentSetup).toBeUndefined();
+    expect((await app.inject({ method: 'GET', url: '/sq/keyline' })).statusCode).toBe(401);
+  });
+
+  it("POST /handoff is always allowed; the Safety key follows the wallet made with THIS session's code, not the newest", async () => {
+    const h = await app.inject({ method: 'POST', url: '/handoff', headers: web });
+    expect(h.statusCode, h.body).toBe(201);
+    const code = h.json().code as string;
+    expect(h.json().keyline.currentSetup).toEqual({ code, status: 'open' });
+    expect(h.json().keyline.wallets).toHaveLength(2);
+
+    const claim = await app.inject({ method: 'POST', url: `/handoff/${code}/claim` });
+    // Claimed, no wallet yet → still 'none'.
+    expect(
+      (await app.inject({ method: 'GET', url: '/sq/safety-key-request', headers: web })).json().status,
+    ).toBe('none');
+    const fresh = await createWallet(0x3001, { 'x-onboarding-token': claim.json().onboardingToken });
+    const newer = await createWallet(0x4001, dev); // created later by another device: must NOT be picked
+
+    const req = await app.inject({ method: 'GET', url: '/sq/safety-key-request', headers: web });
+    expect(req.json()).toMatchObject({ walletAddress: fresh, status: 'waiting' });
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/sq/safety-key',
+      headers: web,
+      payload: { address: SAFETY },
+    });
+    expect(reg.statusCode, reg.body).toBe(201);
+    expect(reg.json().walletAddress).toBe(fresh);
+    const g = await app.inject({ method: 'GET', url: `/wallets/${newer}/guardians`, headers: dev });
+    expect(g.json().guardians).toHaveLength(0);
+
+    const tile = await app.inject({ method: 'GET', url: `/handoff/${code}`, headers: web });
+    expect(tile.json()).toMatchObject({
+      status: 'claimed',
+      walletAddress: fresh,
+      keyline: { currentSetup: { code, status: 'claimed', walletAddress: fresh } },
+    });
+    expect(tile.json().keyline.wallets).toHaveLength(4);
+    expect((await app.inject({ method: 'GET', url: `/handoff/${code}` })).json().keyline).toBeUndefined();
+    expect(
+      (await app.inject({ method: 'GET', url: '/sq/safety-key-request', headers: web })).json(),
+    ).toMatchObject({
+      status: 'done',
+      safetyKeyAddress: SAFETY,
+    });
+  });
+
+  it('after a finished setup a new code starts another one; other web sessions see no setup of their own', async () => {
+    const again = await app.inject({ method: 'POST', url: '/handoff', headers: web });
+    expect(again.statusCode).toBe(201);
+    const state = await app.inject({ method: 'GET', url: '/sq/keyline', headers: web });
+    expect(state.json().currentSetup).toEqual({ code: again.json().code, status: 'open' });
+
+    const other = await app.inject({ method: 'POST', url: '/sq/login', payload: { username: 'lea' } });
+    const otherWeb = { cookie: cookieOf(other) };
+    expect(
+      (await app.inject({ method: 'GET', url: '/sq/safety-key-request', headers: otherWeb })).json(),
+    ).toEqual({
+      walletAddress: null,
+      status: 'none',
+    });
+    const otherState = await app.inject({ method: 'GET', url: '/sq/keyline', headers: otherWeb });
+    expect(otherState.json().currentSetup).toBeUndefined();
+    expect(otherState.json().wallets).toHaveLength(4);
+    const refused = await app.inject({
+      method: 'POST',
+      url: '/sq/safety-key',
+      headers: otherWeb,
+      payload: { address: SAFETY },
+    });
+    expect(refused.statusCode).toBe(409);
   });
 });
 

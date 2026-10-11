@@ -11,7 +11,9 @@
 //   Handoff                POST /handoff (sq_web) · GET /handoff/:code → { code, expiresAt, status, qrUrl, client?, walletAddress?, claimedAt? }
 //   ClaimHandoffResponse   POST /handoff/:code/claim (no session)     → { client: SqClient, onboardingToken, expiresAt }
 //                          The phone sends `X-Onboarding-Token: <onboardingToken>` to /auth/passkey/register/* and POST /wallets.
+//   SqKeylineState         GET /sq/keyline (sq_web)                   → { wallets: SqKeylineWallet[], currentSetup?: SqCurrentSetup }
 //   SafetyKeyRequest       GET /sq/safety-key-request (sq_web)        → { walletAddress | null, status, requestedAt? }
+//                          bound to the wallet created through THIS web session's latest claimed handoff
 //   SafetyKeyBody          POST /sq/safety-key { address } (sq_web)   → Guardian (kind 'safety-key')
 //   SqAsset                'USDC' | 'EURC' | 'ETH' (the movable assets; BTC is roadmap)
 //   MoveBody               POST /sq/moves { asset, amount, requestId? } (sq_web, idempotent) → Move (201)
@@ -81,6 +83,32 @@ export type SqPositionsResponse = z.infer<typeof SqPositionsResponseSchema>;
 export const HandoffStatusSchema = z.enum(['open', 'claimed', 'expired']);
 export type HandoffStatus = z.infer<typeof HandoffStatusSchema>;
 
+/** One of the client's Keyline wallets, as the Swissquote web tile lists it. */
+export const SqKeylineWalletSchema = z.object({
+  address: Address,
+  status: z.enum(['pending', 'deployed', 'recovering']),
+  /** True once the protect userOp landed (status deployed / recovering). */
+  protected: z.boolean(),
+  createdAt: IsoDate,
+});
+export type SqKeylineWallet = z.infer<typeof SqKeylineWalletSchema>;
+
+/** The phone setup started from THIS web session (its most recent handoff code). */
+export const SqCurrentSetupSchema = z.object({
+  code: z.string().regex(/^\d{6}$/),
+  status: HandoffStatusSchema,
+  /** Set once the phone created its wallet with this code's onboarding token. */
+  walletAddress: Address.optional(),
+});
+export type SqCurrentSetup = z.infer<typeof SqCurrentSetupSchema>;
+
+/** GET /sq/keyline (sq_web) — everything the Keyline tile needs: existing wallets + this session's setup. */
+export const SqKeylineStateSchema = z.object({
+  wallets: z.array(SqKeylineWalletSchema),
+  currentSetup: SqCurrentSetupSchema.optional(),
+});
+export type SqKeylineState = z.infer<typeof SqKeylineStateSchema>;
+
 export const HandoffSchema = z.object({
   code: z.string().regex(/^\d{6}$/),
   expiresAt: IsoDate,
@@ -92,6 +120,8 @@ export const HandoffSchema = z.object({
   claimedAt: IsoDate.optional(),
   /** Present once the phone created its wallet with the onboarding token. */
   walletAddress: Address.optional(),
+  /** Tile state (same as GET /sq/keyline) — only for the client's own web session. */
+  keyline: SqKeylineStateSchema.optional(),
 });
 export type Handoff = z.infer<typeof HandoffSchema>;
 

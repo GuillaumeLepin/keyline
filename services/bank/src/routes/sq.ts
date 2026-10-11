@@ -16,6 +16,8 @@ import {
   SafetyKeyRequestSchema,
   type SqAsset,
   type SqClient,
+  type SqKeylineState,
+  SqKeylineStateSchema,
   SqLoginBodySchema,
   SqPositionsResponseSchema,
   SqSessionSchema,
@@ -29,6 +31,7 @@ import {
   requireSqWeb,
   SQ_WEB_COOKIE,
   SQ_WEB_TTL_SECONDS,
+  type SqWebClaims,
   sqWebSessionOf,
 } from '../auth';
 import type { BankConfig } from '../config';
@@ -159,11 +162,40 @@ export const registerSqRoutes = (
     return { id: c.id, firstName: c.name.split(' ')[0] ?? c.name, name: c.name, email: c.email };
   };
 
+  /** This web session's most recent handoff (any status), and its most recent CLAIMED one. */
+  const latestHandoffForSession = db.prepare(
+    'SELECT * FROM handoffs WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
+  );
+  const latestClaimedForSession = db.prepare(
+    "SELECT * FROM handoffs WHERE session_id = ? AND status = 'claimed' ORDER BY claimed_at DESC, rowid DESC LIMIT 1",
+  );
+
+  /** Tile state: every wallet of the client (protected or not) + the phone setup this session started. */
+  const keylineState = (claims: SqWebClaims): SqKeylineState => {
+    const latest = latestHandoffForSession.get(claims.sid) as HandoffRow | undefined;
+    return SqKeylineStateSchema.parse({
+      wallets: repo.walletsForClient(claims.cid).map((w) => ({
+        address: w.address,
+        status: w.status,
+        protected: w.status !== 'pending',
+        createdAt: w.createdAt,
+      })),
+      currentSetup: latest
+        ? {
+            code: latest.code,
+            status: latest.status === 'open' && latest.expires_at <= nowIso() ? 'expired' : latest.status,
+            walletAddress: latest.wallet_address ?? undefined,
+          }
+        : undefined,
+    });
+  };
+
   const handoffView = (row: HandoffRow, req: FastifyRequest): Handoff => {
     const expired = row.status === 'open' && row.expires_at <= nowIso();
     // The client's identity is only echoed to the session that opened the code.
     const viewer = sqWebSessionOf(req);
-    const showClient = row.status === 'claimed' && viewer?.cid === row.client_id;
+    const ownClient = viewer?.cid === row.client_id;
+    const showClient = row.status === 'claimed' && ownClient;
     return HandoffSchema.parse({
       code: row.code,
       expiresAt: row.expires_at,
@@ -172,6 +204,7 @@ export const registerSqRoutes = (
       client: showClient ? sqClient(row.client_id) : undefined,
       claimedAt: row.claimed_at ?? undefined,
       walletAddress: showClient && row.wallet_address ? row.wallet_address : undefined,
+      keyline: viewer && ownClient ? keylineState(viewer) : undefined,
     });
   };
 
@@ -311,10 +344,15 @@ export const registerSqRoutes = (
     });
   });
 
+  app.get('/sq/keyline', async (req) => keylineState(requireSqWeb(req)));
+
   // ---- laptop Safety key ----
-  const safetyKeyRequest = (clientId: string): SafetyKeyRequest => {
-    const wallet = newestWallet(clientId);
-    if (!wallet) return { walletAddress: null, status: 'none' };
+  // Bound to the wallet the phone created through THIS web session's latest claimed handoff — never "the newest
+  // wallet of the client", so an older protected wallet cannot hide a new phone setup (qa-demo finding).
+  const safetyKeyRequest = (claims: SqWebClaims): SafetyKeyRequest => {
+    const handoff = latestClaimedForSession.get(claims.sid) as HandoffRow | undefined;
+    const wallet = handoff?.wallet_address ? repo.walletByAddress(handoff.wallet_address) : null;
+    if (!wallet || wallet.clientId !== claims.cid) return { walletAddress: null, status: 'none' };
     const key = store.guardians(wallet.address).find((g) => g.kind === 'safety-key');
     if (key) return { walletAddress: wallet.address, status: 'done', safetyKeyAddress: key.address };
     if (wallet.status !== 'pending') return { walletAddress: wallet.address, status: 'none' };
@@ -323,13 +361,13 @@ export const registerSqRoutes = (
 
   app.get('/sq/safety-key-request', async (req) => {
     const claims = requireSqWeb(req);
-    return SafetyKeyRequestSchema.parse(safetyKeyRequest(claims.cid));
+    return SafetyKeyRequestSchema.parse(safetyKeyRequest(claims));
   });
 
   app.post('/sq/safety-key', { config: { idempotent: true } }, async (req, reply) => {
     const claims = requireSqWeb(req);
     const body = SafetyKeyBodySchema.parse(req.body);
-    const request = safetyKeyRequest(claims.cid);
+    const request = safetyKeyRequest(claims);
     if (!request.walletAddress || request.status === 'none')
       throw conflict('No Keyline wallet is waiting for a Safety key — continue on your phone first');
     const guardian = await addGuardian(
@@ -386,7 +424,7 @@ export const registerSqRoutes = (
     const ethNeeded = MIN_FUNDER_GAS_WEI + (body.asset === 'ETH' ? amount : 0n);
     if (ethBalance < ethNeeded)
       throw upstream(
-        `Bank funder ${funderAddress} holds ${formatUnits(ethBalance, 18)} ETH — not enough for this ${body.asset === 'ETH' ? 'transfer and ' : ''}the network fee`,
+        `Bank funder ${funderAddress} holds ${formatUnits(ethBalance, 18)} ETH — not enough to pay ${body.asset === 'ETH' ? 'for this transfer and ' : ''}the network fee`,
         { funder: funderAddress, eth: ethBalance.toString() },
       );
     if (body.asset !== 'ETH') {

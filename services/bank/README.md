@@ -73,7 +73,10 @@ Laptop (Swissquote web, cookie sq_web)
   POST /handoff                                   → Handoff (201 new, 200 = this session's open code) · 10 min
   GET  /handoff/:code                             → Handoff (status open|claimed|expired; client + walletAddress
                                                     only for the session that opened it)
+  GET  /sq/keyline                                → { wallets: [{ address, status, protected, createdAt }], currentSetup?: { code, status, walletAddress? } }
+                                                    (also as `keyline` on GET /handoff/:code for the client's own session)
   GET  /sq/safety-key-request                     → { walletAddress|null, status: none|waiting|done, requestedAt?, safetyKeyAddress? }
+                                                    bound to the wallet created with THIS session's latest claimed code, else 'none'
   POST /sq/safety-key { address }                 → Guardian (same registrar as the old /pairings claim)
   POST /sq/moves { asset: USDC|EURC|ETH, amount } → Move (201; idempotent with Idempotency-Key / requestId)
   GET  /sq/moves                                  → { moves: Move[] } (follows receipts: sent → confirmed|failed)
