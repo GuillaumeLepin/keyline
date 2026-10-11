@@ -1,4 +1,8 @@
 // SPEC §11.3 — WalletConnect sessions: identity verdict, approve/refuse/disconnect, request log, and the policy rules.
+
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { decodeCalls, transferTransaction } from '@keyline/chain';
 import type { FastifyInstance } from 'fastify';
 import { type Address, encodeFunctionData, erc20Abi, getAddress, type Hex, parseAbi } from 'viem';
@@ -6,7 +10,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app';
 import { metaTransactionToCall } from '../chain/calldata';
 import { toSimulation } from '../chain/decode';
+import { openDb } from '../db';
 import type { ChainDeps } from '../deps';
+import { createEventStore } from '../events';
 import {
   dappIdentity,
   hostOf,
@@ -15,19 +21,21 @@ import {
   REASON_DAPP_UNVERIFIED,
 } from '../policy/dapp-identity';
 import { evaluate } from '../policy/engine';
-import { loadAllowlist, sanctionedSeedAddress } from '../seed';
+import { loadAllowlist, sanctionedSeedAddress, seed } from '../seed';
 import { testConfig } from '../test-env';
 
 const USDC = getAddress('0x036CbD53842c5426634e7929541eC2318f3dCF7e');
 const RECIPIENT = getAddress('0x00000000000000000000000000000000000c0FFE');
 const dev = { 'x-device-label': 'Lea · phone' };
 const topicOf = (n: number) => n.toString(16).padStart(64, '0');
+const sim = { revert: undefined as string | undefined };
 const chainStub: Partial<ChainDeps> = {
   walletHasCode: async () => true,
   onchainGuardians: async () => [],
   simulate: async ({ from, calls }) =>
     toSimulation({
-      ok: true,
+      ok: sim.revert === undefined,
+      revertReason: sim.revert,
       assetChanges: [],
       decodedCalls: decodeCalls(calls, { wallet: from }),
       gasEstimate: '90000',
@@ -337,6 +345,62 @@ describe('dApp sessions over HTTP (SPEC §11.3)', () => {
       data: opaque.data.replace(sanctioned.slice(2).toLowerCase(), RECIPIENT.slice(2).toLowerCase()),
     };
     expect((await evaluateDapp(topicOf(1), [clean])).json().verdict).toBe('approve');
+  });
+
+  it('live bug: DemoSwap eth_sendTransaction USDC transfer to the seeded sanctioned address — sanctions block wins over a revert', async () => {
+    // Exactly the live request: the configured seeded test address, 1 USDC, insufficient balance in the simulation.
+    const sanctioned = getAddress('0x42b16056ee5e2C9bDE34Db76fdb2FA7554Ab0A73');
+    expect(getAddress(sanctionedSeedAddress(app.db) as string)).toBe(sanctioned);
+    sim.revert = 'ERC20: transfer amount exceeds balance';
+    const res = await app.inject({
+      method: 'POST',
+      url: '/policy/evaluate',
+      headers: dev,
+      payload: {
+        kind: 'dapp',
+        topic: topicOf(1),
+        origin: 'http://localhost:3100',
+        walletAddress: wallet,
+        calls: [usdcTransfer(1_000_000n, sanctioned)],
+        deviceLabel: 'Lea · phone',
+      },
+    });
+    sim.revert = undefined;
+    expect(res.statusCode, res.body).toBe(201);
+    const d = res.json();
+    expect(d.verdict).toBe('block');
+    expect(d.reasons[0]).toBe('Counterparty appears on the OFAC SDN list — simulated test entry');
+    expect(d.reasons.join(' ')).not.toMatch(/would fail/);
+    expect(d.screening).toMatchObject({
+      hit: true,
+      counterparty: sanctioned,
+      source: 'seeded-test',
+      simulatedHit: true,
+    });
+    expect(d.recipientAddress).toBe(sanctioned);
+    expect(d.sponsorship.sponsored).toBe(false);
+  });
+
+  it('a bank whose DB holds an older random test address still flags the configured one (QA :4100 vs dev :4000)', async () => {
+    const path = join(mkdtempSync(join(tmpdir(), 'keyline-sanctioned-')), 'old.sqlite');
+    const old = openDb(path);
+    seed(old, createEventStore(old)); // legacy behaviour: random address
+    const legacy = getAddress(sanctionedSeedAddress(old) as string);
+    old.close();
+    const other = await buildApp(testConfig(), {
+      dbPath: path,
+      logger: false,
+      chain: chainStub,
+      screeningOffline: true,
+      finalizer: false,
+    });
+    try {
+      const status = await other.inject({ method: 'GET', url: '/policy/screening' });
+      const seeded = (status.json().seeded as { address: string }[]).map((s) => s.address);
+      expect(seeded).toEqual(expect.arrayContaining([legacy, '0x42b16056ee5e2C9bDE34Db76fdb2FA7554Ab0A73']));
+    } finally {
+      await other.close();
+    }
   });
 
   it('request log: counts, de-duplicates by requestId, lists in the detail; topic mismatch 400', async () => {

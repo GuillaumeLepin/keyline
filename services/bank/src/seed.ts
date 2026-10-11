@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type Dapp, DappSchema } from '@keyline/shared';
+import { getAddress } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { z } from 'zod';
 import { type Db, nowIso } from './db';
@@ -35,7 +36,11 @@ export const loadAllowlist = (): Dapp[] => {
 /** Fresh EOA address via viem (the only sanctioned way to generate randomness in this repo). */
 const freshAddress = (): string => privateKeyToAccount(generatePrivateKey()).address;
 
-export const seed = (db: Db, events: EventStore): { seededNow: boolean } => {
+export const seed = (
+  db: Db,
+  events: EventStore,
+  opts: { sanctionedTestAddress?: string } = {},
+): { seededNow: boolean } => {
   const existing = db.prepare('SELECT id FROM clients WHERE id = ?').get(LEA.id);
   const at = nowIso();
   let seededNow = false;
@@ -63,7 +68,7 @@ export const seed = (db: Db, events: EventStore): { seededNow: boolean } => {
       insertContact.run(
         LEA.id,
         c.label,
-        freshAddress(),
+        c.simulated && opts.sanctionedTestAddress ? getAddress(opts.sanctionedTestAddress) : freshAddress(),
         at,
         c.verifiedOwnership ? 1 : 0,
         c.simulated ? 1 : 0,

@@ -95,7 +95,7 @@ export const buildApp = async (
   });
 
   // Seed first: the screening module binds the seeded 'Sanctioned test address' contact at startup.
-  const { seededNow } = seed(db, events);
+  const { seededNow } = seed(db, events, { sanctionedTestAddress: config.BANK_SANCTIONED_TEST_ADDRESS });
   if (seededNow) app.log.info({ clientId: 'SQ-48213-LK' }, 'demo seed applied');
   // SPEC §10 F0.2: the SIMULATED Swissquote portfolio (idempotent, never resets an existing ledger).
   const ledger = createSqLedger(db);
@@ -105,6 +105,11 @@ export const buildApp = async (
     opts.screening ??
     (await createScreening({
       sanctionedTestAddress: sanctioned ? getAddress(sanctioned) : undefined,
+      // An existing DB may hold an older random test address: flag the configured one too, so DemoSwap's
+      // "Send to sanctioned recipient" hits on every bank instance.
+      extraSanctionedTestAddresses: config.BANK_SANCTIONED_TEST_ADDRESS
+        ? [getAddress(config.BANK_SANCTIONED_TEST_ADDRESS)]
+        : [],
       offline: opts.screeningOffline,
     }));
   app.log.info(screening.status().ofac, 'sanctions screening ready (OFAC SDN ETH list)');

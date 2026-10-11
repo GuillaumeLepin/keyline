@@ -10,6 +10,14 @@ export const EnvSchema = z.object({
   CHAIN_ID: z.coerce.number().int().positive().default(84532),
   RPC_URL: z.string().url(),
   USDC_ADDRESS: Address,
+  /**
+   * The seeded "Sanctioned test address" (SIMULATED hit). Fixed so every bank instance (dev :4000, QA :4100, fresh
+   * DBs) and DemoSwap agree on it; a random viem EOA generated once, never a real SDN entry. Empty → random per DB.
+   */
+  BANK_SANCTIONED_TEST_ADDRESS: z.preprocess(
+    emptyToUndefined,
+    Address.optional().default('0x42b16056ee5e2C9bDE34Db76fdb2FA7554Ab0A73'),
+  ),
   /** Circle EURC on Base Sepolia (6 decimals, DECISIONS #27). */
   EURC_ADDRESS: Address.default('0x808456652fdb597867f38412077A9182bf77359F'),
   RECOVERY_MODULE_ADDRESS: Address,

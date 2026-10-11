@@ -34,6 +34,8 @@ export const loadSeededEntries = (): SeededEntry[] => {
 export type ScreeningContext = {
   /** The seeded 'Sanctioned test address' contact's address (resolved from the DB; random, never a real SDN entry). */
   sanctionedTestAddress?: Address;
+  /** Further seeded test entries (the configured BANK_SANCTIONED_TEST_ADDRESS when the DB holds an older random one). */
+  extraSanctionedTestAddresses?: readonly Address[];
   /** Lowercase OFAC SDN ETH addresses. Omitted → only the seeded test entry can hit. */
   ofac?: ReadonlySet<string>;
   ofacSource?: OfacList['source'];
@@ -42,7 +44,9 @@ export type ScreeningContext = {
 /** Pure lookup. The seeded test entry wins over the real list so the demo hit is always labelled simulated. */
 export const screen = (counterparty: Address, ctx: ScreeningContext = {}): Screening => {
   const address = getAddress(counterparty);
-  const seededHit = ctx.sanctionedTestAddress != null && isAddressEqual(address, ctx.sanctionedTestAddress);
+  const seededHit =
+    (ctx.sanctionedTestAddress != null && isAddressEqual(address, ctx.sanctionedTestAddress)) ||
+    (ctx.extraSanctionedTestAddresses ?? []).some((a) => isAddressEqual(address, a));
   const realHit = !seededHit && (ctx.ofac?.has(address.toLowerCase()) ?? false);
   const hit = seededHit || realHit;
   return {
@@ -75,6 +79,7 @@ export type ScreeningService = {
 /** Startup wiring: fetch the live list (5 s) or fall back to the snapshot; bind the seeded test address. */
 export const createScreening = async (opts: {
   sanctionedTestAddress?: Address;
+  extraSanctionedTestAddresses?: readonly Address[];
   fetch?: FetchLike;
   /** Tests: skip the network entirely. */
   offline?: boolean;
@@ -83,6 +88,7 @@ export const createScreening = async (opts: {
   const seeded = loadSeededEntries();
   const ctx: ScreeningContext = {
     sanctionedTestAddress: opts.sanctionedTestAddress,
+    extraSanctionedTestAddresses: opts.extraSanctionedTestAddresses,
     ofac: list.addresses,
     ofacSource: list.source,
   };
@@ -90,7 +96,12 @@ export const createScreening = async (opts: {
     screen: (counterparty) => screen(counterparty, ctx),
     status: () => ({
       ofac: { source: list.source, count: list.addresses.size, retrievedAt: list.retrievedAt, url: list.url },
-      seeded: seeded.map((e) => ({ label: e.contactLabel, address: opts.sanctionedTestAddress })),
+      seeded: [
+        ...seeded.map((e) => ({ label: e.contactLabel, address: opts.sanctionedTestAddress })),
+        ...(opts.extraSanctionedTestAddresses ?? [])
+          .filter((a) => !opts.sanctionedTestAddress || !isAddressEqual(a, opts.sanctionedTestAddress))
+          .map((address) => ({ label: 'Sanctioned test address (configured)', address })),
+      ],
       listsChecked: ['OFAC-SDN', 'SECO'],
       simulated: true,
     }),

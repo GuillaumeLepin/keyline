@@ -272,8 +272,13 @@ export const registerPolicyRoutes = (
       }, 0);
     }
 
+    // Compliance BEFORE simulation: every counterparty in the calldata is screened first, and a hit is the decision's
+    // screening (and its recipient) even when the call would also revert (live WalletConnect finding, 11 Oct).
+    const screeningResult = kind === 'to-own-account' ? ownAccountScreening() : screenAll(counterparties);
     const simulation = await simulateOrFallback(walletAddress, calls, wallet.status !== 'pending');
-    const recipient = counterparties[0] ?? walletAddress;
+    const recipient = screeningResult.hit
+      ? getAddress(screeningResult.counterparty)
+      : (counterparties[0] ?? walletAddress);
     const decision = evaluate(
       {
         id,
@@ -293,7 +298,7 @@ export const registerPolicyRoutes = (
         contacts: repo.contacts(client.clientId),
         allowlist: repo.dapps(),
         // Own account: no counterparty to screen (the deposit address is Swissquote's).
-        screening: kind === 'to-own-account' ? ownAccountScreening() : screenAll(counterparties),
+        screening: screeningResult,
         simulation,
         callsHash: callsHashOf(callData),
         suggestedCap: suggestedCapFor(calls, simulation),
