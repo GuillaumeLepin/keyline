@@ -4,7 +4,7 @@ const { chromium, BASE, wallet, seed } = require('./common.cjs');
 const FOCUS_INFO = () => {
   const el = document.activeElement;
   if (!el || el === document.body) return null;
-  const cs = getComputedStyle(el);
+  getComputedStyle(el);
   const r = el.getBoundingClientRect();
   const name = (
     el.getAttribute('aria-label') ||
@@ -167,7 +167,7 @@ const row = (route, check, ok, note = '') => rows.push({ route, check, ok, note 
     await next.focus();
     await page.keyboard.press('Enter');
     await page.waitForTimeout(500);
-    const step2 = await page.locator('main, body').first().innerText();
+    await page.locator('main, body').first().innerText();
     await page.keyboard.press('Shift+Tab');
     let back = false;
     for (let i = 0; i < 20 && !back; i++) {
